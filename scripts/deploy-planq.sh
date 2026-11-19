@@ -623,6 +623,9 @@ sync_database() {
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-file-drive-sync.js 2>&1 | tail -5"
   # 2026-11-13 Q mail «안 읽음으로 표시»(docs/QMAIL_MARK_UNREAD_DESIGN.md) — email_thread_participants.marked_unread 칸(멱등). ★ PM2 reload 앞 — 없으면 메일 목록·수가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-mail-mark-unread.js 2>&1 | tail -5"
+  # 2026-11-19 업무 «산출물» 고르기(docs/TASK_DELIVERABLES_DESIGN.md) — task_output_kinds·task_output_kind_links 표(멱등, 데이터 0).
+  #   ★ PM2 reload 앞 — 없으면 업무 상세(산출물 싣기)가 500. 기본 목록은 코드, 고를 때 행이 생긴다.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-task-output-kinds.js 2>&1 | tail -5"
   # 2026-11-15 추가 슬롯 신청 500(운영 payments.subscription_id 가 옛 NOT NULL) — NULL 허용으로만 맞춘다(종류·외래키 그대로, 멱등).
   #   애드온 결제는 구독 없이 만든다(services/addonBilling). 코드 변경 없음 — 배포 순서 무관하지만 다른 이관과 같이 reload 앞.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-payment-subscription-nullable.js 2>&1 | tail -5"

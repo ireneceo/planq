@@ -76,6 +76,10 @@ import { orderProjectsForMe } from '../../utils/projectOrder';
 import { StarGlyph } from '../../components/Common/StarToggle';
 import TaskWorkstreamSelect, { useProjectWorkstreams } from './TaskWorkstreamSelect';
 import TaskWatcherSelect from './TaskWatcherSelect';
+import { MetaLock } from './metaLock';
+import TaskOutputKindsField from './TaskOutputKindsField';
+import { ToProduceLine } from './OutputKindChips';
+import type { OutputKindLite } from './outputKindLabel';
 
 export interface DrawerTaskPatch {
   id: number;
@@ -161,6 +165,7 @@ interface TaskDetail {
   status: string; priority_order: number | null;
   // #250 — 서버가 이름 사전순으로 실어 보낸다. 편집은 PUT /api/tasks/:id/tags 전용 경로.
   tags?: TaskTagLite[] | null;
+  output_kinds?: OutputKindLite[] | null;   // 만들 산출물(docs/TASK_DELIVERABLES_DESIGN.md) — 상세 응답이 싣는다
   /** #353 ⑤ 중요도. 주간 랭킹 priority_order 와 **다른 것** — 이름을 갈라 뒀다. */
   priority_level?: 'low' | 'normal' | 'high' | 'urgent' | null;
   // 공개 범위·보안등급(2026-10-12) — 문서와 같은 두 축. 고객 응답에는 키가 없다.
@@ -2624,6 +2629,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </FocusBlock>
               </DescEditorWrap>
               {fieldDrafts.description && <DraftRestoredNote draft={fieldDraftNote('description')} />}
+              <TaskOutputKindsField key={`ok-${detailTask.id}`} bizId={bizId} taskId={detailTask.id} value={detailTask.output_kinds || []} isClient={myWsRole === 'client'} isSeries={isSeries} dueDate={detailTask.due_date ?? null} canEdit={iAmCreator || iAmAssignee || iAmWsOwner || myWsRole === 'admin'} onSaved={(ks) => setDetailTask((prev) => (prev ? { ...prev, output_kinds: ks } as TaskDetail : prev))} />
               {/* description 영역 첨부 (의뢰자 자료) — 결과물(body) 영역 첨부와 분리. 권한 = description 편집 권한. */}
               <DescriptionAttachments taskId={detailTask.id} businessId={bizId} canEdit={canEditDescription} myId={myId} />
               {/* 관련 업무 링크 — description 컨텍스트의 일부. 양쪽이 봐야 할 정보라 책임선 무관 workspace 멤버 누구나 편집. */}
@@ -2869,6 +2875,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 )}
                 <FocusBlockToggle on={bodyFocus.on} onToggle={bodyFocus.toggle} testId="task-body-focus-toggle" />
               </SectionTitle>
+              <ToProduceLine items={detailTask.output_kinds} />
               {/* 지금 이 칸이 무엇인지 한 줄로 말한다 — 규칙 설명이 아니라 **상태와 다음 동작**. */}
               {bodyEditable ? (
                 <BodyModeLine>
@@ -3436,13 +3443,6 @@ const MetaLabel = styled.label`
   display: flex; align-items: center; gap: 4px; min-width: 0;
   min-height: 32px; font-size: 0.75rem; color: #64748B; font-weight: 500;
   white-space: nowrap; overflow: hidden;
-`;
-// 읽기 전용 표시 — 라벨 칸(64px)에 «읽기 전용» 알약이 들어가지 않아 자물쇠 하나로. 값 셀렉트는 화살표가 사라진다.
-const MetaLock = styled.span`
-  flex-shrink: 0; width: 10px; height: 10px;
-  background: currentColor; color: #CBD5E1;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 10V7a6 6 0 1 1 12 0v3h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1zm2 0h8V7a4 4 0 1 0-8 0v3z'/%3E%3C/svg%3E") center/contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 10V7a6 6 0 1 1 12 0v3h1a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V11a1 1 0 0 1 1-1h1zm2 0h8V7a4 4 0 1 0-8 0v3z'/%3E%3C/svg%3E") center/contain no-repeat;
 `;
 // 공개 범위 칩 — 값 칸을 꽉 채우지 않고 글자만큼(옆 셀렉트 값과 같은 줄 가운데).
 const MetaVisChip = styled(VisibilityChip)`justify-self: start; align-self: center;`;

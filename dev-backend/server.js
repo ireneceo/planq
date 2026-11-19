@@ -553,6 +553,7 @@ app.use('/api/leave', require('./routes/leave'));               // #208 휴가
 app.use('/api/tasks', require('./routes/task_priority'));
 app.use('/api/tasks', require('./routes/task_order'));   // 내 순서 — 리터럴 /my-order 가 /:id 보다 먼저
 app.use('/api/tasks', require('./routes/task_tags'));
+app.use('/api/tasks', require('./routes/task_output_kinds'));   // 업무 «산출물» (docs/TASK_DELIVERABLES_DESIGN.md) — /:id 보다 앞
 app.use('/api/tasks', require('./routes/task_estimations'));
 app.use('/api/task-templates', require('./routes/task_templates'));
 // 역할 사전(프로젝트 멤버 역할 · 멤버 기본 역할 공통) — docs/MEMBER_ROLES_DESIGN.md

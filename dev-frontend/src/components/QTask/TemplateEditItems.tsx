@@ -166,9 +166,10 @@ export default function TemplateEditItems({ items, onChange, groupNames, loading
                     onChange={e => update(idx, { workstream_title: e.target.value || null })} placeholder={t('tpl.itemGroupPh', '없음') as string} />
                 </Field>
               </MetaRow>
-              {(it.tag_names?.length || it.action_items?.length) ? (
+              {(it.tag_names?.length || it.action_items?.length || it.output_names?.length) ? (
                 <MetaRow>
                   {(it.tag_names || []).map(n => <Chip key={n}>#{n}</Chip>)}
+                  {(it.output_names || []).map(n => <Chip key={`o-${n}`} title={t('outputs.label', '산출물') as string}>{n}</Chip>)}
                   {it.action_items?.length ? <Chip>{t('tpl.actionsChip', '결과물 액션 {{n}}', { n: it.action_items.length })}</Chip> : null}
                 </MetaRow>
               ) : null}

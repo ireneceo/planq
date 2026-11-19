@@ -61,6 +61,8 @@ TaskTemplateItem.init({
   recurrence_rule: { type: DataTypes.STRING(500), allowNull: true },
   tag_names: { type: DataTypes.JSON, allowNull: true, comment: '태그 이름 배열 — 적용 때 같은 워크스페이스에 있는 태그만 연결' },
   action_items: { type: DataTypes.JSON, allowNull: true, comment: '결과물 액션 계획 [{kind,label,note}]' },
+  // 산출물 이름 배열 — 적용 때 기본 라벨·있는 이름은 그 행, 없으면 만든다(docs/TASK_DELIVERABLES_DESIGN.md §5). 운영 스키마 scripts/migrate-task-output-kinds.js
+  output_names: { type: DataTypes.JSON, allowNull: true },
   depends_on_indexes: {
     type: DataTypes.JSON,
     allowNull: true,

@@ -361,6 +361,7 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
       priorityLevel: priority_level,
       // «요청하기» 뜻 — 폼 «요청하기» 모드만 true 를 싣는다(2026-11-18 Fable §4-6). 없으면 배정 업무(옛 번들 포함, §4-11).
       asRequest: as_request === true,
+      outputKindIds: req.body.output_kind_ids,   // 산출물(docs/TASK_DELIVERABLES_DESIGN.md) — 생성 트랜잭션 안에서 연결
     }, { autoAiEstimate: true });
     if (!result.ok) return errorResponse(res, result.code, result.http || 400);
 
@@ -979,7 +980,7 @@ router.post('/ai-create/confirm', authenticateToken, async (req, res, next) => {
       }
       // 템플릿 항목의 여러 선행 연결 · 태그 · 결과물 액션(/apply 와 같은 함수 — 태그·액션은 아래에서 한 번에)
       for (const d of (Array.isArray(c.depends_on_indexes) ? c.depends_on_indexes : [])) if (Number.isInteger(d) && d !== selfIdx) pendingLinks.push({ from: selfIdx, to: d });
-      if (c.tag_names || c.action_items) extraPairs.push({ task: result.data.task, item: { tag_names: c.tag_names, action_items: c.action_items }, i: selfIdx });
+      if (c.tag_names || c.action_items || c.output_names) extraPairs.push({ task: result.data.task, item: { tag_names: c.tag_names, action_items: c.action_items, output_names: c.output_names }, i: selfIdx });
       // #354 — 루틴 파이프라인(일간 → 주간 → 월간)은 단일 의존이 아니라 **여러 갈래**다.
       //   depends_on_index 하나로는 표현이 안 돼 pipeline_refs 배열을 같은 착지점으로 보낸다.
       if (isRoutineConfirm && Array.isArray(c.pipeline_refs)) {
@@ -1949,6 +1950,7 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       actual_hours: null,
       completed_at: null,
     });
+    await require('../services/taskOutputKinds').copyLinks(src.id, copy.id);   // 산출물은 «종류» 라 따라간다(복사 계약)
 
     const full = await Task.findByPk(copy.id, {
       include: [
@@ -2050,6 +2052,8 @@ router.get('/:id/detail', authenticateToken, async (req, res, next) => {
     //   순간 PUT tag_ids 가 기존 태그를 빼고 나가 **소리없이 삭제**된다(Fable 실증 F1 — 데이터 손실).
     //   client 는 바로 아래 serializeTaskForClient 가 BLOCKED_FIELDS 로 tags 를 걷어낸다.
     await require('./task_tags').attachTagsTo([json], task.business_id);
+    // 산출물 — 고객에게도 싣는다(요청 명세 성격, docs/TASK_DELIVERABLES_DESIGN.md §4). 빼면 교체 PUT 이 기존 것을 지운다(F1 과 같음).
+    await require('../services/taskOutputKinds').attachOutputKindsTo([json], task.business_id);
 
     // 회차(인스턴스)는 **자기 규칙이 없다** — 규칙은 시리즈 부모의 것이다.
     //   그래서 회차 상세만 보면 반복 설정을 화면에 그릴 수가 없었고, 그 때문에 편집 UI 자체가

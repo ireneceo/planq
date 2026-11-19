@@ -57,6 +57,8 @@ const TaskActionItem = require('./TaskActionItem');
 const TaskUserOrder = require('./TaskUserOrder');
 const TaskTag = require('./TaskTag');
 const TaskTagLink = require('./TaskTagLink');
+const TaskOutputKind = require('./TaskOutputKind');
+const TaskOutputKindLink = require('./TaskOutputKindLink');
 const MemberRole = require('./MemberRole');
 const WorkspaceJoinRequest = require('./WorkspaceJoinRequest');
 const ProjectStatusOption = require('./ProjectStatusOption');
@@ -647,6 +649,11 @@ TaskTagLink.belongsTo(TaskTag, { as: 'tag', foreignKey: 'tag_id', onDelete: 'CAS
 TaskTag.hasMany(TaskTagLink, { as: 'links', foreignKey: 'tag_id', onDelete: 'CASCADE' });
 TaskTag.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 
+// TaskOutputKind / TaskOutputKindLink (업무 «산출물» — docs/TASK_DELIVERABLES_DESIGN.md). belongsToMany 선언 안 함(태그와 같은 이유).
+TaskOutputKindLink.belongsTo(Task, { foreignKey: 'task_id', onDelete: 'CASCADE' });
+TaskOutputKindLink.belongsTo(TaskOutputKind, { as: 'kind', foreignKey: 'output_kind_id', onDelete: 'CASCADE' });
+TaskOutputKind.hasMany(TaskOutputKindLink, { as: 'links', foreignKey: 'output_kind_id', onDelete: 'CASCADE' });
+
 // MemberRole — 역할 사전(docs/MEMBER_ROLES_DESIGN.md). 새 워크스페이스는 만들 때 공통 기본 세트를 받는다.
 //   ★ 생성 문이 셋(가입·두 번째 워크스페이스·OAuth)이라 훅 한 곳에서 시드한다. 같은 트랜잭션에 묶는다.
 MemberRole.belongsTo(Business, { foreignKey: 'business_id', onDelete: 'CASCADE' });
@@ -748,6 +755,8 @@ module.exports = {
   TaskUserOrder,
   TaskTag,
   TaskTagLink,
+  TaskOutputKind,
+  TaskOutputKindLink,
   MemberRole,
   WorkspaceJoinRequest,
   ProjectStatusOption,

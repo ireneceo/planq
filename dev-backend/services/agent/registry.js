@@ -79,6 +79,8 @@ const TOOLS = [
         .describe('Group (workstream, 추진과제) inside the project to put the task in — needs project_id. Get ids from get_project (workstreams) or create_workstream.'),
       tag_names: z.array(z.string().trim().min(1).max(30)).max(10).optional()
         .describe('Names of tags that already exist in this workspace. Unknown names are rejected with the list of available tags — PlanQ does not create new tags from here.'),
+      output_names: z.array(z.string().trim().min(1).max(40)).max(10).optional()
+        .describe('Expected outputs of the task (what it must produce, e.g. Proposal, Design draft). Use a preset label or a name that already exists in this workspace — unknown names are rejected with the available list; PlanQ does not create new ones from here.'),
       estimated_hours: z.number().min(0).max(1000).optional()
         .describe('Estimated hours. Only when the task is assigned to the user themselves — omitted assignee counts (the assignee sets the estimate).'),
       source: z.union([mailSource, chatSource]).optional().describe(SOURCE_DESC),
@@ -710,7 +712,7 @@ const TOOLS = [
   },
   {
     name: 'update_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Edit a task\'s title, description, result, priority, category, estimated hours, tags or group (workstream). Only the fields you pass change. description and body REPLACE the whole field with what you send: take the Markdown from get_task, edit it (delete, change or keep lines) and send the complete new text back — repeating the same call gives the same result. An empty string clears the field. Changing description or body requires confirmation (the first call returns a preview of what is replaced and which lines are removed). Send Markdown only — HTML is refused. To add to the end without replacing, use append_to_task. If get_task marked the field description_lossy/body_lossy (formatting Markdown cannot carry) or it was truncated, it cannot be replaced — use append_to_task or ask the user to edit it in PlanQ. The description (the request) can only be edited by the person who created the task. The body (the result / deliverable) can only be edited by the assignee, and only while the task is being worked on (it is locked during review and after the task is closed). Estimated hours only by the assignee. If you may not edit a field, add the content as a note with add_task_note instead. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
+    description: 'Edit a task\'s title, description, result, priority, category, estimated hours, tags, expected outputs or group (workstream). Only the fields you pass change. description and body REPLACE the whole field with what you send: take the Markdown from get_task, edit it (delete, change or keep lines) and send the complete new text back — repeating the same call gives the same result. An empty string clears the field. Changing description or body requires confirmation (the first call returns a preview of what is replaced and which lines are removed). Send Markdown only — HTML is refused. To add to the end without replacing, use append_to_task. If get_task marked the field description_lossy/body_lossy (formatting Markdown cannot carry) or it was truncated, it cannot be replaced — use append_to_task or ask the user to edit it in PlanQ. The description (the request) can only be edited by the person who created the task. The body (the result / deliverable) can only be edited by the assignee, and only while the task is being worked on (it is locked during review and after the task is closed). Estimated hours only by the assignee. If you may not edit a field, add the content as a note with add_task_note instead. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
     input: {
       task_id: z.number().int().positive(),
       title: z.string().trim().min(1).max(300).optional(),
@@ -721,6 +723,7 @@ const TOOLS = [
       category: z.string().trim().max(100).optional(),
       estimated_hours: z.number().min(0).max(1000).optional(),
       tag_names: z.array(z.string().trim().min(1).max(30)).max(10).optional().describe('The full new tag list (existing tag names only)'),
+      output_names: z.array(z.string().trim().min(1).max(40)).max(10).optional().describe('The full new list of expected outputs (preset labels or existing names only — replaces the task\'s outputs)'),
       workstream_id: z.number().int().positive().nullable().optional()
         .describe('Put the task in a group (workstream, 추진과제) of its own project (ids from get_project), or null to take it out of its group. Same project only — to change project use move_task_to_project.'),
       confirmation_token: confirm, idempotency_key: idem,

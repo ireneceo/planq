@@ -28,6 +28,13 @@ function normalizeTagNames(v) {
   return out.length ? out : null;
 }
 
+// 산출물 이름 — 40자·최대 10·중복 제거(normalizeTagNames 와 같은 모양)
+function normalizeOutputNames(v) {
+  if (!Array.isArray(v)) return null;
+  const out = [...new Set(v.map((x) => String(x || '').normalize('NFC').trim().replace(/\s+/g, ' ').slice(0, 40)).filter(Boolean))].slice(0, 10);
+  return out.length ? out : null;
+}
+
 function normalizeActionItems(v) {
   if (!Array.isArray(v)) return null;
   const out = v
@@ -56,6 +63,7 @@ function normalizeItemDetails(it, selfIndex) {
     security_level: SECURITY.includes(it.security_level) ? it.security_level : 'general',
     recurrence_rule: rr && rr.rule ? rr.rule : null,
     tag_names: normalizeTagNames(it.tag_names),
+    output_names: normalizeOutputNames(it.output_names),
     action_items: normalizeActionItems(it.action_items),
     depends_on_indexes: normalizeDepends(it.depends_on_indexes, selfIndex),
   };
@@ -69,7 +77,7 @@ function normalizeItemDetails(it, selfIndex) {
 async function collectTaskExtras(tasks, businessId) {
   const { TaskTag, TaskTagLink, TaskActionItem, TaskLink } = require('../models');
   const ids = tasks.map((t) => t.id);
-  const out = new Map(ids.map((id) => [id, { tag_names: null, action_items: null, depends_on_indexes: null }]));
+  const out = new Map(ids.map((id) => [id, { tag_names: null, output_names: null, action_items: null, depends_on_indexes: null }]));
   if (!ids.length) return out;
   const idxOf = new Map(ids.map((id, i) => [id, i]));
 
@@ -83,6 +91,10 @@ async function collectTaskExtras(tasks, businessId) {
     const e = out.get(l.task_id);
     e.tag_names = [...(e.tag_names || []), n];
   }
+
+  // 산출물 — 사전 name 배열(보이는 순서 그대로)
+  const withOutputs = await require('./taskOutputKinds').attachOutputKindsTo(ids.map((id) => ({ id })), businessId);
+  for (const r of withOutputs) if (r.output_kinds.length) out.get(r.id).output_names = r.output_kinds.map((k) => k.name);
 
   const actions = await TaskActionItem.findAll({
     where: { task_id: { [Op.in]: ids }, business_id: businessId },
@@ -118,7 +130,7 @@ async function collectTaskExtras(tasks, businessId) {
  */
 async function materializeItemExtras(pairs, { businessId, actorUserId, indexOf }) {
   const { TaskTag, TaskTagLink, TaskActionItem, TaskLink } = require('../models');
-  const res = { links: 0, tags: 0, actions: 0 };
+  const res = { links: 0, tags: 0, actions: 0, outputs: 0 };
   const taskByIndex = new Map();
   for (const p of pairs) taskByIndex.set(indexOf(p.item), p.task.id);
 
@@ -135,6 +147,15 @@ async function materializeItemExtras(pairs, { businessId, actorUserId, indexOf }
       if (tagIds.length) {
         await TaskTagLink.bulkCreate(tagIds.map((tag_id) => ({ task_id: task.id, tag_id })));
         res.tags += tagIds.length;
+      }
+      // 산출물 — 기본 라벨·있는 이름은 그 행, 없으면 만든다(allowCreate). 상한에 걸린 이름은 건너뛴다(업무 생성은 막지 않는다).
+      const outNames = normalizeOutputNames(item.output_names) || [];
+      if (outNames.length) {
+        const { ids: kindIds } = await require('./taskOutputKinds').resolveNamesToIds(businessId, outNames, { userId: actorUserId, allowCreate: true });
+        if (kindIds.length) {
+          await require('../models').TaskOutputKindLink.bulkCreate(kindIds.map((output_kind_id) => ({ task_id: task.id, output_kind_id })), { ignoreDuplicates: true });
+          res.outputs += kindIds.length;
+        }
       }
       const acts = normalizeActionItems(item.action_items) || [];
       if (acts.length) {

@@ -745,6 +745,8 @@ async function createTask(actor, params = {}, opts = {}) {
     const menu = await assertMenuWrite(subjectId, businessId, 'qtask', subj.platformRole);
     if (!menu.ok) return menu;
   }
+  // 산출물은 고객이 고르지 않는다(docs/TASK_DELIVERABLES_DESIGN.md §3.2) — 조용히 버리지 않고 만들기 전에 거절.
+  if (isClient && Array.isArray(params.outputKindIds) && params.outputKindIds.length) return fail('forbidden_field_output_kinds', 403);
 
   // source / request_by 자동 판정: 담당자 ≠ 생성자 → 내부 요청 (생성자가 요청자)
   //   담당자 미지정 → 등록자 본인 (옛 POST /tasks · confirm 동작: `assignee_id || req.user.id`).
@@ -967,6 +969,8 @@ async function createTask(actor, params = {}, opts = {}) {
       if (valid.length !== wanted.length) throw Object.assign(new Error('invalid_tag'), { actionCode: 'invalid_tag' });
       await TaskTagLink.bulkCreate(wanted.map((tag_id) => ({ task_id: task.id, tag_id })), { transaction: t });
     }
+    // 산출물 — 이 워크스페이스 사전 id 만 · 10개 이하(services/taskOutputKinds.linkOnCreate, 어긋나면 actionCode 로 거절)
+    if (Array.isArray(params.outputKindIds) && params.outputKindIds.length) await require('../taskOutputKinds').linkOnCreate(task, params.outputKindIds, businessId, t);
 
     // AI 추천 예측값 박제 (confirm 경로 — 이미 값을 갖고 왔다).
     //   예측시간이 §5.7 로 sanitize 됐으면(요청 업무) 예측 row 도 남기지 않는다 — 옛 동작 그대로.
@@ -2429,7 +2433,7 @@ module.exports = {
   // 행동 — 일정(시작·마감) 수정. 일괄 수정이 지나는 문. 이력·알림은 화면 편집(PUT)도 같은 함수를 부른다.
   updateSchedule, logScheduleChange, notifyScheduleChange,
   // 행동 — 담당자·필드 수정(#439 M2-b). 필드 권한 표·담당자 이력·후속 처리는 PUT /tasks/:id 도 같은 함수를 쓴다.
-  reassign, updateFields, setTags, FIELD_RULES, fieldContext, deniedFields, assigneeChangeEvent, afterAssigneeChange,
+  reassign, updateFields, setTags, FIELD_RULES, fieldContext, deniedFields, assigneeChangeEvent, afterAssigneeChange, audit,
   // 행동 — 프로젝트 옮기기(#463). PUT /tasks/:id 의 project_id 분기도 prepareMove·afterMove 를 쓴다.
   prepareMove, previewMove, moveToProject, afterMove, signalLeftProject,
   // 미리보기(에이전트 MEDIUM 확인 1단계)가 실행과 같은 판정을 먼저 보도록

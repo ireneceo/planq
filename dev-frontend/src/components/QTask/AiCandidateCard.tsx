@@ -64,6 +64,7 @@ export interface AiCandidate {
   vlevel?: string | null;
   security_level?: string | null;
   tag_names?: string[] | null;
+  output_names?: string[] | null;
   action_items?: Array<{ kind: string; label: string; note?: string | null }> | null;
   /** 같은 목록 안 선행 업무 번호(여러 개) — 확정 때 관련 업무 연결이 된다 */
   depends_on_indexes?: number[] | null;

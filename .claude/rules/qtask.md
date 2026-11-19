@@ -82,3 +82,9 @@ paths:
 > - «요청하기» 탭·숫자·통합 검색 «내가 요청»·작업대 요청 목록 = `request_by_user_id === 나` 하나. 권한용 isRequester(작성자 = 의뢰자)·완료/보류 알림(`request_by || created_by`)은 그대로.
 > - **컨펌자 대기 중 «완료» 금지** — `taskTransition.completionBlockedByReview`(컨펌자 ≥1 ∧ 상태 ∉ {done_feedback, completed}) 한 벌을 `complete()`·`canEnterStatus(…,'completed')`(PUT 드롭다운)·revert 가 같이 쓴다. 막히는 사람 전원. 프론트 `statusOptionsFor` 같은 술어. 옛날엔 드롭다운으로 컨펌을 건너뛰고 닫혔다(dev 실측 200).
 > - 이미 들어간 요청 → 배정: `node scripts/convert-requests-to-assigned.js --business <id> --creator <user_id>`(읽기만 기본 · `--apply` 장부 · `--revert <장부>`), 판정 `services/taskRequestConvert` 한 곳. 운영은 Irene 승인 뒤.
+
+> **업무 «산출물» — 만들어야 하는 것의 종류 (2026-11-19, Irene «업무설명에 필요한 산출물 선택하게 … 기본 산출물 자동 검색 · 없는 건 입력해 저장» → «권고대로» · Fable 설계 `docs/TASK_DELIVERABLES_DESIGN.md`)**
+> - **결과물(`tasks.body`·회차)과 다르다** — 결과물 = 만든 내용, 산출물 = 만들 것의 종류. 코드·표 이름은 `output_kind`, 화면 «산출물»/«만들 산출물»(en Expected outputs / To produce). `deliverable` 을 쓰지 않는다.
+> - 기본 목록 22개는 서버 코드 한 곳(`services/taskOutputKindPresets.js` — key 는 바꾸거나 빼지 않는다), 처음 고를 때 사전 행 생성(`preset_key`), 보는 사람 언어로 보인다. 직접 입력은 워크스페이스 사전(상한 100·이름 40자·업무당 10).
+> - 고치기 = 태그 축(작성자·담당자·owner·admin, 고객 403) · 반복은 `series_scope` 델타 · 보기 = 상세에만(고객도 읽기 전용) — 목록·공개 링크·게스트엔 싣지 않는다. 드로어가 상세 값으로 교체 PUT 을 보내므로 `attachOutputKindsTo` 를 빼면 데이터가 지워진다.
+> - 따라가는 곳: 만들기·요청하기(생성 트랜잭션 안 `output_kind_ids`) · 반복 회차 · 복사 · 템플릿(`output_names`, 적용 때 없는 이름은 만든다) · AI 도구(있는 이름만). 회귀 `node dev-backend/scripts/check-task-output-kinds.js`(51항목 · 양성 대조군 2).

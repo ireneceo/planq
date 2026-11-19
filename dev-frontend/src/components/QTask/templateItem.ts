@@ -21,6 +21,8 @@ export interface TemplateItem {
   security_level?: string | null;
   recurrence_rule?: string | null;
   tag_names?: string[] | null;
+  /** 산출물 이름 — 적용 때 기본 라벨·있는 이름은 그 항목, 없으면 만든다(docs/TASK_DELIVERABLES_DESIGN.md §5) */
+  output_names?: string[] | null;
   action_items?: TemplateActionItem[] | null;
   depends_on_indexes?: number[] | null;
 }

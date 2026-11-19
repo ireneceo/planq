@@ -1760,5 +1760,28 @@
     "title": "Nothing to review right now",
     "desc": "See the progress of tasks you requested in the \"Requested\" tab. Tasks waiting for your review show up here.",
     "cta": "Open Requested tab"
+  },
+  "outputs": {
+    "label": "Expected outputs",
+    "toProduce": "To produce",
+    "placeholder": "Search or type an output",
+    "createNamed": "Add \"{{name}}\"",
+    "clientHint": "On tasks a client can see, output names are visible to the client",
+    "manage": "Manage list",
+    "manageTitle": "Manage outputs",
+    "manageHint": "Only outputs you added can be renamed or deleted",
+    "manageEmpty": "No custom outputs yet",
+    "newPh": "New output name",
+    "usageCount": "{{count}} tasks",
+    "deleteConfirm": "Remove “{{name}}” from {{count}} tasks and delete it?",
+    "createFailed": "Couldn't add the output",
+    "saveFailed": "Couldn't save outputs",
+    "renameFailed": "Couldn't rename",
+    "deleteFailed": "Couldn't delete",
+    "limitTask": "Up to 10 outputs per task",
+    "limitWorkspace": "Up to 100 custom outputs",
+    "matchesPreset": "That name is already in the default list",
+    "duplicate": "An output with this name already exists",
+    "tooLong": "Output names can be up to 40 characters"
   }
 }

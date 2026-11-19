@@ -31,6 +31,8 @@ import TaskWatcherSelect from './TaskWatcherSelect';
 import RecurrencePicker from '../Common/RecurrencePicker';
 import HelpDot from '../Common/HelpDot';
 import TagPicker from './TagPicker';
+import TaskCreateOutputKinds from './TaskCreateOutputKinds';
+import type { OutputKindLite } from './outputKindLabel';
 import { useTaskTagDict } from './useTaskTagDict';
 import type { TaskTagLite } from './TagChips';
 import { isEnterAction } from '../../utils/imeKey';
@@ -157,6 +159,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   const [dueDate, setDueDate] = useState<string>(initial?.dueDate ?? '');
   const [estHours, setEstHours] = useState<string>('');
   const [tagIds, setTagIds] = useState<number[]>([]);
+  const [outputKinds, setOutputKinds] = useState<OutputKindLite[]>([]);   // 산출물 — 제출 본문 output_kind_ids
   // 컨펌자 — 담당자(일을 하는 사람)와 따로, 끝내기 전에 확인·승인할 사람. 내 업무·요청 둘 다 고른다(2026-10-21 Irene).
   //   저장은 만든 뒤 업무 상세와 같은 문(POST /api/tasks/:id/reviewers)으로 한 명씩 — 서버 canManageReviewers·알림이 그대로 탄다.
   const [reviewerPick, setReviewerIds] = useState<number[]>([]);
@@ -392,6 +395,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           client_id: fixedClientId,
           // «요청하기» 뜻 — 서버는 이 값 ∧ 담당자 ≠ 나 일 때만 요청으로 저장한다(자동 컨펌자·확인 단계). 아니면 배정 업무.
           as_request: isRequest && assignedToOther,
+          ...(outputKinds.length ? { output_kind_ids: outputKinds.map((k) => k.id) } : {}),
           // 남에게 요청할 때만 긴급을 싣는다 — 내 업무로 바꾼 뒤 남은 토글 값이 «중요도 긴급» 으로 새지 않게
           ...(assignedToOther && urgent ? { priority_level: 'urgent' } : {}),
           ...(canPickSecurity ? { vlevel: vis.vlevel, target_member_ids: vis.target_member_ids, security_level: securityLevel } : {}),
@@ -673,6 +677,7 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           minHeight={layout === 'inline' ? 100 : 120}
         />
       </DescEditorWrap>
+      <TaskCreateOutputKinds bizId={bizId || null} value={outputKinds} onChange={setOutputKinds} />
       <AttachToggleRow data-field="attach">
         <AttachToggleBtn type="button" data-testid="task-add-attach" onClick={() => setShowAttach((v) => !v)}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" /></svg>

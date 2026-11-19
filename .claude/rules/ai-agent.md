@@ -53,6 +53,7 @@ paths:
   만들기·옮기기는 **`services/actions/folder_actions` 한 곳**(화면 폴더 만들기 2곳·파일 이동 라우트도). AI 이동은 `strict` — 폴더 project_id === 파일 project_id · 메일 첨부 거절 · 전부 또는 0건.
   **공개 링크가 걸린 폴더(조상 포함)에는 AI 가 넣지 않는다**(`folder_shared_publicly` — 폴더 링크는 열 때마다 안을 다시 거른다. `riskOf` 는 DB 를 못 보므로 확인 2단계로 열지 않는다).
   클로드는 대화 첨부·생성 파일 바이트를 도구로 넘길 수 없다 — `upload_file` 은 ChatGPT 전용, 클로드는 `create_text_file`(txt)·`create_document`. base64 입력은 두지 않는다. 폴더 삭제·이름 바꾸기·공유·파일 프로젝트 바꾸기는 화면에서만.
+- **업무 산출물(2026-11-19, Irene «업무설명에 필요한 산출물 선택» · Fable 설계 `docs/TASK_DELIVERABLES_DESIGN.md`)** — `create_task`/`update_task` 의 `output_names`(최대 10·각 40자, update 는 전체 교체) · `get_task.outputs`. **기본 목록 라벨(ko/en)과 이미 있는 이름만** — 없는 이름은 `unknown_outputs` + `available_outputs` 로 거절(AI 가 사전을 늘리지 않는다, 태그와 같은 선). 바꾸기는 `task_output_actions.setOutputKinds` 한 곳(화면 PUT 도) · 새 scope 없음.
 - **HIGH(삭제·청구·발송·권한·대량)는 도구로 두지 않는다** — 가드 `--category=agentsurface` 가 막는다(도메인 모델 직접 쓰기 0 · 재무 참조 0 · 고위험 이름 0 · 쓰기 도구 scope·멱등 선언 · 워크스페이스 묶음).
 - **켜는 스위치**: `.env` `AGENT_ENABLED=1` + `AGENT_TOKEN_SECRET`(JWT_SECRET 과 **다른 값**, 32자 이상). 없으면 `/agent/*` 404. **쓰기 도구는 `AGENT_WRITE_ENABLED=1` 이 있어야 켜진다**(기본 꺼짐 — `config.writeEnabled`). 2026-10-04 운영에 셋 다 넣었다.
 - **nginx**: `location /agent/` · `location /.well-known/oauth-` → `127.0.0.1:3005`. 운영 스키마 `scripts/migrate-agent-oauth.js`(멱등, 배포 슬롯).

@@ -275,6 +275,7 @@ async function getTask(p, a) {
       truncated_fields: f.truncated,
       ...extras,
       watchers: await require('./task_watchers').watchersOf(p, t.id),   // 참조자(알아야 하는 사람 · 승인 의무 없음)
+      outputs: await outputNamesOf(p, t.id),   // 만들 산출물(docs/TASK_DELIVERABLES_DESIGN.md §5.1)
     },
     recent_notes: notes.items,
     notes_has_more: notes.truncated,
@@ -307,6 +308,7 @@ async function checkNewTaskReviewers(p, a) {
 async function previewCreateTask(p, a) {
   assertMarkdownInput(a, ['description']);
   if ((a.tag_names || []).length) await resolveTagNames(p, a.tag_names);
+  if ((a.output_names || []).length) await assertOutputNames(p, a.output_names);
   const hasRv = (a.reviewer_user_ids || []).length; const hasW = (a.watcher_user_ids || []).length;
   if (!hasRv && !hasW) return null;
   await assertMenu(p, 'qtask', 'write');
@@ -353,6 +355,7 @@ async function createTask(p, a, actor) {
   }
   // 태그 — 워크스페이스에 **이미 있는** 태그 이름만. 없는 이름은 만들지 않고 있는 목록을 알려 준다(Fable B 판정 3 ③).
   const tagIds = await resolveTagNames(p, a.tag_names);
+  const outputKindIds = await resolveOutputNames(p, a.output_names);   // 산출물 — 기본 라벨·있는 이름만(만들지 않는다)
   const rv = await checkNewTaskReviewers(p, a);   // 만들기 전에 — 실행이 거절할 컨펌자면 업무도 만들지 않는다
   const tw = require('./task_watchers');
   const wv = await tw.checkNewTaskWatchers(p, a, assigneeId, (a.reviewer_user_ids || []).map(Number));   // 참조도 만들기 전에(자격 미달 = 업무 안 만듦)
@@ -362,6 +365,7 @@ async function createTask(p, a, actor) {
     title: a.title,
     estimatedHours: a.estimated_hours !== undefined ? a.estimated_hours : null,
     tagIds,
+    outputKindIds,
     description: a.description ? (tmd.toHtml(a.description) || null) : null,   // 업무 칸은 HTML — get_task 와 같은 Markdown 문법(원시 HTML 은 위에서 거절)
     dueDate: a.due_date || null,
     startDate: a.start_date || null,
@@ -381,7 +385,8 @@ async function createTask(p, a, actor) {
   const t = await loadTask(p, r.data.task.id, scope);
   const [item] = await shapeTasks([t], p.businessId);
   const extras = await taskExtras(p, t, scope);
-  const out = { task: { ...item, source: extras.source, tags: a.tag_names && a.tag_names.length ? await tagNamesOf(p, t.id) : undefined }, created: true };
+  const out = { task: { ...item, source: extras.source, tags: a.tag_names && a.tag_names.length ? await tagNamesOf(p, t.id) : undefined,
+    outputs: outputKindIds.length ? await outputNamesOf(p, t.id) : undefined }, created: true };
   if (!a.assignee_user_id) out.assigned_to = 'user (default)';
   out.is_request = !!t.request_by_user_id;
   // 컨펌자 — 업무가 생긴 뒤 화면·add_task_reviewers 와 같은 addReviewer 로 한 명씩(자기 트랜잭션·알림·broadcast 를 가진다 —
@@ -433,6 +438,29 @@ async function resolveTagNames(p, names) {
     });
   }
   return want.map((n) => byName.get(n.toLowerCase()));
+}
+
+// ── 산출물 — 이름 → id (기본 라벨·이미 있는 이름만, docs/TASK_DELIVERABLES_DESIGN.md §5.1) ──
+//   AI 는 사전을 늘리지 않는다(태그와 같은 선). 기본 라벨이면 행이 그때 생긴다(새로 «만드는» 것이 아니다).
+async function assertOutputNames(p, names) {
+  const ko = require('../../taskOutputKinds');
+  const unknown = await ko.unknownNames(p.businessId, names);
+  if (unknown.length) {
+    throw err('VALIDATION_ERROR', 'unknown_outputs', {
+      unknown_outputs: unknown, available_outputs: await ko.availableNames(p.businessId),
+      hint: 'PlanQ only attaches preset outputs or outputs that already exist in this workspace. Use one of available_outputs, or leave outputs out.',
+    });
+  }
+}
+async function resolveOutputNames(p, names) {
+  if (!(names || []).length) return [];
+  await assertOutputNames(p, names);
+  const r = await require('../../taskOutputKinds').resolveNamesToIds(p.businessId, names, { userId: p.userId, allowCreate: false });
+  return r.ids;
+}
+async function outputNamesOf(p, taskId) {
+  const [row] = await require('../../taskOutputKinds').attachOutputKindsTo([{ id: taskId }], p.businessId);
+  return (row.output_kinds || []).map((x) => x.name);
 }
 
 async function tagNamesOf(p, taskId) {
@@ -639,9 +667,10 @@ async function updateTask(p, a, actor) {
     workstream_id: a.workstream_id,
   };
   const hasFields = Object.entries(fields).some(([k, v]) => v !== undefined || (['description', 'body'].includes(k) && a[k] !== undefined));
-  if (!hasFields && a.tag_names === undefined) throw err('VALIDATION_ERROR', 'no_fields');
+  if (!hasFields && a.tag_names === undefined && a.output_names === undefined) throw err('VALIDATION_ERROR', 'no_fields');
   // 태그 — 있는 것만(만들지 않는다). 칸 수정과 태그 수정은 각자의 행동 계층 함수(화면도 두 요청이다).
   const tagIds = a.tag_names !== undefined ? await resolveTagNames(p, a.tag_names) : undefined;
+  const outputKindIds = a.output_names !== undefined ? await resolveOutputNames(p, a.output_names) : undefined;   // 전체 새 목록(교체)
   if (hasFields) {
     const r = await taskActions.updateFields(t, actor, { ...fields, mode: 'replace' });
     if (!r.ok) throw fromActionFailure(r);
@@ -650,11 +679,15 @@ async function updateTask(p, a, actor) {
     const r2 = await taskActions.setTags(t, actor, { tagIds });
     if (!r2.ok) throw fromActionFailure(r2);
   }
+  if (outputKindIds !== undefined) {
+    const r3 = await require('../../actions/task_output_actions').setOutputKinds(t, actor, { kindIds: outputKindIds });
+    if (!r3.ok) throw fromActionFailure(r3);
+  }
   const fresh = await loadTask(p, t.id, await scopeOf(p));
   const [item] = await shapeTasks([fresh], p.businessId);
   const f = fieldsOut(fresh, ['description', 'body']);
   return { task: { ...item, ...f.out, truncated_fields: f.truncated, category: fresh.category || null,
-    estimated_hours: fresh.estimated_hours != null ? Number(fresh.estimated_hours) : null, workstream_id: fresh.workstream_id ?? null, tags: await tagNamesOf(p, t.id) } };
+    estimated_hours: fresh.estimated_hours != null ? Number(fresh.estimated_hours) : null, workstream_id: fresh.workstream_id ?? null, tags: await tagNamesOf(p, t.id), outputs: await outputNamesOf(p, t.id) } };
 }
 
 /** update_task 미리보기 — 실행과 같은 권한 판정(FIELD_RULES)·형식·교체 가능 판정을 먼저 본다. 거절될 칸이면 카드 대신 이유. */
@@ -676,12 +709,16 @@ async function previewUpdateTask(p, a) {
     if (!(ctx.isCreator || ctx.isAssignee || ctx.isOwnerOrAdmin)) throw err('PERMISSION_DENIED', 'forbidden_field_tags');
     await resolveTagNames(p, a.tag_names);
   }
+  if (a.output_names !== undefined) {
+    if (!(ctx.isCreator || ctx.isAssignee || ctx.isOwnerOrAdmin)) throw err('PERMISSION_DENIED', 'forbidden_field_output_kinds');
+    await assertOutputNames(p, a.output_names);
+  }
   const PREVIEW_MAX = 2000;
   const cut = (v) => { const c = clip(v || '', PREVIEW_MAX); return v ? c.text : null; };
   const md = { description: fieldMd(t.description).markdown, body: fieldMd(t.body).markdown };
   const before = { title: t.title, description: cut(md.description), body: cut(md.body), priority: t.priority_level || null, category: t.category || null,
-    estimated_hours: t.estimated_hours != null ? Number(t.estimated_hours) : null, tag_names: await tagNamesOf(p, t.id), workstream_id: t.workstream_id ?? null };
-  const asked = ['title', 'description', 'body', 'priority', 'category', 'estimated_hours', 'tag_names', 'workstream_id'].filter((k) => a[k] !== undefined);
+    estimated_hours: t.estimated_hours != null ? Number(t.estimated_hours) : null, tag_names: await tagNamesOf(p, t.id), output_names: await outputNamesOf(p, t.id), workstream_id: t.workstream_id ?? null };
+  const asked = ['title', 'description', 'body', 'priority', 'category', 'estimated_hours', 'tag_names', 'output_names', 'workstream_id'].filter((k) => a[k] !== undefined);
   // 교체로 잃는 것 — 전·후 글자 수와 «사라지는 줄»(Fable: 미리보기에 잃는 내용이 보여야 한다)
   const changes = {};
   for (const k of ['description', 'body']) {

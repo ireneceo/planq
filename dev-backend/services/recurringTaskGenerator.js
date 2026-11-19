@@ -208,6 +208,8 @@ async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = n
     } catch (e) {
       console.warn('[recurringTask] tag copy failed', inst.id, e.message);
     }
+    // 산출물(task_output_kind_links) 복사 — 태그와 같은 모양(docs/TASK_DELIVERABLES_DESIGN.md §5)
+    try { await require('./taskOutputKinds').copyLinks(parent.id, inst.id); } catch (e) { console.warn('[recurringTask] output kind copy failed', inst.id, e.message); }
 
     // 업무 «결과물 액션» — 부모 목록을 내용만 복사(연결·완료는 두고 온다). docs/TASK_ACTIONS_DESIGN.md §5
     try {

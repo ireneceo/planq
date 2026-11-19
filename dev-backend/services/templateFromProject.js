@@ -119,6 +119,7 @@ async function buildTemplateFromProject({ project, userId, excludeDone, name, de
       security_level: t.security_level || 'general',
       recurrence_rule: t.recurrence_rule || null,
       tag_names: ex.tag_names || null,
+      output_names: ex.output_names || null,
       action_items: ex.action_items || null,
       depends_on_indexes: ex.depends_on_indexes || null,
     });
