@@ -7,8 +7,11 @@
 //
 // 대상 술어(ELIGIBLE_WHERE) — 두 인자(business_id·created_by)는 필수라 남의 요청은 건드릴 수 없다:
 //   request_by = created_by ∧ source internal_request ∧ project 업무 ∧ 시작 전·진행대기·진행 중 ∧ 컨펌 라운드 0 ∧
-//   컨펌자가 정확히 작성자 1명(pending · 내부) ∧ 급여 송금 업무 아님. 메일 답변 업무는 컨펌자 0명이라 저절로 빠진다.
-// 바꾸는 것: request_by → NULL · source → 'manual' · 작성자 컨펌자 행 삭제. 알림 없음 · task:updated 신호 · 감사 1행.
+//   컨펌자 중에 작성자(pending · 내부)가 있고 컨펌자 전원이 pending · 내부 ∧ 급여 송금 업무 아님. 메일 답변 업무는 컨펌자 0명이라 저절로 빠진다.
+// 바꾸는 것: request_by → NULL · source → 'manual' · 알림 없음 · task:updated 신호 · 감사 1행.
+//   컨펌자가 작성자 1명뿐 = 자동으로 붙은 것 → 그 행 삭제(Fable 설계 §4-10).
+//   컨펌자가 여럿(작성자 + 다른 팀원) = 사람이 일부러 붙인 확인 → 컨펌자는 전부 그대로, 요청 표시만 뗀다
+//   (2026-11-19 Irene «권고대로» A — 운영 지메이트 11건. 그날 «요청 확인함» 알림 7개가 전부 이쪽에서 왔다).
 //   request_ack_at 은 두지만 요청이 아니면 읽히지 않는다(확인 단계 술어가 request_by 를 먼저 본다).
 
 const { QueryTypes } = require('sequelize');
@@ -22,7 +25,7 @@ const ELIGIBLE_WHERE = `
   AND t.project_id IS NOT NULL
   AND t.status IN ('not_started', 'waiting', 'in_progress')
   AND COALESCE(t.review_round, 0) = 0
-  AND (SELECT COUNT(*) FROM task_reviewers r WHERE r.task_id = t.id) = 1
+  AND NOT EXISTS (SELECT 1 FROM task_reviewers r WHERE r.task_id = t.id AND (r.state <> 'pending' OR r.is_client <> 0))
   AND EXISTS (SELECT 1 FROM task_reviewers r WHERE r.task_id = t.id AND r.user_id = t.created_by
                  AND r.state = 'pending' AND r.is_client = 0)
   AND NOT EXISTS (SELECT 1 FROM payroll_entries pe WHERE pe.transfer_task_id = t.id)`;
@@ -47,24 +50,28 @@ async function convertOne(taskId, { businessId, creatorId }) {
       { replacements: { id: Number(taskId), businessId: Number(businessId), creatorId: Number(creatorId) }, type: QueryTypes.SELECT, transaction: t },
     );
     if (!row) { await t.rollback(); return null; }
-    const [rev] = await sequelize.query(
-      'SELECT * FROM task_reviewers WHERE task_id = :id AND user_id = :uid',
-      { replacements: { id: row.id, uid: Number(creatorId) }, type: QueryTypes.SELECT, transaction: t },
+    const revs = await sequelize.query(
+      'SELECT * FROM task_reviewers WHERE task_id = :id',
+      { replacements: { id: row.id }, type: QueryTypes.SELECT, transaction: t },
     );
+    const keep = revs.length > 1;   // 다른 팀원도 컨펌자 = 일부러 붙인 확인 → 컨펌자 그대로
+    const rev = revs.find((r) => Number(r.user_id) === Number(creatorId));
     await sequelize.query(
       "UPDATE tasks SET request_by_user_id = NULL, source = 'manual', updated_at = NOW() WHERE id = :id",
       { replacements: { id: row.id }, transaction: t },
     );
-    await sequelize.query('DELETE FROM task_reviewers WHERE id = :rid', { replacements: { rid: rev.id }, transaction: t });
+    if (!keep) await sequelize.query('DELETE FROM task_reviewers WHERE id = :rid', { replacements: { rid: rev.id }, transaction: t });
     await t.commit();
-    entry = { task_id: row.id, business_id: Number(businessId), creator_id: Number(creatorId), source: row.source, request_by_user_id: row.request_by_user_id, reviewer: rev };
+    entry = { task_id: row.id, business_id: Number(businessId), creator_id: Number(creatorId), source: row.source, request_by_user_id: row.request_by_user_id,
+      reviewer: keep ? null : rev, kept_reviewer_ids: keep ? revs.map((r) => Number(r.user_id)).sort((a, b) => a - b) : undefined };
   } catch (e) { await t.rollback(); throw e; }
 
   require('./auditService').logAudit(null, {
     userId: null, businessId: Number(businessId), action: 'task.request_to_assigned',
     targetType: 'task', targetId: entry.task_id,
     oldValue: { source: entry.source, request_by_user_id: entry.request_by_user_id, reviewer_user_id: Number(creatorId) },
-    newValue: { source: 'manual', request_by_user_id: null, reviewer_user_id: null, via: 'script:convert-requests-to-assigned' },
+    newValue: { source: 'manual', request_by_user_id: null, reviewer_user_id: entry.reviewer ? null : Number(creatorId),
+      kept_reviewer_ids: entry.kept_reviewer_ids, via: 'script:convert-requests-to-assigned' },
   });
   await signal(entry.task_id);
   return entry;
@@ -75,6 +82,7 @@ async function convertOne(taskId, { businessId, creatorId }) {
  *  아직 열린 단계(시작 전·진행대기·진행 중) ∧ 컨펌자 0명 ∧ 라운드 0. 그 사이 완료됐거나 컨펌자가 붙었으면 건너뛴다 —
  *  안 그러면 «완료 + 컨펌자 pending»(막으려던 모양)을 되돌림이 만든다. 건너뛴 이유를 돌려준다. */
 async function revertOne(entry) {
+  if (entry && Array.isArray(entry.kept_reviewer_ids)) return revertKept(entry);
   if (!entry || !Number(entry.task_id) || !Number(entry.business_id) || !Number(entry.creator_id)
       || !entry.reviewer || Number(entry.reviewer.user_id) !== Number(entry.creator_id)
       // 되돌릴 값은 변환이 지운 모양 하나뿐이다 — 장부가 다른 값을 말하면 손댄 장부다(Fable 재검증 비차단 지적)
@@ -125,6 +133,44 @@ async function revertOne(entry) {
     targetType: 'task', targetId: Number(entry.task_id),
     oldValue: { source: 'manual', request_by_user_id: null, reviewer_user_id: null },
     newValue: { source: entry.source, request_by_user_id: entry.request_by_user_id, reviewer_user_id: Number(entry.creator_id), via: 'script:convert-requests-to-assigned --revert' },
+  });
+  await signal(entry.task_id);
+  return { ok: true };
+}
+
+/** 컨펌자를 그대로 둔 변환(kept_reviewer_ids)의 되돌림 — 요청 표시만 다시 붙인다.
+ *  같은 조건: 여전히 배정 업무 · 열린 단계 · 라운드 0 · 컨펌자가 변환 때와 같은 사람들이고 전원 pending · 내부. */
+async function revertKept(entry) {
+  if (!Number(entry.task_id) || !Number(entry.business_id) || !Number(entry.creator_id)
+      || Number(entry.request_by_user_id) !== Number(entry.creator_id) || entry.source !== 'internal_request'
+      || !entry.kept_reviewer_ids.map(Number).includes(Number(entry.creator_id))) return { ok: false, reason: 'bad_entry' };
+  const t = await sequelize.transaction();
+  try {
+    const [row] = await sequelize.query(
+      `SELECT t.id FROM tasks t
+        WHERE t.id = :id AND t.business_id = :biz AND t.created_by = :creator
+          AND t.request_by_user_id IS NULL AND t.source = 'manual'
+          AND t.status IN ('not_started', 'waiting', 'in_progress') AND COALESCE(t.review_round, 0) = 0
+        FOR UPDATE`,
+      { replacements: { id: Number(entry.task_id), biz: Number(entry.business_id), creator: Number(entry.creator_id) }, type: QueryTypes.SELECT, transaction: t },
+    );
+    const revs = row ? await sequelize.query('SELECT user_id, state, is_client FROM task_reviewers WHERE task_id = :id',
+      { replacements: { id: Number(entry.task_id) }, type: QueryTypes.SELECT, transaction: t }) : [];
+    const ids = (a) => a.map(Number).sort((x, y) => x - y).join(',');
+    const same = !!row && revs.every((r) => r.state === 'pending' && Number(r.is_client) === 0)
+      && ids(revs.map((r) => r.user_id)) === ids(entry.kept_reviewer_ids);
+    if (!same) { await t.rollback(); return { ok: false, reason: row ? 'changed:reviewers' : 'changed' }; }
+    await sequelize.query(
+      "UPDATE tasks SET request_by_user_id = :rb, source = 'internal_request', updated_at = NOW() WHERE id = :id",
+      { replacements: { id: Number(entry.task_id), rb: Number(entry.creator_id) }, transaction: t },
+    );
+    await t.commit();
+  } catch (e) { await t.rollback(); throw e; }
+  require('./auditService').logAudit(null, {
+    userId: null, businessId: Number(entry.business_id), action: 'task.assigned_to_request_revert',
+    targetType: 'task', targetId: Number(entry.task_id),
+    oldValue: { source: 'manual', request_by_user_id: null },
+    newValue: { source: entry.source, request_by_user_id: entry.request_by_user_id, kept_reviewer_ids: entry.kept_reviewer_ids, via: 'script:convert-requests-to-assigned --revert' },
   });
   await signal(entry.task_id);
   return { ok: true };

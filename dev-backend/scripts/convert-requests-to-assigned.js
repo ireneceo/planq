@@ -24,7 +24,7 @@ const REVERT = arg('--revert');
       let ok = 0; const skipped = [];
       for (const e of entries) {
         // 장부의 날짜는 ISO 문자열 — DB 에 넣기 전에 Date 로
-        for (const k of Object.keys(e.reviewer)) {
+        for (const k of Object.keys(e.reviewer || {})) {
           if (typeof e.reviewer[k] === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(e.reviewer[k])) e.reviewer[k] = new Date(e.reviewer[k]);
         }
         const r = await conv.revertOne(e);
