@@ -146,6 +146,9 @@ async function resolveTarget(p, a, actor) {
     const chk = await require('../../actions/post_actions').checkEditable(actor, { businessId: p.businessId, postId: target.id });
     if (!chk.ok) throw require('./docs_write').failOf(chk);
     post = chk.data.post;
+    // 공개 링크로 공유 중인 문서에는 붙이지 않는다 — 링크를 가진 누구나 첨부를 받는다(2026-11-19 Fable 차단 3, 폴더와 같은 처리)
+    const fa = require('./files_attach');
+    if (fa.isPostSharedPublicly(post)) throw fa.sharedDocErr(post);
     projectId = post.project_id || null;
     // 문서보다 넓게 올리지 않는다 — 문서는 나만 보기인데 첨부만 전체면 그게 유출이다(화면 persistAttachments 와 같은 원칙)
     visibility = post.vlevel === 'L4' ? 'L3' : (post.vlevel || (projectId ? 'L2' : 'L3'));
@@ -234,7 +237,7 @@ async function uploadFile(p, a, actor) {
     auditValue: { source: 'agent', provider: p.provider, grant_id: p.grantId, file_id: f.file_id },
   });
 }
-const UPLOAD_HINT = 'Only files the user attached in this ChatGPT conversation can be uploaded. Files you made in the chat (docx/xlsx/pdf/images) cannot be passed through this connection: use create_document for formatted text, create_text_file for plain text, otherwise create the folder and ask the user to upload the file in PlanQ.';
+const UPLOAD_HINT = 'Only files the user attached in this ChatGPT conversation can be uploaded. Files you made in the chat (docx/xlsx/pdf/images) cannot be passed through this connection: use create_document for formatted text, create_text_file for plain text, otherwise give the user the upload_url from create_task/create_document (or the task/document link) to add it in PlanQ. Files already in PlanQ: attach_files_to_task / attach_files_to_document.';
 
 // ── create_text_file ───────────────────────────────────────
 async function createTextFile(p, a, actor) {

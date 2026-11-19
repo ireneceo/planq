@@ -1,6 +1,16 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-11-19 (방 2f81ec41 — /개발완료)
+**마지막 업데이트:** 2026-11-19 (방 2a574c2f — AI 앱 파일 붙이기)
 **작업 상태:** 완료
+
+### ✅ AI 앱(클로드·챗지피티) 업무·문서에 파일 같이 붙이기 (방 2a574c2f · 2026-11-19 · [Opus] · Fable 설계 DESIGN-READY + 완료 검증 1차 FAIL → 재확인 PASS)
+- 원인: 이미 PlanQ 에 있는 파일(메일 첨부·list_files·upload_file)을 업무/문서에 붙일 도구가 없었고, create_task·create_document 는 파일 칸도 안내도 없었다. 클로드는 파일 바이트를 넘길 수 없는데 «여기서 올리기» 길도 없었다
+- 고침: 새 도구 attach_files_to_task · attach_files_to_document(MEDIUM 확인 2단계) · create_task/create_document 의 file_ids(만들기 전 전부 판정) · 결과 upload_url(`/tasks?task=<id>&attach=1` · `/docs?post=<id>&attach=1` → 화면이 첨부 고르기를 바로 열고 주소에서 지움) · 설명·AGENT_INSTRUCTIONS 안내 · 공개 공유 문서·고객 업무+보안등급 파일 거절 · 중복 already_attached
+- 실행은 화면과 같은 함수: `taskAttachmentLink.linkExistingFilesToTask`(화면 /attachments/link 파일 부분도 — 화면은 종전 동작, 감사 행만 추가) · `post_actions.attachFiles`(strict·dedupe 옵션)
+- 실측: 도구 왕복 34/34 + 수정 후 5/5 · 양성 대조군 3(워크스페이스 묶음 · 출처 대화방 · 만든 뒤 재판정) · 브라우저 390/820/1440 30/30 · build EXIT 0 · guard 85/86 · health 101/101 · e2e tenant 0
+- 확인 못 함: 운영 audit 의 실제 upload_file 실패 사유 · 실제 ChatGPT/Claude 앱 대화 · 메일 출처 프로젝트 승계 실행
+- Fable 비차단 남김: 문서 쪽 고객 축(프로젝트 고객이 문서 첨부를 봄 — 미리보기·보안등급 거절 없음) · 화면 /attachments/link 의 고객 업무+보안등급 구멍(별건)
+- 확인용(ws6): 업무 9784(파일 2개) · 문서 9795(파일 2개)
+- 연결된 앱은 도구 목록을 저장해 둠 → 배포 뒤 ChatGPT 앱 [새로고침] 필요(기존 할 일 todomwn6jg0o 와 같은 행동) · 운영 반영: 다음 배포 때
 
 ### ✅ 개발완료 11/19 (방 2f81ec41 · 2026-11-19 · [Opus] · Fable 미검증(자체 검증) — 기록·도움말 문구만, 제품 코드 0줄)
 - 기록: DEVELOPMENT_PLAN «2026-11-19» 절(09cbcbb8..15ae5a78 — 전환 착지·전환 느림 색인·옛 요청 변환·업무 산출물·ChatGPT 업무그룹·고객 링크 메일·Q note 녹음 이탈 보호)

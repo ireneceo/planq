@@ -310,16 +310,28 @@ async function previewCreateTask(p, a) {
   if ((a.tag_names || []).length) await resolveTagNames(p, a.tag_names);
   if ((a.output_names || []).length) await assertOutputNames(p, a.output_names);
   const hasRv = (a.reviewer_user_ids || []).length; const hasW = (a.watcher_user_ids || []).length;
-  if (!hasRv && !hasW) return null;
+  const hasF = (a.file_ids || []).length;
+  if (!hasRv && !hasW && !hasF) return null;
   await assertMenu(p, 'qtask', 'write');
+  // 파일(2026-11-19 Fable) — 실행과 같은 사전 판정(거절될 요청에 확인 토큰을 내주지 않는다)
+  const fa = require('./files_attach');
+  let pf = null;
+  if (hasF) {
+    // 실행과 같은 값 — 출처(메일 스레드의 프로젝트 승계 · 채팅 대화방)를 같은 함수로 풀어 본다(Fable 검증 FAIL 차단 1·비차단 1·2)
+    const src = await require('./sources').resolveSource(p, a.source, ['mail', 'chat']);
+    const projectId = a.project_id || (src && src.kind === 'mail' ? src.thread.project_id : null) || null;
+    pf = await fa.precheckNewTaskFiles(p, a, { projectId, assigneeId: a.assignee_user_id || p.userId, conversationId: src && src.kind === 'chat' ? src.conversation.id : null });
+  }
   const { reviewers, skipped } = await checkNewTaskReviewers(p, a);
   // 참조(2026-11-18 Fable) — 같은 판정 한 벌(task_actions.checkWatcherCandidate). 같은 호출의 컨펌자는 skip.
   const w = await require('./task_watchers').checkNewTaskWatchers(p, a, a.assignee_user_id ? Number(a.assignee_user_id) : p.userId, (a.reviewer_user_ids || []).map(Number));
   const notes = [];
   if (hasRv) notes.push('Each reviewer is notified and the task waits for their sign-off before it can be completed.');
   if (hasW) notes.push(require('./task_watchers').ADD_NOTE);
+  if (hasF) notes.push(pf.clients.length ? 'These clients will be able to see the task and download the attached files.' : 'Everyone who can see the task will be able to download the attached files.');
   return {
     task: { title: a.title },
+    ...(hasF ? { attach_files: pf.files.map(fa.fileRow), clients_who_may_see_files: pf.clients } : {}),
     ...(hasRv ? { add_reviewers: reviewers } : {}),
     ...(skipped.length ? { reviewers_skipped: skipped } : {}),
     ...(hasW ? { add_watchers: w.add } : {}),
@@ -359,6 +371,9 @@ async function createTask(p, a, actor) {
   const rv = await checkNewTaskReviewers(p, a);   // 만들기 전에 — 실행이 거절할 컨펌자면 업무도 만들지 않는다
   const tw = require('./task_watchers');
   const wv = await tw.checkNewTaskWatchers(p, a, assigneeId, (a.reviewer_user_ids || []).map(Number));   // 참조도 만들기 전에(자격 미달 = 업무 안 만듦)
+  // 파일도 만들기 전에 전부 판정(2026-11-19 Fable) — 못 보는·없는·보안등급(고객 업무) 파일이 하나라도 있으면 업무를 만들지 않는다
+  const fa = require('./files_attach');
+  const pf = await fa.precheckNewTaskFiles(p, a, { projectId, assigneeId, conversationId: src && src.kind === 'chat' ? src.conversation.id : null });
   const taskActions = require('../../actions/task_actions');
   const r = await taskActions.createTask(actor, {
     businessId: p.businessId,
@@ -407,6 +422,10 @@ async function createTask(p, a, actor) {
   }
   // 참조 — 컨펌자 뒤에 한 명씩(addWatcher). 실패는 업무를 되돌리지 않고 watchers_failed.
   if ((a.watcher_user_ids || []).length) Object.assign(out, await tw.addAfterCreate(p, t.id, actor, wv));
+  // 파일 — 화면 «기존 파일 연결» 과 같은 함수. 만든 뒤 경합 실패만 files_failed(업무는 남긴다).
+  if (pf.files.length) Object.assign(out, await fa.attachAfterCreate('task', p, actor, t, pf.files));
+  out.upload_url = fa.uploadUrl('task', t.id);
+  out.files_hint = fa.FILES_HINT;
   // «완료로 추가»(#237) — 이미 끝난 일의 기록. 행동 계층 complete() 로 닫는다(status 직접 쓰기 금지).
   //   실패는 생성을 되돌리지 않는다 — 업무는 남기고 사유를 돌려준다(담당자가 남 · 컨펌자가 있음).
   if (a.completed) {

@@ -13,6 +13,7 @@ const content = require('./tools/content');
 const search = require('./tools/search');
 const docsw = require('./tools/docs_write');
 const filesw = require('./tools/files_write');
+const filesa = require('./tools/files_attach');
 const proj = require('./tools/projects');
 const kbw = require('./tools/knowledge_write');
 const tw = require('./tools/task_watchers');
@@ -66,7 +67,8 @@ const TOOLS = [
   },
   {
     name: 'create_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members — by default it becomes their plain assigned task (they are notified and can finish it themselves). Pass as_request: true only when the user explicitly asks to REQUEST it from that colleague: then the user automatically becomes a reviewer and the colleague must get the user\'s sign-off before it is complete. The result says is_request. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none). Project groups: if the task belongs to a project that has groups (workstreams — 추진과제 / 업무그룹, listed by get_project), put it in the right one with workstream_id. If the user names a group that does not exist yet, create it first with create_workstream, then pass its workstream_id. To move an existing task into a group use update_task.',
+    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members — by default it becomes their plain assigned task (they are notified and can finish it themselves). Pass as_request: true only when the user explicitly asks to REQUEST it from that colleague: then the user automatically becomes a reviewer and the colleague must get the user\'s sign-off before it is complete. The result says is_request. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none). Project groups: if the task belongs to a project that has groups (workstreams — 추진과제 / 업무그룹, listed by get_project), put it in the right one with workstream_id. If the user names a group that does not exist yet, create it first with create_workstream, then pass its workstream_id. To move an existing task into a group use update_task.'
+      + " Files: to attach files already in PlanQ (file_id from list_files or a mail attachment) pass file_ids — then confirmation is required (the first call returns a preview). A file the user attached in this ChatGPT conversation: create first, then upload_file with attach_to. If you cannot pass a file (Claude, or a file you generated), give the user upload_url from the result to add it in PlanQ. Never say a file is attached unless the result lists it in attached_files.",
     input: {
       title: z.string().trim().min(1).max(300),
       description: z.string().max(5000).optional(),
@@ -94,9 +96,11 @@ const TOOLS = [
       // 2026-11-18 (Fable 설계) — 참조(watcher). 알림 + 그 업무 볼 권한이 생기므로 MEDIUM(확인 2단계)
       watcher_user_ids: z.array(z.number().int().positive()).max(10).optional()
         .describe('Watchers (참조) — internal members who should be kept informed (user_id from search_members). They are notified and can see the task, but do NOT need to sign off. When the user says "참조"/"cc"/"keep X in the loop", use this — not reviewer_user_ids. People already on the task (the user, the assignee, reviewers) are skipped. Clients cannot be watchers. Requires confirmation: the first call only returns a preview naming them.'),
+      file_ids: z.array(z.number().int().positive()).min(1).max(10).optional()
+        .describe('Existing PlanQ files to attach (file_id from list_files or a mail attachment). All are checked before creating — if any cannot be attached, nothing is created. Requires confirmation.'),
       confirmation_token: confirm, idempotency_key: idem,
     },
-    riskOf: (a) => ((a.reviewer_user_ids || []).length || (a.watcher_user_ids || []).length ? 'MEDIUM' : 'LOW'),
+    riskOf: (a) => ((a.reviewer_user_ids || []).length || (a.watcher_user_ids || []).length || (a.file_ids || []).length ? 'MEDIUM' : 'LOW'),
     preview: (p, a) => t.previewCreateTask(p, a),
     handler: (p, a, actor) => t.createTask(p, a, actor),
   },
@@ -489,15 +493,20 @@ const TOOLS = [
   //   문서는 services/actions/post_actions(화면과 같은 함수), 파일은 driveImport.ingestDownloadedFile.
   {
     name: 'create_document', risk: 'LOW', write: true, scopes: ['docs:write'],
-    description: 'Create a document in PlanQ Q docs (title + content written in Markdown: headings, lists, bold, links, tables as GitHub pipe tables). Optionally put it in a project (find project_id with search_projects) and link related documents (two-way). Visible to the project members, or to the whole workspace when no project — same as creating it in the app.',
+    description: 'Create a document in PlanQ Q docs (title + content written in Markdown: headings, lists, bold, links, tables as GitHub pipe tables). Optionally put it in a project (find project_id with search_projects) and link related documents (two-way). Visible to the project members, or to the whole workspace when no project — same as creating it in the app.'
+      + " Files: to attach files already in PlanQ (file_id from list_files or a mail attachment) pass file_ids — then confirmation is required (the first call returns a preview). A file the user attached in this ChatGPT conversation: create first, then upload_file with attach_to. If you cannot pass a file (Claude, or a file you generated), give the user upload_url from the result to add it in PlanQ. Never say a file is attached unless the result lists it in attached_files.",
     input: {
       title: z.string().trim().min(1).max(200),
       content: z.string().max(100000).describe('Document body in Markdown'),
       project_id: z.number().int().positive().optional(),
       category: z.string().trim().max(50).optional(),
       link_document_ids: z.array(z.number().int().positive()).max(20).optional().describe('Existing documents (post_id) to link, e.g. from search_documents'),
-      idempotency_key: idem,
+      file_ids: z.array(z.number().int().positive()).min(1).max(10).optional()
+        .describe('Existing PlanQ files to attach (file_id from list_files or a mail attachment). All are checked before creating — if any cannot be attached, nothing is created. Requires confirmation.'),
+      confirmation_token: confirm, idempotency_key: idem,
     },
+    riskOf: (a) => ((a.file_ids || []).length ? 'MEDIUM' : 'LOW'),
+    preview: (p, a) => docsw.previewCreateDocument(p, a),
     handler: (p, a, actor) => docsw.createDocument(p, a, actor),
   },
   {
@@ -553,6 +562,30 @@ const TOOLS = [
     },
     _meta: { 'openai/fileParams': ['file'] },
     handler: (p, a, actor) => filesw.uploadFile(p, a, actor),
+  },
+  // ── 2026-11-19 이미 있는 파일을 업무·문서에 붙이기 (Fable 설계 DESIGN-READY) — 고른 기존 파일의 청중을 넓히므로 MEDIUM ──
+  //   scope 는 kind 별로 달라 도구를 둘로 나눴다(실행기 scope 는 정적). projects:read = list_files 와 같은 읽기(쓰기로 읽기 우회 방지).
+  {
+    name: 'attach_files_to_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write', 'projects:read'],
+    description: 'Attach files that are already in PlanQ (file_id from list_files, a mail attachment, or upload_file) to an existing task. Everyone who can see the task — including clients of its project — can then download them. Files marked internal/confidential cannot go on a task clients can see. Files already on the task are skipped (already_attached). All files are attached or none. Requires confirmation: the first call only returns a preview with the file names and the clients who will see them. For a file the user attached in this ChatGPT conversation use upload_file with attach_to instead.',
+    input: {
+      task_id: z.number().int().positive(),
+      file_ids: z.array(z.number().int().positive()).min(1).max(10),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => filesa.previewAttachToTask(p, a),
+    handler: (p, a) => filesa.attachToTask(p, a),
+  },
+  {
+    name: 'attach_files_to_document', risk: 'MEDIUM', write: true, scopes: ['docs:write', 'projects:read'],
+    description: 'Attach files that are already in PlanQ (file_id from list_files, a mail attachment, or upload_file) to an existing Q docs document the user can edit. Everyone who can read the document can then see them. Not possible for documents with a signature request or documents shared by public link. Files already attached are skipped (already_attached). All files are attached or none. Requires confirmation: the first call only returns a preview.',
+    input: {
+      document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'),
+      file_ids: z.array(z.number().int().positive()).min(1).max(10),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    preview: (p, a) => filesa.previewAttachToDocument(p, a),
+    handler: (p, a, actor) => filesa.attachToDocument(p, a, actor),
   },
   // ── 2026-11-18 Q file 폴더 (Fable 설계 DESIGN-READY) — 만들기·옮기기·텍스트 파일. 삭제·이름 바꾸기·공유는 화면에서 ──
   {

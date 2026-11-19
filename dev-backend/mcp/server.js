@@ -230,6 +230,9 @@ const AGENT_INSTRUCTIONS = [
   'If get_context says connection.up_to_date is false, PlanQ has new abilities this connection lacks: once per conversation, briefly',
   'and naturally, tell the user what they would gain and how to reconnect (connection.new_abilities, connection.how_to_reconnect) —',
   'a recommendation, never a reason to delay what they asked.',
+  'Files with tasks or documents: files already in PlanQ go in with file_ids (create_task, create_document) or attach_files_to_task / attach_files_to_document;',
+  'a file the user attached in this ChatGPT conversation goes in with upload_file (attach_to). If you cannot pass a file, give the user the upload_url from the result.',
+  'Never say a file was attached unless the result lists it in attached_files.',
 ].join(' ');
 
 // 여러 워크스페이스(2026-10-15, docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md) — 이 칸은 **외부 앱 표면에서만** 붙인다(레지스트리에 두지 않는다 —

@@ -930,13 +930,21 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
   // 받은 서명 [문서에서 수정] → /docs?post=<id>&edit=1 (2026-10-23). 1회성 신호 — 주소에서 바로 지우고 ref 로 들고 있다가,
   //   문서와 그 문서의 서명본(잠금)을 읽은 뒤 **고칠 수 있을 때만** 편집으로 연다. 못 고치면 보기 그대로(서명 진행 절이 길을 말한다).
   //   ★ 마운트 때 한 번만 읽지 않는다 — 문서 탭이 이미 열려 있으면 같은 탭에 주소만 바뀌어 들어온다(keep-alive).
+  //   AI 앱(클로드·챗지피티)이 준 «여기서 파일 올리기» 링크 /docs?post=<id>&attach=1 (2026-11-19 Fable D)도 같은 길 —
+  //   편집으로 열고 첨부 칸으로 내린다. 못 고치는 문서면 아무것도 열지 않는다. 신호는 한 번 쓰고 주소에서 지운다.
   const pendingEditRef = useRef<number | null>(null);
+  const pendingAttachRef = useRef(false);
+  const attachSectionRef = useRef<HTMLElement | null>(null);
   useEffect(() => {
-    if (searchParams.get('edit') !== '1') return;
+    const isEdit = searchParams.get('edit') === '1';
+    const isAttach = searchParams.get('attach') === '1';
+    if (!isEdit && !isAttach) return;
     const v = Number(searchParams.get('post'));
     pendingEditRef.current = Number.isFinite(v) && v > 0 ? v : null;
+    pendingAttachRef.current = isAttach;
     const np = new URLSearchParams(searchParams);
     np.delete('edit');
+    np.delete('attach');
     setSearchParams(np, { replace: true });
   }, [searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -945,7 +953,14 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
     if (signedDoc == null || signedDocLoadedForRef.current !== want) return;
     pendingEditRef.current = null;
     if (canEditNow && mode === 'view') startEdit();
+    else if (mode === 'edit' && pendingAttachRef.current) { pendingAttachRef.current = false; requestAnimationFrame(() => attachSectionRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })); }
+    else pendingAttachRef.current = false;
   }, [detail, signedDoc, canEditNow]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (mode !== 'edit' || !pendingAttachRef.current) return;
+    pendingAttachRef.current = false;
+    requestAnimationFrame(() => attachSectionRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+  }, [mode]);
 
   // 사이클 O3 — 포스트를 Q info 로 보내기 (인덱싱 후 Cue 답변에 활용)
   // N+72-7 — 문서 ↔ 표 타입 변경 (편집 모드).
@@ -2520,7 +2535,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 </>
               )}
 
-              <AttachSection>
+              <AttachSection ref={attachSectionRef} data-testid="doc-edit-attach">
                 <AttachTitle>{t('attachments', '첨부 파일·문서')}</AttachTitle>
                 {/* 알아야 하는 운영 기준은 **그 자리에서 한 줄로**(Irene 2026-08-30).
                     규칙을 설명하지 않고 "이 문서 기준으로 어떻게 되는지" 상태로 쓴다 —

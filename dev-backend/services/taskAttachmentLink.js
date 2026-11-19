@@ -4,9 +4,15 @@
 //   호출자 책임: 업무 접근 판정(canAccessTask) · 파일 가시성(canUserSeeFile) · 같은 워크스페이스 파일만 넘기기.
 const { TaskAttachment } = require('../models');
 
-async function linkFilesToTask(task, files, userId, { context = 'task', commentId = null } = {}) {
+async function linkFilesToTask(task, files, userId, { context = 'task', commentId = null, dedupe = false, skipped = null } = {}) {
   const created = [];
   for (const f of files) {
+    // dedupe — 같은 자리(업무·context·같은 물리 파일·이름)에 이미 붙어 있으면 건너뛴다(AI 재시도가 사본을 늘리지 않게, 2026-11-19 Fable 차단 5).
+    //   화면 기본값은 종전대로(false).
+    if (dedupe) {
+      const dup = await TaskAttachment.findOne({ where: { task_id: task.id, context, file_path: f.file_path, original_name: f.file_name, ...(commentId ? { comment_id: commentId } : {}) }, attributes: ['id'] });
+      if (dup) { if (skipped) skipped.push(f); continue; }
+    }
     const att = await TaskAttachment.create({
       business_id: task.business_id,
       task_id: task.id,
@@ -72,4 +78,31 @@ function canRemoveTaskAttachment(att, userId, scope) {
   return att.uploaded_by === userId || !!scope?.isOwner || !!scope?.isPlatformAdmin;
 }
 
-module.exports = { linkFilesToTask, linkPostsToTask, canRemoveTaskAttachment, POST_MIME };
+/**
+ * 이미 있는 PlanQ 파일을 업무에 붙이는 **판정 + 실행 한 벌** — 화면 POST /:taskId/attachments/link(파일 부분)와
+ *   AI 도구(attach_files_to_task · create_task.file_ids)가 같이 부른다(2026-11-19 Fable 설계).
+ *   판정: 같은 워크스페이스·지우지 않은 파일 · 하나라도 못 보면(canUserSeeFile) 통째 거절.
+ *   strict(AI): 못 찾은 id 가 하나라도 있으면 거절(화면은 종전대로 건너뜀). dedupe(AI): 이미 붙은 것은 건너뛰고 skipped 로.
+ *   호출자 책임: 업무 접근 판정(canAccessTask) — 업무는 business_id 로 묶어 찾은 것을 넘긴다.
+ * @returns {{ ok:true, created, skipped } | { ok:false, code, missing? }}
+ */
+async function linkExistingFilesToTask(task, fileIds, { userId, platformRole = null, context = 'task', commentId = null, strict = false, dedupe = false, via = 'user', req = null } = {}) {
+  const { File } = require('../models');
+  const ids = [...new Set((fileIds || []).map(Number).filter(Boolean))];
+  const files = ids.length ? await File.findAll({ where: { id: ids, business_id: task.business_id, deleted_at: null } }) : [];
+  if (strict && files.length !== ids.length) {
+    const have = new Set(files.map((f) => Number(f.id)));
+    return { ok: false, code: 'file_not_found', missing: ids.filter((x) => !have.has(x)) };
+  }
+  const { canUserSeeFile } = require('../middleware/imageViewer');
+  for (const f of files) if (!(await canUserSeeFile(userId, platformRole, f))) return { ok: false, code: 'file_not_found', missing: [Number(f.id)] }; // ★ 남의 L1 이 사본으로 퍼진다 — 통째로 거절
+  const skipped = [];
+  const created = await linkFilesToTask(task, files, userId, { context, commentId, dedupe, skipped });
+  if (created.length) {
+    require('./auditService').logAudit(req, { userId, action: 'task.attachment_link', targetType: 'task', targetId: task.id, businessId: task.business_id,
+      newValue: { file_ids: files.filter((f) => !skipped.includes(f)).slice(0, 50).map((f) => f.id), count: created.length, context, via } });
+  }
+  return { ok: true, created, skipped, files };
+}
+
+module.exports = { linkFilesToTask, linkExistingFilesToTask, linkPostsToTask, canRemoveTaskAttachment, POST_MIME };

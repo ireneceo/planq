@@ -261,14 +261,12 @@ router.post('/:taskId/attachments/link', authenticateToken, async (req, res, nex
       if (!ok) return errorResponse(res, 'only_creator_can_attach_description', 403);
     }
 
-    const files = await File.findAll({
-      where: { id: fileIds, business_id: req._task.business_id, deleted_at: null }
-    });
-    for (const f of files) if (!(await require('../middleware/imageViewer').canUserSeeFile(req.user.id, req.user.platform_role, f))) return errorResponse(res, 'file_not_found', 404); // ★ 볼 수 있는 파일만 — 남의 L1 이 사본으로 퍼진다, 통째로 거절
     const created = [];
-    // 메타 복사는 services/taskAttachmentLink 한 곳(AI 에이전트 upload_file 이 같은 함수를 쓴다)
-    const linked = await require('../services/taskAttachmentLink').linkFilesToTask(req._task, files, req.user.id, { context, commentId });
-    for (const att of linked) {
+    // 판정(같은 워크스페이스·볼 수 있는 파일만, 하나라도 못 보면 통째 거절)+메타 복사는 services/taskAttachmentLink 한 벌 —
+    //   AI 도구(attach_files_to_task · create_task.file_ids)가 같은 함수를 쓴다. 화면은 strict·dedupe 끔(종전 동작).
+    const lr = await require('../services/taskAttachmentLink').linkExistingFilesToTask(req._task, fileIds, { userId: req.user.id, platformRole: req.user.platform_role, context, commentId, req });
+    if (!lr.ok) return errorResponse(res, 'file_not_found', 404);
+    for (const att of lr.created) {
       created.push({
         id: att.id,
         context: att.context,

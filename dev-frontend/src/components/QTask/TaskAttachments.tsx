@@ -1,6 +1,7 @@
 // Task 첨부파일 UI — 드래그앤드롭 + 업로드 + 리스트 + 다운로드 + 삭제 + 기존 파일/문서 선택 (모두 인라인)
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import ConfirmDialog from '../Common/ConfirmDialog';
@@ -49,6 +50,18 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
   const [stageExistingFileIds, setStageExistingFileIds] = useState<number[]>([]);
   const [stageExistingPostIds, setStageExistingPostIds] = useState<number[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  // AI 앱(클로드·챗지피티)이 준 «여기서 파일 올리기» 링크 /tasks?task=<id>&attach=1 (2026-11-19 Fable D) —
+  //   이 업무 첨부 고르기를 바로 펼치고 그 자리로 내린다. 신호는 한 번 쓰고 주소에서 지운다(새로고침·뒤로 가기에 다시 안 열리게).
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('attach') !== '1' || Number(searchParams.get('task')) !== taskId) return;
+    const np = new URLSearchParams(searchParams);
+    np.delete('attach');
+    setSearchParams(np, { replace: true });
+    setPickerOpen(true);
+    requestAnimationFrame(() => rootRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
+  }, [searchParams, taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -114,7 +127,7 @@ export default function TaskAttachments({ taskId, businessId: bizProp, onChangeC
   };
 
   return (
-    <Wrap>
+    <Wrap ref={rootRef} data-testid="task-attachments">
       <Head>
         <Title>{t('attachments.title')} {visibleRows.length > 0 && <Count>({visibleRows.length})</Count>}</Title>
         {/* "+ 파일 추가" 토글 — 인라인 폼의 "+ 파일·문서 첨부" 와 동일 패턴 (열고 닫기). */}

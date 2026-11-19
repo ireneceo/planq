@@ -41,8 +41,25 @@ function shape(post) {
 }
 
 // ── create_document ────────────────────────────────────────
+// file_ids 가 있으면 MEDIUM(2026-11-19 Fable) — 미리보기는 실행과 같은 사전 판정을 먼저 본다.
+async function previewCreateDocument(p, a) {
+  if (!(a.file_ids || []).length) return null;
+  await assertMenu(p, 'qdocs', 'write');
+  const fa = require('./files_attach');
+  const files = await fa.precheckNewDocFiles(p, a);
+  return {
+    document: { title: a.title, project_id: a.project_id || null },
+    attach_files: files.map(fa.fileRow),
+    document_visible_to: a.project_id ? 'project_members' : 'workspace_members',
+    note: 'Everyone who can read the new document will see the attached files. Show the file names to the user before confirming.',
+  };
+}
+
 async function createDocument(p, a, actor) {
   await assertMenu(p, 'qdocs', 'write');
+  // 파일은 만들기 전에 전부 판정 — 하나라도 안 되면 문서를 만들지 않는다
+  const fa = require('./files_attach');
+  const files = await fa.precheckNewDocFiles(p, a);
   const r = await actions().createPost(actor, {
     businessId: p.businessId, projectId: a.project_id || null, title: a.title,
     contentJson: markdownToDoc(a.content || ''), category: a.category || null, status: 'published',
@@ -54,7 +71,9 @@ async function createDocument(p, a, actor) {
     const lr = await actions().setPostLinks(actor, { businessId: p.businessId, postId: post.id, add: a.link_document_ids });
     if (lr.ok) post = lr.data.post;
   }
-  return { document: shape(post), created: true, note: 'Created in PlanQ Q docs. Visible to the project members (or the whole workspace when no project), same as creating it in the app.' };
+  const att = files.length ? await fa.attachAfterCreate('document', p, actor, post, files) : {};
+  return { document: shape(post), created: true, ...att, upload_url: fa.uploadUrl('document', post.id), files_hint: fa.FILES_HINT,
+    note: 'Created in PlanQ Q docs. Visible to the project members (or the whole workspace when no project), same as creating it in the app.' };
 }
 
 // ── append_to_document ─────────────────────────────────────
@@ -175,7 +194,7 @@ async function downloadCapped(url, dest, maxBytes) {
 // upload_file 본체는 tools/files_write.js 로 옮겼다(2026-11-18 — 폴더 지정·텍스트 파일 만들기와 «붙일 곳·폴더 판정» 한 벌을 쓰려고).
 //   받는 주소 검사(allowedFileUrl)·크기 자르며 받기(downloadCapped)는 여기 그대로 둔다.
 
-module.exports = {
+module.exports = { previewCreateDocument,
   createDocument, appendToDocument, previewUpdate, updateDocument, linkDocuments, previewMove, moveDocument, failOf,
   allowedFileUrl, _downloadCapped: downloadCapped, HARD_MAX_BYTES,
 };

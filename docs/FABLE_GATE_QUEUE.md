@@ -1,6 +1,12 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+### 2026-11-19 방 2a574c2f — AI 앱 업무·문서에 파일 붙이기 — 설계 **DESIGN-READY**(조건부) · 완료 검증 1차 **FAIL** → 재확인 **PASS**
+- Irene «클로드랑 챗지피티가 업무 추가나 문서 등 추가할 때 파일 업로드 같이 되는지 확인해. 제대로 안되었어. 기능 없으면 추가하고 있으면 보완해.»
+- 설계 결정: attach_files_to_task / attach_files_to_document 두 도구(scope 정적이라 나눔, +projects:read) · MEDIUM(고른 기존 파일의 청중 확대 · 업무 첨부 사본은 원본 등급을 잃음) · create_task/create_document file_ids(만들기 전 전부 판정) · 공개 공유 문서 거절 · 고객 업무 + 보안등급 파일 거절 · strict·dedupe(AI 만) · upload_url(?attach=1) · base64 없음
+- 1차 FAIL: 채팅 출처(source chat) 업무의 대화방 고객을 사전 판정이 안 세 confidential 이 고객 업무에 붙음(실행 재현) → 출처 대화방 넣음 · 미리보기도 resolveSource · 만든 뒤 실제 행으로 재판정. 재확인 PASS(A~E)
+- 비차단 남김: ①문서 고객 축 — 프로젝트 고객이 프로젝트 문서 첨부를 보는데 미리보기는 project_members 만 말하고 보안등급 거절 없음(설계 범위 밖, 다음 판정 거리) ②화면 /attachments/link 에 감사 행 task.attachment_link 추가(해 없음) ③메일 출처 프로젝트 승계는 실행 미측정(코드만) · 화면 /attachments/link 의 «고객 업무 + 보안등급» 구멍은 별건
+
 ### 2026-11-19 방 bd6877de — Q note 녹음 중 이탈 보호 — 설계 **DESIGN-READY** · 완료 검증 **PASS**
 - Irene «노트에서 녹음이나 녹화할 때 갑자기 나가게 되는 일 … 나가지 못하게 하고 안내 … 새창으로 계속 녹음 … fable 검토해줘» · 설계 docs/QNOTE_RECORDING_LEAVE_GUARD_DESIGN.md
 - 결정: 탭 모드 = 묻지 않고 녹음 탭을 살림(이동은 새 탭) · 미러 모드·탭 닫기·새로고침·로그아웃·전환 = 묻기 · «새 창에서 녹음» 은 넣지 않음(스트림 못 옮김)

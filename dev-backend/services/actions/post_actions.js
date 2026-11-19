@@ -233,22 +233,28 @@ async function attachFiles(actor, params = {}) {
   // 첨부는 문서의 일부 — 붙이는 것도 편집이다(2026-10-23 공동 편집자 설계, 전엔 읽을 수만 있어도 붙였다).
   const { canEditPost } = require('../postAccess');
   if (!(await canEditPost(subj.subjectId, post, subj.platformRole))) return fail('post_edit_forbidden', 403);
-  const fileIds = (params.fileIds || []).map(Number).filter(Boolean);
+  const fileIds = [...new Set((params.fileIds || []).map(Number).filter(Boolean))];
   if (!fileIds.length) return fail('file_ids required', 400);
   const files = await File.findAll({ where: { id: fileIds, business_id: post.business_id, deleted_at: null } });
+  // strict(AI 길, 2026-11-19 Fable) — 못 찾은 id 가 있으면 0건. 화면은 종전대로 건너뛴다.
+  if (params.strict && files.length !== fileIds.length) return fail('file_not_found', 404);
   const { canUserSeeFile } = require('../../middleware/imageViewer');
   for (const f of files) if (!(await canUserSeeFile(subj.subjectId, subj.platformRole, f))) return fail('file_not_found', 404);
+  // dedupe(AI 길) — 이미 붙은 파일은 건너뛰고 skipped 로(재시도가 사본을 늘리지 않게). 화면 기본값은 종전대로.
+  const already = params.dedupe ? new Set((await PostAttachment.findAll({ where: { post_id: post.id, file_id: fileIds }, attributes: ['file_id'] })).map((r) => Number(r.file_id))) : new Set();
+  const toAdd = files.filter((f) => !already.has(Number(f.id)));
+  const skipped = files.filter((f) => already.has(Number(f.id))).map((f) => f.id);
   const existing = await PostAttachment.count({ where: { post_id: post.id } });
   const created = [];
-  for (let i = 0; i < files.length; i++) {
-    const a = await PostAttachment.create({ post_id: post.id, file_id: files[i].id, sort_order: existing + i });
-    created.push({ id: a.id, file_id: files[i].id, sort_order: a.sort_order });
+  for (let i = 0; i < toAdd.length; i++) {
+    const a = await PostAttachment.create({ post_id: post.id, file_id: toAdd[i].id, sort_order: existing + i });
+    created.push({ id: a.id, file_id: toAdd[i].id, sort_order: a.sort_order });
   }
   if (created.length) {
     require('../auditService').logAudit(actor.req || null, { userId: subj.subjectId, action: 'post.attachment_add', targetType: 'post', targetId: post.id, businessId: post.business_id, newValue: { file_ids: created.slice(0, 50).map((c) => c.file_id), count: created.length, via: actor.channel?.kind === 'agent' ? `agent:${actor.channel.provider}` : 'user' } });
   }
   signalPost(post, 'post:updated');
-  return done({ post, created });
+  return done({ post, created, skipped, files });
 }
 
 /**
