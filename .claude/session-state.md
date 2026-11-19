@@ -1,4 +1,10 @@
 ## 현재 작업 상태
+### ✅ (이전) 답 기다림: 배포 health-check [secrets] 워크스페이스 백업 검사 ETIMEDOUT (상황판 배포 버튼 2026-11-19 07:13 UTC · 종료 1) → Irene «권고대로» (방 daef5020 · 2026-11-19 · [Opus] · Fable 안 씀 — 일시 실패 재확인만, 코드 변경 없음)
+- 운영: 배포 게이트에서 멈춤 → 운영 그대로
+- 다시 확인: `health-check --category=secrets` 20/20 통과(그 검사 포함) — 고칠 것 없음, 상황판 «배포» 버튼을 다시 누르면 된다(AI 방은 배포 실행 안 함)
+- 끊긴 실행 두 번이 개발 DB 에 남긴 시험 행 8개(`hc-bk-*` 업무 4·고객 2·Q info 2) 지움
+- 같은 검사가 11-19 에만 두 번 시간초과(위 지메이트 방 1차 120초 초과) — 다시 나면 그 검사의 120초 한도·느린 지점을 보는 일로 대기열에
+
 ### ✅ 고객 링크 [보내기] = 고객에게 메일로 보내기 (방 12f9449c · 2026-11-19 · [Opus] · Fable 완료 검증 PASS — 차단 0)
 - Irene «고객에게 링크보내기 누르면 이메일로 보내줘야지» — 옛 [보내기] 는 폰 공유 시트/복사뿐(데스크탑은 «복사됨» 만)
 - 서버 `services/guestLinkMail.js` 한 벌: 받는 주소는 서버가 대화방 고객에서(`clientContact.primaryEmailOf` — 요청 주소 안 받음) · 발급과 같은 술어 `assertGuestLinkIssuable`(킬스위치·고객방·보관) · 회수/만료/옛 난수 링크 409 · 감사 `guest_link.email` · EmailLog `guest_link_send` · 사람당 분 5·하루 50(두 문이 같은 limiter) · 확인창 주소(`expect_email`)와 다르면 409 `recipient_changed`
