@@ -1,4 +1,13 @@
 ## 현재 작업 상태
+### ✅ ChatGPT 가 업무 추가 때 프로젝트 업무그룹을 안 씀 (방 fde561e9 · 2026-11-19 · [Opus] · Fable 안 씀 — 도구 설명 문구만, 서버 동작·권한 변경 없음)
+- 원인(코드): 서버는 ChatGPT·클로드를 구분하지 않는다(같은 도구 59개). 업무그룹 안내가 create_task 의 **입력 칸 설명에만** 있고 본 설명·get_project 설명엔 없었다 → ChatGPT 가 workstream_id·create_workstream 을 건너뜀
+- 원인(연결): 개발 DB 실제 ChatGPT 연결(902·54)은 10월 초 동의 그대로 — projects:write 없음 → 새 그룹 만들기 거절(재연결 안내는 나감). ChatGPT 앱은 도구 목록을 저장해 둠
+- 운영 확인(agent_grants·audit_logs 읽기)은 이 방 ssh 권한 거부 → **확인 못 함**. 정찰 계획 `.claude/plans/qmwn5iyg2.md`
+- 고침 5441e14b `services/agent/registry.js`: create_task(그룹 있으면 workstream_id · 없는 그룹은 create_workstream 먼저) · get_project(그룹 목록 돌려줌) · create_project(만든 뒤 그룹) 본 설명
+- 실측: dev MCP tools/list(옛 openai 연결 902 토큰) 세 설명에 새 문장 · create_task workstream_id 칸 있음 · 옛 연결의 create_workstream = PERMISSION_DENIED + 재연결 안내 · guard agentsurface 통과
+- Irene 할 일: todomwn6jg0o «ChatGPT 에서 PlanQ 연결 끊고 다시 연결하기 (다음 배포 뒤)» — 상황판에 올림
+- 운영 반영: 다음 배포 때
+
 ### ✅ 업무 «산출물» 고르기 (방 7036c158 · 2026-11-19 · [Opus] · Irene «권고대로» A · Fable 설계 DESIGN-READY + 완료 검증 1차 FAIL → 재확인 PASS)
 - 무엇: 업무 설명 아래 «산출물» 칩 여러 개(업무당 10) · 기본 목록 22개(ko/en, 서버 코드 `services/taskOutputKindPresets.js`) 검색 · 없는 이름은 입력하면 워크스페이스 목록에 저장(100개·40자) · 결과물 칸 머리 «만들 산출물» · «목록 관리»(직접 추가한 것만 이름 변경·삭제)
 - 따라가는 곳: 만들기·요청하기(생성 트랜잭션) · 상세(고객도 읽기 전용, 목록·공개 링크엔 없음) · 반복 회차·범위 · 복사 · 템플릿 저장/적용 · AI create/update/get_task(기본 라벨·있는 이름만)
