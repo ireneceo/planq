@@ -1118,5 +1118,15 @@
     "workspaceHint": "The workspace whose mail this window shows. Switching workspaces changes this window too.",
     "workspacePick": "Change this window's workspace",
     "pinnedHint": "Only this window changes. Switching workspaces in the main window leaves this window as it is."
+  },
+  "unreadOnly": {
+    "label": "Read status",
+    "all": "All",
+    "unread": "Unread",
+    "empty": "No unread mail — nothing missed",
+    "hint": {
+      "all": "Read and unread mail",
+      "unread": "Unread mail only"
+    }
   }
 }

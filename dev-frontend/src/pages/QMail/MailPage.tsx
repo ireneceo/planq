@@ -263,6 +263,15 @@ const MailPage: React.FC = () => {
     nsp.delete('thread');
     setSp(nsp, { replace: true });
   };
+  // «전체» 탭 «안 읽음만» (2026-11-19, Irene «전체적으로 안 본 거 보고 싶을 수 있잖아. 놓친 거 걱정돼서») —
+  //   URL 이 정본(sentVia 와 같은 방식). 서버 술어는 email-threads ?unread=true → services/mailRead 한 곳(탭 배지 allUnread 와 같은 축).
+  const unreadOnly = folder === 'all' && sp.get('unread') === '1';
+  const setUnreadOnly = (v: boolean) => {
+    const nsp = new URLSearchParams(sp);
+    if (v) nsp.set('unread', '1'); else nsp.delete('unread');
+    nsp.delete('thread');
+    setSp(nsp, { replace: true });
+  };
   const activeId = threadIdParam ? Number(threadIdParam) : null;
   const navigate = useNavigate();
   // 계정(회사/개인) 필터 — null = 전체
@@ -639,8 +648,9 @@ const MailPage: React.FC = () => {
     if (projectFilter) s2 += `&project_id=${projectFilter}`;
     if (inquiryOnly) s2 += '&inquiry=1';
     if (sentVia) s2 += `&sent_via=${sentVia}`;
+    if (unreadOnly) s2 += '&unread=true';
     return s2;
-  }, [labelFilter, projectFilter, inquiryOnly, sentVia]);
+  }, [labelFilter, projectFilter, inquiryOnly, sentVia, unreadOnly]);
   // ★ 2026-10-21 (Irene: *"메일 검색 후 답변한 다음 탭을 이동해도 리스트가 맞게 안나왔어. 검색을 지웠는데도"*)
   //   답장 발송·일괄 처리처럼 await 뒤에 목록을 다시 읽는 곳은 **누른 순간의** loadList(그때 검색어·탭)를 쥐고 있다.
   //   그 사이 검색을 지우고 탭을 옮기면, 늦게 도착한 옛 loadList 가 가장 새 순번을 받아 지금 화면 목록을 덮어썼다.
@@ -648,6 +658,11 @@ const MailPage: React.FC = () => {
   const listKey = `${businessId ?? 0}|${folder}|${addressMode ?? ''}|${accountFilter ?? 0}|${qDebounced}|${filterQuery()}`;
   const listKeyRef = useRef(listKey);
   listKeyRef.current = listKey;
+  // «안 읽음만» 에서 연 메일 — 열면 읽음이 되어 서버 결과에서 빠지지만, 눈앞의 행이 사라지면 «눌렀더니 없어졌다» 가 된다.
+  //   이 보기에서 연 행은 실시간 갱신(silent) 때 제자리에 읽음 모양으로 남긴다(목록 조건이 바뀌거나 새로 읽으면 빠진다).
+  const keepReadIdsRef = useRef<Set<number>>(new Set());
+  const keepKeyRef = useRef(listKey);
+  if (keepKeyRef.current !== listKey) { keepKeyRef.current = listKey; keepReadIdsRef.current = new Set(); }
   const loadListRef = useRef<(opts?: { silent?: boolean }) => Promise<void>>(async () => {});
   // 목록 갱신 — **읽고 있던 자리를 지킨다**.
   //   여태 무조건 1페이지(30건)만 다시 받아 threads 를 통째로 교체했다. 그래서 무한스크롤로 90건을
@@ -782,13 +797,25 @@ const MailPage: React.FC = () => {
       //   #205(서버가 안 주는 행은 내린다)도 이 방식이면 자동으로 충족된다.
       //   스크롤 튐은 순서를 왜곡해서가 아니라 앵커 보정(captureAnchor + useLayoutEffect)으로 막는다.
       captureAnchor();
+      if (unreadOnly && keepReadIdsRef.current.size > 0) {
+        const keep = keepReadIdsRef.current;
+        const freshIds = new Set(fresh.map(x => x.id));
+        const prev = threadsRef.current;
+        const merged = [...fresh];
+        prev.forEach((row, i) => {
+          if (!keep.has(row.id) || freshIds.has(row.id)) return;
+          merged.splice(Math.min(i, merged.length), 0, { ...row, unread_count: 0 });
+        });
+        setThreads(merged);
+        return;
+      }
       setThreads(fresh);
     } catch (e) {
       setErrorMsg((e as Error).message);
     } finally {
       if (!silent) setListLoading(false);
     }
-  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, captureAnchor, t, listKey]);
+  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, captureAnchor, t, listKey, unreadOnly]);
   loadListRef.current = loadList;
 
   // 무한스크롤 — 다음 페이지 append
@@ -808,9 +835,14 @@ const MailPage: React.FC = () => {
       const next = pageRef.current + 1;
       const acctQ = accountFilter ? `&account_id=${accountFilter}` : '';
       const qP = qDebounced ? `&q=${encodeURIComponent(qDebounced)}` : '';
+      // «안 읽음만» 은 읽는 사이 서버 집합이 줄어든다 — page 오프셋이면 그만큼 건너뛰어 **안 읽은 메일을 못 보여 준다.**
+      //   지금 목록에서 아직 안 읽음인 행 수부터 이어 받는다(겹치는 행은 아래 seen 이 거른다).
+      const pageQ = unreadOnly
+        ? `offset=${threadsRef.current.filter(x => x.unread_count > 0).length}`
+        : `page=${next}`;
       const url = addressMode
         ? `/api/businesses/${businessId}/email-addresses/${encodeURIComponent(addressMode)}/threads?limit=${PAGE_SIZE}&page=${next}`
-        : `/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&page=${next}${acctQ}${qP}${filterQuery()}`;
+        : `/api/businesses/${businessId}/email-threads?folder=${folder}&limit=${PAGE_SIZE}&${pageQ}${acctQ}${qP}${filterQuery()}`;
       const r = await apiFetch(url);
       const j = await r.json();
       if (listKey !== listKeyRef.current) return;   // 받는 사이 검색·탭이 바뀌었다 — 버린다
@@ -836,7 +868,7 @@ const MailPage: React.FC = () => {
         setHasMore(false);   // 실패를 무한 재시도로 바꾸지 않는다
       }
     } catch { setHasMore(false); } finally { setLoadingMore(false); }
-  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, loadingMore, hasMore, listKey]);
+  }, [businessId, folder, addressMode, accountFilter, qDebounced, filterQuery, loadingMore, hasMore, listKey, unreadOnly]);
 
   // 메일 계정 목록 (회사/개인 그룹 + unread)
   const loadAccounts = useCallback(async () => {
@@ -1313,8 +1345,11 @@ const MailPage: React.FC = () => {
     //   (Irene: "리스트 클릭해도 상세내용이 너무 늦게 나와"). silentReload 는 이 effect 를
     //   타지 않으므로 열려 있는 화면이 깜빡이지 않는다.
     setDetail(null);
-    if (activeId) { justMarkedRef.current = null; loadDetail(activeId); }   // 새로 여는 것 — 방금 표시한 메일도 열면 읽음
-  }, [activeId, loadDetail]);
+    if (activeId) {
+      if (unreadOnly) keepReadIdsRef.current.add(activeId);   // «안 읽음만» 에서 연 행은 읽어도 제자리에 남긴다
+      justMarkedRef.current = null; loadDetail(activeId);     // 새로 여는 것 — 방금 표시한 메일도 열면 읽음
+    }
+  }, [activeId, loadDetail]);   // eslint-disable-line react-hooks/exhaustive-deps -- unreadOnly 가 바뀌면 thread 가 지워진다
 
   const onMarkSpam = async () => {
     if (!detail || !businessId) return;
@@ -2515,7 +2550,7 @@ const MailPage: React.FC = () => {
               </AcctManageIcon>
             )}
             <PhoneListSectionsMenu state={listSec} order={MAIL_LIST_SECTION_ORDER} testId="mail-list-sections"
-              hiddenActive={(!showSearch && !!searchQ.trim()) || (!showFilter && (activeFilterCount > 0 || sentVia !== ''))} />
+              hiddenActive={(!showSearch && !!searchQ.trim()) || (!showFilter && (activeFilterCount > 0 || sentVia !== '' || unreadOnly))} />
             <ComposeBtn type="button" data-testid="mail-compose-open" onClick={() => { openNewCompose(); if (viewportNarrow) setSidebarCollapsed(true); }} title={t('compose.new', { defaultValue: '새 메일' }) as string} aria-label={t('compose.new', { defaultValue: '새 메일' }) as string}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -2759,6 +2794,20 @@ const MailPage: React.FC = () => {
               <SentViaHint>{t(`sentVia.hint.${sentVia || 'all'}`) as string}</SentViaHint>
             </SentViaBar>
           )}
+          {showFilter && folder === 'all' && !addressMode && (
+            <SentViaBar data-testid="mail-unread-only">
+              <SegmentedToggle role="tablist" aria-label={t('unreadOnly.label', { defaultValue: '읽음 상태' }) as string}>
+                {([false, true] as const).map((v) => (
+                  <SegmentedBtn key={v ? 'unread' : 'all'} type="button" role="tab" aria-selected={unreadOnly === v}
+                    data-testid={`mail-unread-only-${v ? 'unread' : 'all'}`} $active={unreadOnly === v}
+                    onClick={() => setUnreadOnly(v)}>
+                    {t(`unreadOnly.${v ? 'unread' : 'all'}`, { defaultValue: v ? '안 읽음' : '전체' }) as string}
+                  </SegmentedBtn>
+                ))}
+              </SegmentedToggle>
+              <SentViaHint>{t(`unreadOnly.hint.${unreadOnly ? 'unread' : 'all'}`) as string}</SentViaHint>
+            </SentViaBar>
+          )}
           {inquiryOnly && (
             <InquiryFilterBar data-testid="mail-inquiry-filter" role="status">
               <span>{t('filter.inquiryOnly', { defaultValue: '문의 후보만' }) as string}</span>
@@ -2791,6 +2840,8 @@ const MailPage: React.FC = () => {
               </EmptyIcon>
               <EmptyText>{qDebounced
                 ? (t('search.empty', { defaultValue: '검색 결과가 없어요' }) as string)
+                : unreadOnly
+                ? (t('unreadOnly.empty', { defaultValue: '안 읽은 메일이 없어요' }) as string)
                 : (t('emptyFolder', { defaultValue: '이 폴더에 메일이 없어요' }) as string)}</EmptyText>
             </EmptyList>
           ) : (

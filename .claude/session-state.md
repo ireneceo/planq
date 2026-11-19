@@ -2,6 +2,12 @@
 **마지막 업데이트:** 2026-11-19 (방 2a574c2f — AI 앱 파일 붙이기)
 **작업 상태:** 완료
 
+### ✅ Q mail «전체» 탭 «안 읽음만» 보기 (방 16dec4a4 · 2026-11-19 · [Opus] · Fable 미검증(자체 검증) — 화면 필터, 서버 변경 없음)
+- Irene «전체 이메일에 읽지 않은 메일 보기 … 놓친 거 걱정돼서» → 전체 탭 목록 위 [전체 | 안 읽음] 토글(보낸메일함 «보낸 곳» 과 같은 부품) · 주소 `?unread=1` · 서버 기존 `unread=true`(배지와 같은 술어)
+- 함정 막음: 안 읽음 보기에서 연 메일은 읽어도 제자리에 남음(다시 불러오면 빠짐) · 무한 스크롤은 «아직 안 읽은 행 수» 오프셋으로 이어 받아 건너뜀 없음
+- 실측: build EXIT 0 · 3폭(1440/820/390) 토글 보임·가로 넘침 0 · 안 읽음 10 = 서버 total 10 · 연 메일 남음/재조회 빠짐 · guard 85/86 · maillabel 0 실패 · 시험으로 읽은 9177 은 안 읽음으로 되돌림
+- 운영 반영: 다음 배포 때
+
 ### ✅ AI 앱(클로드·챗지피티) 업무·문서에 파일 같이 붙이기 (방 2a574c2f · 2026-11-19 · [Opus] · Fable 설계 DESIGN-READY + 완료 검증 1차 FAIL → 재확인 PASS)
 - 원인: 이미 PlanQ 에 있는 파일(메일 첨부·list_files·upload_file)을 업무/문서에 붙일 도구가 없었고, create_task·create_document 는 파일 칸도 안내도 없었다. 클로드는 파일 바이트를 넘길 수 없는데 «여기서 올리기» 길도 없었다
 - 고침: 새 도구 attach_files_to_task · attach_files_to_document(MEDIUM 확인 2단계) · create_task/create_document 의 file_ids(만들기 전 전부 판정) · 결과 upload_url(`/tasks?task=<id>&attach=1` · `/docs?post=<id>&attach=1` → 화면이 첨부 고르기를 바로 열고 주소에서 지움) · 설명·AGENT_INSTRUCTIONS 안내 · 공개 공유 문서·고객 업무+보안등급 파일 거절 · 중복 already_attached
