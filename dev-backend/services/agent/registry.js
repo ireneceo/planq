@@ -66,7 +66,7 @@ const TOOLS = [
   },
   {
     name: 'create_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members — by default it becomes their plain assigned task (they are notified and can finish it themselves). Pass as_request: true only when the user explicitly asks to REQUEST it from that colleague: then the user automatically becomes a reviewer and the colleague must get the user\'s sign-off before it is complete. The result says is_request. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none).',
+    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members — by default it becomes their plain assigned task (they are notified and can finish it themselves). Pass as_request: true only when the user explicitly asks to REQUEST it from that colleague: then the user automatically becomes a reviewer and the colleague must get the user\'s sign-off before it is complete. The result says is_request. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none). Project groups: if the task belongs to a project that has groups (workstreams — 추진과제 / 업무그룹, listed by get_project), put it in the right one with workstream_id. If the user names a group that does not exist yet, create it first with create_workstream, then pass its workstream_id. To move an existing task into a group use update_task.',
     input: {
       title: z.string().trim().min(1).max(300),
       description: z.string().max(5000).optional(),
@@ -196,7 +196,7 @@ const TOOLS = [
   },
   {
     name: 'get_project', risk: 'LOW', write: false, scopes: ['projects:read'],
-    description: 'Get one project by project_id: full description, linked clients, deal stages (no amounts), counts, open tasks, the latest notes and upcoming events. For more notes use list_project_notes. Read-only.',
+    description: 'Get one project by project_id: full description, linked clients, deal stages (no amounts), counts, open tasks, its groups (workstreams — 추진과제 / 업무그룹: workstream_id, title, task_count; use workstream_id in create_task / update_task), the latest notes and upcoming events. For more notes use list_project_notes. Read-only.',
     input: { project_id: z.number().int().positive() },
     handler: (p, a) => dir.getProject(p, a),
   },
@@ -600,7 +600,7 @@ const TOOLS = [
   // ── 2026-10-07 Fable B 판정 2·3 — 프로젝트 만들기(MEDIUM) · Q note 메모 · Q info 항목 ──
   {
     name: 'create_project', risk: 'MEDIUM', write: true, scopes: ['projects:write'],
-    description: 'Create a new project in PlanQ. You can add existing workspace members (member_user_ids from search_members) and link existing clients of this workspace (client_ids from search_clients). PlanQ does not create or invite new clients or members here and sends no email. Clients that have a PlanQ account will see the project (and the client chat, if one is created) right away. By default an internal chat is created, plus a client chat for client projects; pass chats to change this — chats:"none" when the user does not want any chat rooms. Requires confirmation: the first call only returns a preview with the names of the members and clients that will be connected.',
+    description: 'Create a new project in PlanQ. You can add existing workspace members (member_user_ids from search_members) and link existing clients of this workspace (client_ids from search_clients). PlanQ does not create or invite new clients or members here and sends no email. Clients that have a PlanQ account will see the project (and the client chat, if one is created) right away. By default an internal chat is created, plus a client chat for client projects; pass chats to change this — chats:"none" when the user does not want any chat rooms. Requires confirmation: the first call only returns a preview with the names of the members and clients that will be connected. To organize the new project\'s tasks into groups (workstreams, 추진과제), use create_workstream after it is created.',
     input: {
       name: z.string().trim().min(1).max(200),
       description: z.string().max(5000).optional(),
