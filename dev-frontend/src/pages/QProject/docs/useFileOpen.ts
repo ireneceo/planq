@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isGoogleShortcut, fetchShortcutUrl, type ProjectFile } from '../../../services/files';
 import { loadFileBlob } from '../../../utils/fileBlobCache';
+import { isNativeApp } from '../../../services/native';
 
 export function useFileOpen(
   businessId: number,
@@ -29,6 +30,10 @@ export function useFileOpen(
       window.open(f.external_url, '_blank', 'noopener,noreferrer'); return;
     }
     if (!f.download_url || f.download_url === '#') return;
+    // ★ 2026-11-20 — 앱(WebView)에는 새 탭이 없다. 빈 창을 먼저 여는 아래 길은 앱에서 **빈 새 창**만 남겼다
+    //   (밤 순찰 11-18 «앱에서 새 창» FAIL · /files 미리보기 [새 탭에서 열기]). 메일 첨부(MessageAttachments)와 같이
+    //   앱에서는 받아서 기기 공유·열기 창으로 넘긴다(utils/download → nativeSaveShare).
+    if (isNativeApp()) { dl.start(f.download_url, f.file_name); return; }
     // 인증이 필요한 주소라 링크로 직접 걸면 401 이다 — blob 으로 받아 넘긴다.
     // noopener 를 주면 핸들이 null 이라 넣을 곳이 없어진다(memory feedback_window_open_noopener_null).
     const w = window.open('', '_blank');
