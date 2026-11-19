@@ -85,6 +85,8 @@ RefreshToken.init({
     { fields: ['user_id'] },
     { fields: ['token_hash'], unique: true },
     { fields: ['expires_at'] },
+    // 2026-11-19 — services/lastActive MAX(last_used_at) GROUP BY user_id 가 사람마다 색인 끝만 읽게(scripts/migrate-refresh-last-used-index.js)
+    { name: 'refresh_tokens_user_last_used', fields: ['user_id', 'last_used_at'] },
   ],
 });
 
