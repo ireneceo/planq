@@ -85,10 +85,12 @@ async function run() {
         await b.dismissBlockers(page);
         const openRow = () => page.evaluate(() => {
           // 행 자체를 누른다 — 행 onClick 은 버튼·링크 위 클릭을 무시한다
-          const row = Array.from(document.querySelectorAll('[data-task-row]')).find((r) => r.getBoundingClientRect().height > 0);
+          // ★ 2026-11-20 — 폰 «오늘·이번 주» 는 팝아웃 본체(TaskPopoutView)를 얹는다(50f63ad6) — 그 행은 task-popout-row 다.
+          //   옛 손잡이([data-task-row])만 찾아 11-18 밤부터 폰에서 «픽스처 못 열었다» 로 미측정이었다.
+          const row = Array.from(document.querySelectorAll('[data-task-row], [data-testid="task-popout-row"]')).find((r) => r.getBoundingClientRect().height > 0);
           if (!row) return false;
-          // 폰 줄(PhoneTaskRow, 5b3f4df0)은 줄 바깥이 아니라 안쪽 제목 버튼이 연다 — 있으면 그것을 누른다
-          const open = row.querySelector('[data-testid="task-row-title"]');
+          // 폰 줄(PhoneTaskRow, 5b3f4df0)은 줄 바깥이 아니라 안쪽 제목 버튼이 연다 — 있으면 그것을 누른다(팝아웃 행은 task-popout-row-open)
+          const open = row.querySelector('[data-testid="task-row-title"], [data-testid="task-popout-row-open"]');
           (open || row).click(); return true;
         });
         // 이미 열려 있으면(마지막 업무 복원) 먼저 닫는다
