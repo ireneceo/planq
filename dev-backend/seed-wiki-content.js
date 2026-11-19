@@ -1040,6 +1040,9 @@ const ARTICLES = [
       s('포트·로그인 아이디·보내는 메일 서버는 **고급 설정** 을 펼쳐서 바꿉니다. 비워 두면 받는 메일 서버와 같은 아이디·비밀번호로 보냅니다.', 'Open **Advanced settings** to change ports, login ID or the outgoing mail server. If left blank, mail is sent with the same ID and password as the incoming server.'),
       note('Gmail·네이버 등 2단계 인증을 쓰는 메일은 일반 비밀번호 대신 "앱 비밀번호"를 발급해 입력해야 합니다. Gmail 도 앱 비밀번호로 연결합니다.',
         'For mailboxes with 2-step verification (Gmail, Naver, etc.), generate and enter an "app password" instead of your normal password. Gmail also connects with an app password.'),
+      // 2026-11-19 — 메일 서버 접속 허용 요청서
+      note('메일 서버가 «응답 없음» 이면 그 회사 메일 서버가 PlanQ 서버 접속을 막고 있는 경우가 많습니다. 등록 화면·[연결 테스트] 결과 아래 **접속 허용 요청서**(PlanQ 서버 IP·포트·서버 주소, 한/영)를 복사하거나 메일 앱으로 열어 메일 관리자에게 보내고, 열어 주면 **다시 확인** 을 누르세요. PlanQ 가 대신 보내지는 않습니다.',
+        'If the mail server shows "no response", that company\'s mail server is often blocking PlanQ\'s server. Below the form or the [Test connection] result, copy the **access request** (PlanQ server IP, ports and server address, in Korean/English) or open it in your mail app, send it to your mail admin, and press **Check again** once they open it. PlanQ does not send it for you.'),
     ] },
 
   // ── Q Calendar ──
@@ -1122,6 +1125,9 @@ const ARTICLES = [
         'When replying, choose **Sender only** or **Reply all**, and use **Add Bcc** to add Bcc addresses.'),
       s('읽은 메일도 **안 읽음으로 표시** 를 누르면 다시 안 읽은 메일로 남습니다. 이 표시는 나에게만 적용됩니다.',
         'Use **Mark as unread** to keep a read mail as unread. This applies to you only.'),
+      // 2026-11-19 — 전체 탭 안 읽음만 보기
+      s('**전체** 탭 목록 위 **[전체 | 안 읽음]** 에서 안 읽음을 고르면 아직 안 읽은 메일만 모아 봅니다. 여기서 연 메일은 읽어도 바로 사라지지 않고, 다시 불러오면 빠집니다.',
+        'In the **All** tab, choose **Unread** in **[All | Unread]** above the list to see only unread mail. Mail you open there stays in place and drops out the next time the list reloads.'),
       s('첨부가 있는 메일은 목록에서 제목 옆에 클립 표시가 붙습니다. 열어보기 전에 첨부 유무를 알 수 있어요.',
         'Threads with attachments show a paperclip in the list, so you can tell before opening.'),
       s('첨부를 누르면 이미지와 PDF는 바로 미리보기로 열립니다. 이미지는 좌우로 넘겨 볼 수 있고, 내려받을 때는 첨부 오른쪽의 내려받기 아이콘을 누르세요. 그 밖의 형식은 누르면 바로 내려받습니다.',
@@ -1841,6 +1847,9 @@ const ARTICLES = [
         'What it can do — find, create and comment on tasks; change due dates, complete or reassign tasks (it asks you first); look up clients, projects, members and events; create events; save client consultation records; add project notes. Changes made by the AI show up immediately in any PlanQ screen you have open.'),
       p('문서·파일 — Q docs 문서를 만들고 이어 쓰고 고치며(본문 전체를 바꾸거나 프로젝트로 옮길 때는 먼저 확인을 물어요), 관련 문서끼리 연결합니다. ChatGPT 대화에 올린 파일을 PlanQ 에 저장해 문서·업무·프로젝트에 붙일 수 있고, 메일 답장 초안에 PlanQ 파일을 첨부할 수 있습니다(보내지는 않아요 — PlanQ 에서 확인하고 직접 보냅니다).',
         'Documents & files — create, add to and edit Q docs documents (it asks first before replacing a whole document or moving it to a project) and link related documents. Files you attach in a ChatGPT chat can be saved into PlanQ and attached to a document, task or project, and PlanQ files can be attached to a reply draft (nothing is sent — you review and send it in PlanQ).'),
+      // 2026-11-19 — AI 앱 업무·문서 파일 붙이기
+      p('PlanQ 에 이미 있는 파일(메일 첨부 등)을 «이 파일 업무에 붙여줘» 처럼 업무·문서에 붙이거나, 업무·문서를 만들면서 같이 붙일 수 있습니다(붙이기 전에 확인을 물어요). Claude 처럼 파일을 직접 넘기지 못하면 AI 가 주는 링크를 열면 그 업무·문서의 첨부 창이 바로 열립니다. 공개 공유 문서·보안 등급 파일을 고객 업무에 붙이는 것은 막힙니다.',
+        'Ask «attach this file to the task» to attach files already in PlanQ (such as mail attachments) to a task or document, or attach them while creating one (it asks first). If the AI cannot pass the file itself (as with Claude), open the link it gives and the attach window of that task or document opens right away. Attaching to publicly shared documents, or attaching protected files to client tasks, is blocked.'),
       note('«연결된 AI 앱» 에 «새로 생긴 기능이 빠진 연결» 이라고 나오면 그 앱(ChatGPT·Codex)에서 PlanQ 를 한 번 다시 연결하고, 연결 화면에서 «읽기 + 추가·수정» 을 고르세요. 문서·파일 기능이 붙습니다.',
         'If «Connected AI apps» says a connection is missing newer abilities, reconnect PlanQ once from that app (ChatGPT or Codex) and pick «Read + add/edit» on the connection screen. Document and file abilities are added.'),
       note('PlanQ 에 새 기능이 생겨도 대부분은 연결을 끊고 다시 할 필요가 없습니다. 새 기능이 안 보이면 — ChatGPT 는 설정 › 앱(Plugins) › PlanQ 의 [새로고침], Claude 는 새 대화, Claude Code 는 새 세션을 여세요. 다시 연결이 필요한 것은 새 권한이 붙을 때뿐이고, 그때는 AI 가 대화에서 먼저 알려 줍니다.',
