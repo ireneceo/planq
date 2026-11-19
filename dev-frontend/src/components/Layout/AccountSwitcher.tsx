@@ -1,6 +1,7 @@
 // AccountSwitcher — 계정 메뉴 안의 «이 기기 계정» 칸 (인스타식: 다른 계정으로 바꾸기 · 계정 추가 · 모두 로그아웃).
 //   설계 docs/MULTI_ACCOUNT_DESIGN.md 2.4·7절. 목록 정본은 서버(GET /api/auth/device-accounts) — 열 때 한 번 읽는다.
 //   MainLayout(god-file)의 사용자 메뉴에 한 줄로 얹는다. 모양은 그 메뉴의 항목과 같은 값(어두운 민트 바탕 위).
+import { confirmLeaveAsync } from '../../services/recordingGuard';
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -43,6 +44,8 @@ const AccountSwitcher: React.FC<Props> = ({ onClose }) => {
   const pick = async (a: DeviceAccount) => {
     if (busy) return;
     if (!a.valid) { await relogin(a); return; }
+    // Q note 녹음 중이면 먼저 묻는다 — 계정 전환은 창을 다시 띄운다(services/recordingGuard)
+    if (!(await confirmLeaveAsync('account'))) return;
     setBusy(a.user_id); setNote(null);
     const fail = await switchAccount(a.user_id);
     // 성공하면 페이지가 떠난다 — 여기 닿으면 실패

@@ -20,6 +20,8 @@ export interface PlanqDesktopBridge {
     systemAudio?: boolean;
     /** Microsoft Store 설치본 — 자동 실행은 윈도우 «시작 앱» 설정(ms-settings:startupapps)에서 켠다 */
     autoLaunchViaOs?: boolean;
+    /** 페이지가 beforeunload 로 막으면 main 이 네이티브 대화창으로 묻는다(옛 껍데기 = 대화창 없이 조용히 닫기 취소 → 웹이 묻지 않는다) */
+    unloadPrompt?: boolean;
   };
   /** 이 창(부른 창 자신)을 «항상 위» 로 / 풀기 */
   setAlwaysOnTop: (on: boolean) => Promise<boolean>;

@@ -10,6 +10,7 @@ import { APP_ROUTES } from '../../routes/appRoutes';
 // ★ 라우트 표의 `roles` 선언을 집행한다 — 여태 이 pane 은 역할을 **읽지 않았다**(2026-09-13 실측).
 import RouteRoleGate from '../Common/RouteRoleGate';
 import UrlMirror from './UrlMirror';
+import LeaveGate from './LeaveGate';
 import type { Tab } from '../../stores/tabStore';
 
 // ★ 탭 안에서도 열리는 공개 화면 — 서명 화면 하나뿐이다 (2026-10-09, Irene: «확인필요에 이 업무가 있는데 눌러도 서명문서 안나와»).
@@ -49,6 +50,8 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
       <TabActiveProvider value={active}>
        <TabIdProvider value={tab.id}>
         <MemoryRouter initialEntries={[tab.path]}>
+         {/* 녹음 중 이탈 보호 — 화면 안 이동도 지나게(LeaveGate) */}
+         <LeaveGate>
           <UrlMirror tabId={tab.id} active={active} />
           <PaneScroll ref={scrollRef} data-pq-content="1" onScroll={(e) => { if (active) savedScroll.current = e.currentTarget.scrollTop; }}>
             <Suspense fallback={<Fallback />}>
@@ -63,6 +66,7 @@ export default function TabPane({ tab, active }: { tab: Tab; active: boolean }) 
               </Routes>
             </Suspense>
           </PaneScroll>
+        </LeaveGate>
         </MemoryRouter>
        </TabIdProvider>
       </TabActiveProvider>

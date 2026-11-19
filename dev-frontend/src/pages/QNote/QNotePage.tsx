@@ -28,6 +28,7 @@ import type { StartConfig } from './StartMeetingModal';
 import { getLanguageByCode } from '../../constants/languages';
 import { useAuth, getAccessToken, apiFetch } from '../../contexts/AuthContext';
 import { useReallyVisible } from '../../contexts/TabActiveContext';
+import { useRecordingLeaveGuard } from './useRecordingLeaveGuard';
 import { useTabTitle } from '../../hooks/useTabTitle';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import {
@@ -810,11 +811,11 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         }).catch(() => { /* noop */ });
       } catch { /* noop */ }
     };
+    // ★ 반납은 pagehide 에서만 — beforeunload 는 «머무르기» 를 고를 수 있는 순간이다(services/recordingGuard 가 묻는다).
+    //   거기서 반납하면 머물러도 잠금이 이미 풀려 심박이 깨진다.
     window.addEventListener('pagehide', handleUnload);
-    window.addEventListener('beforeunload', handleUnload);
     return () => {
       window.removeEventListener('pagehide', handleUnload);
-      window.removeEventListener('beforeunload', handleUnload);
       liveRef.current?.stop();
       liveRef.current = null;
       if (heartbeatTimerRef.current) { window.clearInterval(heartbeatTimerRef.current); heartbeatTimerRef.current = null; }
@@ -827,7 +828,6 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
         recorderTokenRef.current = null;
         recordingSessionIdRef.current = null;
       }
-      delete document.body.dataset.recordingActive;
     };
   }, []);
 
@@ -930,13 +930,8 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   // 녹음 중에는 새 빌드 자동 reload 를 막는다 (BuildVersionGuard.isReloadSafe 가 이 플래그를 읽는다).
   //   web_conference 캡처는 사용자가 회의 탭에 가 있는 게 정상 사용이라 Q Note 탭은 hidden —
   //   "hidden + 입력 중 아님" 조건이 그대로 맞아떨어져 배포가 뜰 때마다 녹음이 소리 없이 죽었다.
-  useEffect(() => {
-    if (phase === 'recording') document.body.dataset.recordingActive = '1';
-    else delete document.body.dataset.recordingActive;
-    // 프로젝트 탭에 얹혀 있을 때 — 부모가 다른 탭으로 옮겨도 이 트리를 살려 둬야 한다.
-    //   언마운트되면 아래 cleanup 이 LiveSession 을 끊어 **녹음이 소리 없이 멈춘다.**
-    onRecordingChange?.(phase === 'recording');
-  }, [phase, onRecordingChange]);
+  //   + 메뉴 이동·탭 닫기·새로고침·로그아웃·전환 보호(services/recordingGuard). 프로젝트 탭이면 부모에게도 알린다(트리 유지).
+  useRecordingLeaveGuard(phase === 'recording', stopRecordingForNavigation, onRecordingChange);
 
   // 새 메모 즉시 생성 (사이클 N+22 드롭다운 경로). guardRecording 이 감쌀 수 있게 함수로 분리.
   const createMemoSession = async () => {

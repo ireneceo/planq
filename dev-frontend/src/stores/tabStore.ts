@@ -9,6 +9,8 @@
 
 import { getCurrentAccountId, knownDeviceAccountIds } from '../services/accounts';
 import { isTabsSpike } from '../utils/tabsBeta';
+// Q note 녹음 중 이탈 보호(2026-11-19 · docs/QNOTE_RECORDING_LEAVE_GUARD_DESIGN.md) — 녹음 탭은 닫거나 정지하거나 덮어쓰지 않는다
+import { tabIsRecording, recordingTabIds, requestLeave, noteDiverted, isRecordingActive } from '../services/recordingGuard';
 
 export type TabKind =
   // P3 로그인 고객 홈 — other 로 두면 설정 탭과 identity 가 같아 서로 덮어쓴다
@@ -87,6 +89,11 @@ export function setTabScopeBusiness(id: number | null) { scopeBizId = id; }
  *    setTabScope 가 새 범위에서 이 경로의 탭을 이미 열고 활성화했기 때문이다.
  *    계속 진행하면 같은 경로의 탭이 하나 더 생긴다(실측: ::admin=["/admin/dashboard","/admin/dashboard"] —
  *    새로 만든 탭에는 아직 pane 이 없어 navigateActive 의 마지막 `newTab` 폴백까지 흘렀다). */
+/** 이 경로가 탭 범위를 갈아끼우는가(워크스페이스 ↔ /admin) — 갈아끼우면 탭 목록이 통째로 바뀌어 녹음 탭도 내려간다 */
+function scopeWouldChange(path: string): boolean {
+  const next = tabScopeOf((path || '/').split('?')[0], scopeBizId);
+  return !!next && next !== tabScope;
+}
 function ensureScopeFor(path: string): boolean {
   const next = tabScopeOf((path || '/').split('?')[0], scopeBizId);
   if (!next || next === tabScope) return false;
@@ -316,8 +323,11 @@ function load(): TabState {
 function set(next: Partial<TabState>) { state = { ...state, ...next }; persist(); emit(); }
 
 // LRU — alive 탭이 MAX 초과면 가장 오래된 비활성 탭 suspend
+//   ★ 녹음 중인 탭은 세지도 고르지도 않는다 — 정지(alive:false)는 언마운트라 녹음이 그 자리에서 멈춘다.
+//     온라인 회의 녹음은 사용자가 회의 탭에 가 있는 게 정상이라 Q note 탭이 가장 오래된 비활성 탭이 되기 쉽다.
 function applyLru(tabs: Tab[], activeId: string | null): Tab[] {
-  const alive = tabs.filter((t) => t.alive);
+  const rec = recordingTabIds();
+  const alive = tabs.filter((t) => t.alive && !rec.has(t.id));
   if (alive.length <= MAX_ALIVE) return tabs;
   const victims = alive
     .filter((t) => t.id !== activeId)
@@ -526,7 +536,19 @@ export const tabStore = {
 
   // 브라우저 탭 모델 — 현재(활성) 탭의 경로를 바꾼다(안으로 들어가도 새 탭 X). 사이드바/본문 링크 내비.
   navigateActive(path: string) {
+    // 범위가 바뀌면 탭 목록이 통째로 바뀐다(녹음 탭 포함) — 녹음 중이면 먼저 묻는다
+    if (!state.mirror && isRecordingActive() && scopeWouldChange(path)) { requestLeave('workspace', () => this.navigateActive(path)); return; }
     if (ensureScopeFor(path)) { if (state.mirror) mirrorNavigate(path); return; }
+    // ★ 녹음 탭은 덮어쓰지 않는다 — 다른 화면으로 가는 이동은 새 탭으로 돌린다(묻지 않고 녹음을 살린다).
+    //   같은 화면(identity) 안의 이동은 그 화면이 스스로 지킨다(QNotePage guardRecording).
+    if (!state.mirror && state.activeId && tabIsRecording(state.activeId)) {
+      const cur = state.tabs.find((t) => t.id === state.activeId);
+      if (cur && identityOfPath(cur.path) !== identityOfPath(path)) {
+        noteDiverted(state.activeId);
+        this.openInNewTab(path);
+        return;
+      }
+    }
     if (state.mirror) { mirrorNavigate(path); return; } // location→seedFromPath 가 store 갱신
     const id = state.activeId;
     if (!id) { this.newTab(path); return; }
@@ -544,9 +566,12 @@ export const tabStore = {
   //   같은 화면이 이미 열려 있으면 새로 만들지 않고 그 탭으로 간다 — 탭이 무한정 쌓이지 않게.
   //   미러 모드(단일 탭·모바일)에서는 탭 개념이 없으므로 종전대로 이동한다.
   openInNewTab(path: string) {
+    if (!state.mirror && isRecordingActive() && scopeWouldChange(path)) { requestLeave('workspace', () => this.openInNewTab(path)); return; }
     if (ensureScopeFor(path)) { if (state.mirror && navigateDelegate) navigateDelegate(path); return; }
     if (state.mirror) { if (navigateDelegate) navigateDelegate(path); return; }
     const owner = state.tabs.find((t) => identityOfPath(t.path) === identityOfPath(path));
+    // 녹음 탭의 주소를 바깥 진입점(알림 등)이 바꾸면 녹음 화면이 다른 노트로 넘어간다 — 그 탭은 보여 주기만 한다
+    if (owner && tabIsRecording(owner.id) && owner.path !== path) { this.newTab(path); return; }
     if (owner) {
       this.setTabPath(owner.id, path);
       this.setActive(owner.id);
@@ -559,12 +584,14 @@ export const tabStore = {
 
   // 새 탭 — 같은 페이지도 중복 허용. '+' / 새탭 드롭다운. OPEN_MAX 초과면 최오래 비활성 탭 close.
   newTab(path = '/dashboard') {
+    if (!state.mirror && isRecordingActive() && scopeWouldChange(path)) { requestLeave('workspace', () => this.newTab(path)); return; }
     // 범위가 갈렸으면 그 범위에 이 경로의 탭이 이미 섰다 — 여기서 또 만들면 중복이다.
     if (ensureScopeFor(path)) { if (state.mirror && navigateDelegate) navigateDelegate(path); return; }
     const now = Date.now();
     let tabs = state.tabs;
     if (tabs.length >= OPEN_MAX) {
-      const victim = [...tabs].filter((t) => t.id !== state.activeId).sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
+      // 녹음 탭은 자동으로 닫지 않는다
+      const victim = [...tabs].filter((t) => t.id !== state.activeId && !tabIsRecording(t.id)).sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0];
       if (victim) tabs = tabs.filter((t) => t.id !== victim.id);
     }
     const id = newId();
@@ -614,6 +641,8 @@ export const tabStore = {
   },
 
   closeTab(id: string) {
+    // 녹음 중인 탭을 닫으면 녹음이 멈춘다 — 묻고, [멈추고 닫기] 면 녹음을 멈춘 뒤 닫는다
+    if (tabIsRecording(id)) { requestLeave('close', () => this.closeTab(id), id); return; }
     const idx = state.tabs.findIndex((t) => t.id === id);
     if (idx < 0) return;
     const tabs = state.tabs.filter((t) => t.id !== id);

@@ -2243,5 +2243,18 @@
     "search": "Search",
     "filter": "Filters",
     "category": "Categories"
+  },
+  "recordingLeave": {
+    "title": "Recording in progress",
+    "message": "Leaving now will pause the recording. Everything recorded so far is saved, and you can pick it up later with «Resume recording».",
+    "keep": "Keep recording",
+    "confirm": {
+      "navigate": "Pause and leave",
+      "close": "Pause and close tab",
+      "logout": "Pause and log out",
+      "workspace": "Pause and switch",
+      "account": "Pause and switch account"
+    },
+    "diverted": "Recording continues in the Q note tab. The new screen opened in a new tab."
   }
 }

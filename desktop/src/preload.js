@@ -21,6 +21,7 @@ const bridge = {
   capabilities: Object.freeze({
     systemAudio: process.argv.includes('--planq-system-audio'),   // 메인 창 + 윈도우만 — 실제 허락은 main 이 요청마다 판정·확인창
     autoLaunchViaOs: process.argv.includes('--planq-store'),      // Microsoft Store 설치본 — 자동 실행은 윈도우 «시작 앱» 설정에서
+    unloadPrompt: process.argv.includes('--planq-unload-prompt'),  // 떠나기 전에 묻기를 main 이 대화창으로 받는다 — 웹이 데스크탑에서 beforeunload 를 걸어도 되는가
   }),
   setAlwaysOnTop: (on) => invoke('planq:set-always-on-top', !!on),
   notify: (n) => invoke('planq:notify', n && typeof n === 'object' ? {

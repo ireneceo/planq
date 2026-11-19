@@ -43,6 +43,9 @@ const KO = {
   quickAdd: (k) => (k ? `빠른 업무 추가 (${k})` : '빠른 업무 추가'), shortcutOn: '단축키로 빠른 업무 추가',
   openTask: 'Q task 열기', openTalk: 'Q talk 열기', openNote: 'Q note 열기', fileMenu: '파일',
   captureOn: '● 회의 소리 녹음 허용됨 — 눌러서 끄기',
+  leaveTitle: '나가면 하던 일이 멈춥니다',
+  leaveDetail: '녹음 중이거나 저장하지 않은 내용이 있어요. 지금 닫으면 녹음이 멈추거나 내용이 사라질 수 있습니다.',
+  leaveStay: '계속 사용', leaveGo: '그래도 닫기',
 };
 const EN = {
   open: 'Open PlanQ', autoLaunch: 'Start when the computer starts', installUpdate: 'Install update and restart',
@@ -50,6 +53,9 @@ const EN = {
   quickAdd: (k) => (k ? `Quick add task (${k})` : 'Quick add task'), shortcutOn: 'Quick add with shortcut',
   openTask: 'Open Q task', openTalk: 'Open Q talk', openNote: 'Open Q note', fileMenu: 'File',
   captureOn: '● Meeting audio allowed — click to stop',
+  leaveTitle: 'Leaving will stop what you are doing',
+  leaveDetail: 'A recording is running or something is not saved yet. Closing now will pause the recording or lose the changes.',
+  leaveStay: 'Keep using', leaveGo: 'Close anyway',
 };
 const L = () => (String(app.getLocale() || '').toLowerCase().startsWith('ko') ? KO : EN);
 
@@ -179,7 +185,9 @@ function baseWebPreferences() {
     webviewTag: false,
     spellcheck: false,
     devTools: !app.isPackaged,
-    additionalArguments: [`--planq-version=${app.getVersion()}`, ...(STORE ? ['--planq-store'] : []), ...RENDERER_ARGS],
+    // --planq-unload-prompt: 이 껍데기는 페이지가 «떠나기 전에 묻기»(beforeunload)를 걸면 네이티브 대화창을 띄운다(아래 guardUnload).
+    //   옛 껍데기엔 없다 → 웹은 데스크탑에서 이 표식이 있을 때만 묻는다(없으면 Electron 이 대화창 없이 조용히 닫기를 취소한다).
+    additionalArguments: [`--planq-version=${app.getVersion()}`, '--planq-unload-prompt', ...(STORE ? ['--planq-store'] : []), ...RENDERER_ARGS],
   };
 }
 
@@ -192,6 +200,7 @@ app.on('web-contents-created', (_e, contents) => {
   };
   contents.on('will-navigate', guard);
   contents.on('will-redirect', guard);
+  guardUnload(contents);
   contents.setWindowOpenHandler(({ url, frameName, features }) => {
     if (sameOrigin(url)) {
       const key = popoutKey(url);
@@ -228,6 +237,32 @@ const testLog = { notify: [], openExternal: [], displayMedia: [] };
 function openExternalLogged(url) {
   if (TEST_MODE) { testLog.openExternal.push(url); return; }
   shell.openExternal(url).catch(() => {});
+}
+
+// ── 떠나기 전에 묻기 (2026-11-19 · docs/QNOTE_RECORDING_LEAVE_GUARD_DESIGN.md G) ──
+//   페이지가 beforeunload 로 막으면(Q note 녹음 중 · 저장 안 된 문서) Electron 은 대화창 없이 조용히 취소한다 —
+//   트레이 «종료»·Ctrl+R 이 «아무 일 없음» 이 됐다. 여기서 네이티브 대화창으로 묻는다.
+//   [계속 사용] = 종료/새로고침 취소(quitting 되돌림) · [그래도 닫기] = preventDefault 로 막힘을 무시하고 진행.
+//   모든 창(메인·팝아웃)에 건다 — 아래 web-contents-created.
+function guardUnload(contents) {
+  contents.on('will-prevent-unload', (event) => {
+    const s = L();
+    const win = BrowserWindow.fromWebContents(contents);
+    const opts = {
+      type: 'warning',
+      buttons: [s.leaveStay, s.leaveGo],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'PlanQ',
+      message: s.leaveTitle,
+      detail: s.leaveDetail,
+      noLink: true,
+    };
+    const choice = win ? dialog.showMessageBoxSync(win, opts) : dialog.showMessageBoxSync(opts);
+    if (choice === 1) { event.preventDefault(); return; }
+    quitting = false;   // 종료가 취소됐다 — 다음 X 는 다시 «숨김» 이어야 한다
+    try { if (win && !win.isVisible()) win.show(); } catch { /* noop */ }
+  });
 }
 
 // ── 메인 창 ──

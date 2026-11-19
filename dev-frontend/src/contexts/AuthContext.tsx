@@ -1,3 +1,4 @@
+import { confirmLeaveAsync } from '../services/recordingGuard';
 import type { NavPrefs } from '../config/navPrefs';
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import type { ReactNode } from 'react';
@@ -957,6 +958,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (logoutInFlightRef.current) return logoutInFlightRef.current;
     const run = (async () => {
       const leavingUserId = user?.id;
+      // ⓪ Q note 녹음 중이면 먼저 묻는다(services/recordingGuard). 지워진 계정(flush:false)은 막지 않는다
+      if (opts?.flush !== false && !(await confirmLeaveAsync('logout'))) return;
       // ① 토큰이 살아 있는 동안 대기 중인 자동저장부터 보낸다(services/pendingSaves — 상한 3초, 넘기면 진행).
       //   여태는 입력 직후 로그아웃하면 debounce 에 걸린 입력이 타이머와 함께 사라졌다.
       if (opts?.flush !== false) await flushPendingSaves();
@@ -1072,6 +1075,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const switchWorkspace = async (businessId: number, onSwitched?: (u: User) => void): Promise<boolean> => {
     if (!user) return false;
     if (user.business_id === businessId) return true; // 이미 active
+    // Q note 녹음 중이면 먼저 묻는다 — 전환은 탭 목록·화면을 통째로 바꿔 녹음이 멈춘다(services/recordingGuard)
+    if (!(await confirmLeaveAsync('workspace'))) return false;
     // 전환 POST 전에 대기 중인 자동저장을 **지금 워크스페이스로** 보낸다 — 전환 뒤에 나가면 새 범위로 가거나 409 로 막힌다
     await flushPendingSaves();
     // ★ 요청을 보내기 **전에** 표시한다(2026-10-09). 서버는 응답보다 먼저 user 방에 'workspace:switched' 를

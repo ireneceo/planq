@@ -34,6 +34,7 @@ const AccountSyncGuard = lazy(() => import('./components/Common/AccountSyncGuard
 const SignupSourceReporter = lazy(() => import('./components/Common/SignupSourceReporter'));
 const MarketingTags = lazy(() => import('./components/Landing/MarketingTags'));
 const LeaveDecisionGuard = lazy(() => import('./components/Common/LeaveDecisionGuard'));
+const RecordingLeaveGuard = lazy(() => import('./components/Common/RecordingLeaveGuard'));
 const KeyboardDismissButton = lazy(() => import('./components/Common/KeyboardDismissButton'));
 const DownloadTray = lazy(() => import('./components/Common/DownloadTray'));
 const AppContextMenu = lazy(() => import('./components/Common/AppContextMenu'));
@@ -52,6 +53,7 @@ import ModuleGate from './components/Common/ModuleGate';
 // 공유 미리보기 앱 안 창 — lazy 로 두면 첫 카드 누름(이벤트)이 청크가 오기 전에 사라진다. 작아서 바로 싣는다.
 import SharePreviewSheet from './components/Common/SharePreviewSheet';
 import { needsWelcome } from './utils/welcomeGate';
+import LeaveGate from './components/Tab/LeaveGate';
 
 // Route-based code splitting — 페이지별 별도 chunk 로 첫 로드 번들 축소.
 // 이전: 모든 페이지 eager import → main bundle 2.75MB. 새로고침 시 모두 파싱·실행.
@@ -946,7 +948,8 @@ function ModeGate() {
     && !!foreignWorkspaceOf(window.location.pathname + window.location.search, user);
   if (wsLink === 'switching' || needsSwitch || !i18nReady) return <PageLoadingFallback />;
   if (mode === 'tab') return <TabAppShell />;
-  return <BrowserRouter><ShellApp /></BrowserRouter>;
+  // LeaveGate — 미러 모드(폰·좁은 폭)의 모든 이동이 녹음 보호를 지나게(services/recordingGuard)
+  return <BrowserRouter><LeaveGate><ShellApp /></LeaveGate></BrowserRouter>;
 }
 
 function App() {
@@ -965,6 +968,8 @@ function App() {
       <Suspense fallback={null}><SignupSourceReporter /></Suspense>
       {/* 로그아웃 전 확인 — 범위를 골라야 저장되는 글이 남았을 때. 같은 이유로 **루트 한 곳**(두 렌더 트리 공통) */}
       <Suspense fallback={null}><LeaveDecisionGuard /></Suspense>
+      {/* Q note 녹음 중 이탈 확인창 — 두 트리 공통이라 여기 한 곳 */}
+      <Suspense fallback={null}><RecordingLeaveGuard /></Suspense>
       {/* 우리 우클릭 메뉴 — 링크는 "새 탭에서 열기 · 링크 복사", 탭은 "복제 · 복사 · 닫기".
           같은 이유로 **루트 한 곳**: 탭 모드(TabAppShell)와 미러 모드 두 트리에서 다 돌아야 한다. */}
       <Suspense fallback={null}><AppContextMenu /></Suspense>
