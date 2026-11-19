@@ -605,7 +605,10 @@
     "mailFailed": "Couldn’t send the email. Please try again shortly.",
     "mailConfirmTitle": "Send the link by email?",
     "mailConfirmBody": "This link will be emailed to {{name}} ({{email}}).",
-    "mailSuppressed": "This is a development server, so no email actually went out ({{email}}). On the live service it is sent right away."
+    "mailSuppressed": "This is a development server, so no email actually went out ({{email}}). On the live service it is sent right away.",
+    "mailRecipientChanged": "The client’s email changed in the meantime. Check the address and send again.",
+    "mailLinkDead": "This link can’t be sent (closed or an older-style link). Replace it with a new link first.",
+    "mailBounced": "The mail server couldn’t deliver to this address. Please check the client’s email."
   },
   "workbench": {
     "loadFailed": "Could not load the workbench",

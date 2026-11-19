@@ -11,8 +11,7 @@ const { attachWorkspaceScope, assertMemberOrAbove } = require('../middleware/acc
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
 const { issueOrReuseSharedLink, urlForSharedLink, serializeGuestLink, serializeGuestContact, assertGuestLinkIssuable } = require('../services/guest_link');
-const { guestLinkRecipient, sendGuestLinkMail } = require('../services/guestLinkMail');
-const { perUserDaily } = require('../middleware/costGuard');
+const { guestLinkRecipient, sendGuestLinkMail, guestLinkMailLimit } = require('../services/guestLinkMail');
 
 
 /** 관리 화면용 직렬화 — **원문 토큰은 없다**(해시만 저장하므로 복원 불가). */
@@ -138,7 +137,7 @@ router.post('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSc
 // POST — 이 링크를 대화방 고객에게 **메일로** 보낸다(2026-11-19). 받는 주소는 서버가 정한다(services/guestLinkMail).
 //   외부 발송이라 사람당 분 5회·하루 50회.
 router.post('/:businessId/:id/guest-links/:linkId/email', authenticateToken, attachWorkspaceScope(), // audit-exempt: 감사는 sendGuestLinkMail 이 남긴다(guest_link.email)
-  ...perUserDaily('guest-link-mail', { perMin: 5, perDay: 50 }), async (req, res, next) => {
+  ...guestLinkMailLimit, async (req, res, next) => {
     try {
       const businessId = Number(req.params.businessId);
       if (!(await assertMemberOrAbove(req.user.id, businessId, req.user.platform_role))) {
@@ -153,6 +152,7 @@ router.post('/:businessId/:id/guest-links/:linkId/email', authenticateToken, att
       const r = await sendGuestLinkMail({
         link, url: urlForSharedLink(link), conv, businessId, userId: req.user.id,
         locale: req.body?.locale === 'en' ? 'en' : 'ko',
+        expectEmail: typeof req.body?.expect_email === 'string' ? req.body.expect_email : null,
       });
       if (!r.ok) return errorResponse(res, r.code, r.status);
       return successResponse(res, { to: r.to, suppressed: r.suppressed }, r.suppressed ? 'suppressed' : 'sent');

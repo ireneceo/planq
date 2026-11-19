@@ -46,7 +46,7 @@ async function recipientsByConversation(links, businessId) {
  * 발송 본체. 부르는 쪽(두 라우트)이 권한·링크 소속을 이미 확인했다.
  * @returns {Promise<{ ok: true, to: string, suppressed: boolean } | { ok: false, code: string, status: number }>}
  */
-async function sendGuestLinkMail({ link, url, conv, businessId, userId, locale }) {
+async function sendGuestLinkMail({ link, url, conv, businessId, userId, locale, expectEmail }) {
   if (!link || link.revoked_at || (link.expires_at && new Date(link.expires_at).getTime() <= Date.now())) {
     return { ok: false, code: 'link_not_live', status: 409 };
   }
@@ -59,6 +59,10 @@ async function sendGuestLinkMail({ link, url, conv, businessId, userId, locale }
 
   const rcpt = await guestLinkRecipient(conv, businessId);
   if (!rcpt) return { ok: false, code: 'no_recipient_email', status: 400 };
+  // 확인창에 보여 준 주소와 지금 주소가 다르면(그 사이 고객 이메일이 바뀜) 보내지 않는다 — 확인받지 않은 주소로 나가면 안 된다.
+  if (expectEmail && String(expectEmail).trim().toLowerCase() !== rcpt.email.toLowerCase()) {
+    return { ok: false, code: 'recipient_changed', status: 409 };
+  }
 
   const { loadWorkspaceSender } = require('./workspaceSender');
   const { workspaceName, fromName, replyTo } = await loadWorkspaceSender(businessId);
@@ -87,4 +91,8 @@ async function sendGuestLinkMail({ link, url, conv, businessId, userId, locale }
   return { ok: true, to: rcpt.email, suppressed };
 }
 
-module.exports = { guestLinkRecipient, recipientsByConversation, sendGuestLinkMail };
+// 사람당 한도 — 대화방·프로젝트 두 문이 **같은 카운터**를 쓰도록 한 번만 만든다(따로 부르면 상한이 두 배가 된다 — Fable 실측).
+const { perUserDaily } = require('../middleware/costGuard');
+const guestLinkMailLimit = perUserDaily('guest-link-mail', { perMin: 5, perDay: 50 });
+
+module.exports = { guestLinkRecipient, recipientsByConversation, sendGuestLinkMail, guestLinkMailLimit };

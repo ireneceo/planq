@@ -9,15 +9,14 @@ const router = express.Router();
 const { GuestLink, Conversation } = require('../models');
 const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
-const { perUserDaily } = require('../middleware/costGuard');
 const { loadProjectOrForbidden } = require('../services/projectAccess');
 const { urlForSharedLink } = require('../services/guest_link');
-const { sendGuestLinkMail } = require('../services/guestLinkMail');
+const { sendGuestLinkMail, guestLinkMailLimit } = require('../services/guestLinkMail');
 
-// 외부 발송이라 사람당 분 5회·하루 50회(대화방 문과 같은 이름 — 둘을 합쳐 센다).
+// 외부 발송이라 사람당 분 5회·하루 50회 — 대화방 문과 같은 limiter 인스턴스(services/guestLinkMail)라 둘을 합쳐 센다.
 // platformroom-exempt: 링크가 가리키는 대화방 하나를 id 로만 찾는다(세지 않는다) — 발송은 assertGuestLinkIssuable 이 고객 방만 통과시킨다
 router.post('/:id/guest-links/:linkId/email', authenticateToken, // audit-exempt: 감사는 sendGuestLinkMail 이 남긴다(guest_link.email)
-  ...perUserDaily('guest-link-mail', { perMin: 5, perDay: 50 }), async (req, res, next) => {
+  ...guestLinkMailLimit, async (req, res, next) => {
     try {
       const { project, role, error } = await loadProjectOrForbidden(Number(req.params.id), req.user.id);
       if (error) return errorResponse(res, error.message, error.code);
@@ -31,6 +30,7 @@ router.post('/:id/guest-links/:linkId/email', authenticateToken, // audit-exempt
       const r = await sendGuestLinkMail({
         link, url: urlForSharedLink(link), conv, businessId: project.business_id, userId: req.user.id,
         locale: req.body?.locale === 'en' ? 'en' : 'ko',
+        expectEmail: typeof req.body?.expect_email === 'string' ? req.body.expect_email : null,
       });
       if (!r.ok) return errorResponse(res, r.code, r.status);
       return successResponse(res, { to: r.to, suppressed: r.suppressed }, r.suppressed ? 'suppressed' : 'sent');

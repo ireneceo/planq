@@ -1,4 +1,14 @@
 ## 현재 작업 상태
+### ✅ 고객 링크 [보내기] = 고객에게 메일로 보내기 (방 12f9449c · 2026-11-19 · [Opus] · Fable 완료 검증 PASS — 차단 0)
+- Irene «고객에게 링크보내기 누르면 이메일로 보내줘야지» — 옛 [보내기] 는 폰 공유 시트/복사뿐(데스크탑은 «복사됨» 만)
+- 서버 `services/guestLinkMail.js` 한 벌: 받는 주소는 서버가 대화방 고객에서(`clientContact.primaryEmailOf` — 요청 주소 안 받음) · 발급과 같은 술어 `assertGuestLinkIssuable`(킬스위치·고객방·보관) · 회수/만료/옛 난수 링크 409 · 감사 `guest_link.email` · EmailLog `guest_link_send` · 사람당 분 5·하루 50(두 문이 같은 limiter) · 확인창 주소(`expect_email`)와 다르면 409 `recipient_changed`
+- 문: 대화방 `POST /api/conversations/:biz/:id/guest-links/:linkId/email`(guest_admin.js) · 프로젝트 `POST /api/projects/:id/guest-links/:linkId/email`(새 파일 `routes/project_guest_link_mail.js` — projects.js god-file 한도) · 두 목록 응답에 `recipient`
+- 화면 `GuestLinkButton`: [메일로 보내기](주소 없으면 꺼짐+이유) → 이름·주소 적힌 확인창 → «…로 보냈어요» · [복사] · [다른 앱으로 공유](공유 기능 있는 기기만) · ko/en
+- 개발 서버는 발송 정지라 응답 `suppressed` → 화면이 «개발 서버라 실제 메일은 나가지 않았어요» (거짓 «보냈어요» 없음)
+- 실측: 실HTTP 대화방·프로젝트 200 · 주소 없음 400 · 고객 403 · 남의 대화방/워크스페이스 404 · 회수 409 · 내부방 403 · 주소 불일치 409 · 한도 두 문 합산 49→48→47 · 화면 390/820/1440 확인창·결과 줄 · build EXIT 0 · guard 85/86
+- Fable: 운영 흉내(가짜 SMTP) 실패·차단 주소 → 502·감사 0 / 성공 → sent·감사 1 · health 101/101 · PASS. 비차단 남김: 영어 메일의 폴백 링크·푸터 한국어(기존 공용 헬퍼) · 받는 사람별 재발송 간격 없음 · 경로별 링크 종류(scope) 미구분(새는 것 없음)
+- 확인용: 대화방 68(고객 최고객) · 프로젝트 35
+- 운영 반영: 다음 배포 때
 ### ✅ ChatGPT 가 업무 추가 때 프로젝트 업무그룹을 안 씀 (방 fde561e9 · 2026-11-19 · [Opus] · Fable 안 씀 — 도구 설명 문구만, 서버 동작·권한 변경 없음)
 - 원인(코드): 서버는 ChatGPT·클로드를 구분하지 않는다(같은 도구 59개). 업무그룹 안내가 create_task 의 **입력 칸 설명에만** 있고 본 설명·get_project 설명엔 없었다 → ChatGPT 가 workstream_id·create_workstream 을 건너뜀
 - 원인(연결): 개발 DB 실제 ChatGPT 연결(902·54)은 10월 초 동의 그대로 — projects:write 없음 → 새 그룹 만들기 거절(재연결 안내는 나감). ChatGPT 앱은 도구 목록을 저장해 둠

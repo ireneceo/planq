@@ -106,7 +106,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
         return;
       }
       // 200 reused(다른 멤버가 방금 만든 것) · 201 issued 둘 다 목록을 다시 읽으면 주소가 보인다.
-      if (j.success) { setJustIssued(r.status === 201); setConfirmReplace(false); await load(); }
+      if (j.success) { setJustIssued(r.status === 201); setConfirmReplace(false); setMailedTo(null); await load(); }
     } finally { setBusy(false); }
   };
   // 교체는 **밖으로 영향이 가는** 행동이다 — 옛 주소로 들어오던 사람과 알림 신청자가 끊긴다. 확인을 받는다.
@@ -171,7 +171,8 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     try {
       const r = await apiFetch(api.email(own.id), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locale: (i18n.language || 'ko').startsWith('en') ? 'en' : 'ko' }),
+        // expect_email — 확인창에 보여 준 주소. 그 사이 고객 이메일이 바뀌었으면 서버가 409 로 막는다.
+        body: JSON.stringify({ locale: (i18n.language || 'ko').startsWith('en') ? 'en' : 'ko', expect_email: recipient?.email || '' }),
       });
       const j = await r.json().catch(() => ({} as { success?: boolean; message?: string; data?: { to?: string } }));
       setConfirmMail(false);
@@ -179,7 +180,12 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
         const code = (j as { message?: string })?.message || '';
         setErr(
           code === 'no_recipient_email' ? t('guestLink.mailNoEmail', { defaultValue: '고객 이메일이 없어 메일로 보낼 수 없어요. 복사해서 카톡·문자로 보내 주세요.' }) as string
+          : code === 'recipient_changed' ? t('guestLink.mailRecipientChanged', { defaultValue: '그 사이 고객 이메일이 바뀌었어요. 받는 주소를 다시 확인하고 보내 주세요.' }) as string
+          : (code === 'link_not_live' || code === 'link_url_unavailable') ? t('guestLink.mailLinkDead', { defaultValue: '이 링크는 보낼 수 없어요(닫혔거나 이전 방식 링크). 새 링크로 바꾼 뒤 보내 주세요.' }) as string
+          : code === 'conversation_archived' ? t('guestLink.errArchived', { defaultValue: '보관된 대화방에는 만들 수 없습니다.' }) as string
+          : code === 'not_customer_channel' ? t('guestLink.errNotCustomer', { defaultValue: '고객 대화방에서만 만들 수 있습니다.' }) as string
           : code === 'guest_links_disabled' ? t('guestLink.errDisabled', { defaultValue: '게스트 링크 기능이 꺼져 있습니다. 관리자에게 문의해 주세요.' }) as string
+          : r.status === 502 ? t('guestLink.mailBounced', { defaultValue: '메일 서버가 이 주소로 보내지 못했어요. 고객 이메일 주소가 맞는지 확인해 주세요.' }) as string
           : r.status === 429 ? t('guestLink.mailTooMany', { defaultValue: '짧은 시간에 너무 많이 보냈어요. 잠시 후 다시 보내 주세요.' }) as string
           : t('guestLink.mailFailed', { defaultValue: '메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string,
         );
@@ -188,6 +194,9 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
       const d = (j as { data?: { to?: string; suppressed?: boolean } }).data;
       setMailSuppressed(!!d?.suppressed);
       setMailedTo(d?.to || recipient?.email || '');
+    } catch {
+      setConfirmMail(false);
+      setErr(t('guestLink.mailFailed', { defaultValue: '메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string);
     } finally { setBusy(false); }
   };
   const scopeChip = (l: Link) => ((l.scope || 'conversation') === 'project'

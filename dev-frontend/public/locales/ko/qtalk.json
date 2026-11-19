@@ -605,7 +605,10 @@
     "mailFailed": "메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
     "mailConfirmTitle": "링크를 메일로 보낼까요?",
     "mailConfirmBody": "{{name}} 님({{email}})에게 이 링크를 메일로 보냅니다.",
-    "mailSuppressed": "개발 서버라 실제 메일은 나가지 않았어요 ({{email}}). 운영에서는 바로 보내집니다."
+    "mailSuppressed": "개발 서버라 실제 메일은 나가지 않았어요 ({{email}}). 운영에서는 바로 보내집니다.",
+    "mailRecipientChanged": "그 사이 고객 이메일이 바뀌었어요. 받는 주소를 다시 확인하고 보내 주세요.",
+    "mailLinkDead": "이 링크는 보낼 수 없어요(닫혔거나 이전 방식 링크). 새 링크로 바꾼 뒤 보내 주세요.",
+    "mailBounced": "메일 서버가 이 주소로 보내지 못했어요. 고객 이메일 주소가 맞는지 확인해 주세요."
   },
   "workbench": {
     "loadFailed": "작업대 정보를 불러오지 못했습니다",
