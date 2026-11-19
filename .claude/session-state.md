@@ -7,6 +7,16 @@
 - 질문(상황판 askmwmxm5ul): A 45건 모두(11건은 요청 표시만 떼고 컨펌자 유지 — 스크립트 조건 넓힘·개발 시험) · B 34건만 바로 · C 그대로. 권고 A
 - 답이 오면: A = taskRequestConvert 에 «컨펌자 여럿이면 작성자 컨펌자 행 유지 + request_by·source 만» 경로 추가 → 개발 시험(되돌림 포함) → 운영 --apply(장부 보관) · B = 운영 `node scripts/convert-requests-to-assigned.js --business 21 --creator 1 --apply` · 끝나면 재조회로 request 0 확인
 
+### ✅ 워크스페이스 전환이 갑자기 느려짐 (방 b5c712a2 · 2026-11-19 · [Opus] · Fable 안 씀 — 색인 추가만·데이터 불변·DROP INDEX 로 즉시 되돌림·효과를 숫자로 잼) fefa3d0f
+- 원인: 전환 뒤 첫 화면이 멤버 목록(GET /businesses/:id/members)을 여러 번(실측 4번) 부르는데, 그 목록의 «마지막 활동»(services/lastActive, 10-23 ff3fe3e4)이
+  refresh_tokens 를 MAX(last_used_at) GROUP BY user_id 로 읽는다. 토큰은 15분마다 새 행 · 지우는 곳 없음 → 개발 18만 행 · user_id 색인만이라 사람의 토큰 행 전부를 읽음(멤버 8명 0.5초).
+  서버 전환 API 자체(30~100ms)·착지 변경 5af71bd8 은 원인 아님.
+- 고침: (user_id, last_used_at) 색인 · `dev-backend/scripts/migrate-refresh-last-used-index.js`(멱등·INPLACE LOCK=NONE) · 배포 슬롯 등록(deploy-planq.sh desktop-client-kind 다음) · 모델 indexes.
+- 실측(개발, 실제 브라우저 전환기 클릭): 클릭→화면 /tasks 3622→701ms · /talk 827→663 · /mail 1507→998 · /talk(ws5) 2120→1479. 조회 단독 546→2~7ms.
+- 가드: guard 85/86 통과 · health 100/101 — [external] 접수 확인 «fetch failed»(같은 POST 를 직접 부르면 201 · 이 변경과 무관한 라우트, 두 번 재현) — 다음 점검에서 판정.
+- 운영 확인 못 함: 운영 DB 읽기(토큰 행 수)는 권한 거부로 못 봄. 운영 반영: 다음 배포 때(마이그레이션 자동).
+- 다음 할 일(별건): refresh_tokens 옛 행(만료·교체) 정리 정책 — 보관·삭제라 Fable 설계 대상 · 첫 화면 멤버 목록 중복 호출 합치기(지금은 1회 수십 ms 라 급하지 않음).
+
 ### ✅ 정기 점검 11/19 00:15 — 개발완료 · 개발시작 (방 1e2cd2ed · 2026-11-18 UTC · [Opus] · Fable 미검증(자체 검증) — 기록·도움말 문구·검사기 3개, 제품 코드 0줄)
 - 기록: DEVELOPMENT_PLAN «2026-11-18» 절(d8de3029..3040f73a, 제품 커밋 약 25) · Q위키 2줄(업무 만들기: «업무 | 요청하기»·남을 담당으로 넣으면 배정 · 확인 요청 워크플로우: 컨펌 대기 중 «완료» 불가) 시드·커버리지 통과
 - 가드: 배포 게이트 미리보기 1차 health 100/101 — [secrets] 워크스페이스 백업 검사 120초 시간초과(내보내기 단독 0.4초 · 끊기며 남긴 hc-bk 시험 행 4개 지움) → 2차 101/101 · guard rc 0 · tenant 실패 0
