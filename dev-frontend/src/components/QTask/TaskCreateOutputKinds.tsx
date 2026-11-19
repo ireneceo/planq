@@ -6,6 +6,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import OutputKindPicker from './OutputKindPicker';
 import { useTaskOutputKindDict } from './useTaskOutputKindDict';
+import { useAuth } from '../../contexts/AuthContext';
 import type { OutputKindLite } from './outputKindLabel';
 
 interface Props {
@@ -16,7 +17,12 @@ interface Props {
 
 const TaskCreateOutputKinds: React.FC<Props> = ({ bizId, value, onChange }) => {
   const { t } = useTranslation('qtask');
-  const dict = useTaskOutputKindDict(bizId);
+  const { user } = useAuth();
+  // 고객은 산출물을 고르지 않는다(설계 §3.2·§6.2) — 칸을 그리지 않고 사전 API(고객 403)도 치지 않는다.
+  //   판정은 업무 상세 드로어와 같은 술어(이 워크스페이스에서의 내 역할).
+  const isClient = (user?.workspaces || []).find((w) => w.business_id === bizId)?.role === 'client';
+  const dict = useTaskOutputKindDict(bizId, !isClient);
+  if (isClient) return null;
   return (
     <Row data-field="outputs">
       <Label>{t('outputs.label', '산출물')}</Label>

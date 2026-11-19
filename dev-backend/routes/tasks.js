@@ -1950,7 +1950,8 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       actual_hours: null,
       completed_at: null,
     });
-    await require('../services/taskOutputKinds').copyLinks(src.id, copy.id);   // 산출물은 «종류» 라 따라간다(복사 계약)
+    const outK = require('../services/taskOutputKinds'); await outK.copyLinks(src.id, copy.id);   // 산출물은 «종류» 라 따라간다(복사 계약)
+    const [{ output_kinds: copiedOutputs }] = await outK.attachOutputKindsTo([{ id: copy.id }], src.business_id);
 
     const full = await Task.findByPk(copy.id, {
       include: [
@@ -1967,7 +1968,7 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       //   추가 쿼리 없이 표시명만 입힌다(serializeLoadedTasks).
       const { serializeLoadedTasks } = require('../services/taskBroadcast');
       const [baseJson] = await serializeLoadedTasks([full], src.business_id);
-      const payload = { ...(baseJson || full.toJSON()), actor_user_id: req.user.id };
+      const payload = { ...(baseJson || full.toJSON()), output_kinds: copiedOutputs, actor_user_id: req.user.id };
       require('../services/taskRoom').emitTask(io, 'task:new', payload, { businessId: src.business_id, projectId: src.project_id }).catch((e) => console.warn('[emitTask]', e.message));   // 공개 범위 반영
       broadcastInboxRefresh(io, src.business_id, src.project_id, 'task_copy', full.id);
     }
@@ -1981,7 +1982,7 @@ router.post('/:id/copy', authenticateToken, async (req, res, next) => {
       businessId: copy.business_id,
       newValue: { from_task_id: src.id, title: copy.title, project_id: copy.project_id },
     });
-    return successResponse(res, full.toJSON(), 'copied', 201);
+    return successResponse(res, { ...full.toJSON(), output_kinds: copiedOutputs }, 'copied', 201);
   } catch (err) { next(err); }
 });
 

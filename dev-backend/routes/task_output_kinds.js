@@ -80,6 +80,7 @@ router.post('/output-kinds', authenticateToken, async (req, res, next) => {
       const e = await outputs.ensurePresetRow(businessId, key, req.user.id);
       r = { ok: true, row: e.row, created: e.created };
     } else {
+      if (typeof req.body.name !== 'string') return errorResponse(res, 'name_required', 400);   // 객체·숫자가 «[object Object]» 행이 되지 않게
       r = await outputs.createCustom(businessId, req.body.name, req.user.id);
       if (!r.ok) return errorResponse(res, r.code, 400);
     }
@@ -95,8 +96,12 @@ router.post('/output-kinds', authenticateToken, async (req, res, next) => {
 });
 
 // 사전 행 하나 — 그 행의 business_id 로 멤버 판정(남의 워크스페이스 id 는 403)
+const posInt = (v) => (/^[1-9][0-9]{0,9}$/.test(String(v)) ? Number(v) : null);   // 숫자가 아닌 id 는 SQL 에 NaN 으로 가지 않게
+
 async function loadOwnRow(req, res) {
-  const row = await TaskOutputKind.findByPk(Number(req.params.kindId));
+  const kindId = posInt(req.params.kindId);
+  if (!kindId) { errorResponse(res, 'output_kind_not_found', 404); return null; }
+  const row = await TaskOutputKind.findByPk(kindId);
   if (!row) { errorResponse(res, 'output_kind_not_found', 404); return null; }
   if (!(await assertMemberOrAbove(req.user.id, row.business_id, req.user.platform_role))) {
     errorResponse(res, 'forbidden', 403); return null;
@@ -110,6 +115,7 @@ router.put('/output-kinds/:kindId', authenticateToken, async (req, res, next) =>
     const row = await loadOwnRow(req, res);
     if (!row) return;
     if (row.preset_key) return errorResponse(res, 'preset_not_renamable', 400);
+    if (typeof req.body.name !== 'string') return errorResponse(res, 'name_required', 400);
     const name = outputs.normalizeName(req.body.name);
     if (!name) return errorResponse(res, 'name_required', 400);
     if (name.length > outputs.MAX_NAME) return errorResponse(res, 'name_too_long', 400);
@@ -150,9 +156,12 @@ router.delete('/output-kinds/:kindId', authenticateToken, async (req, res, next)
 // audit-exempt: 감사는 행동 계층이 남긴다(이 라우트는 위임만 한다)
 router.put('/:id/output-kinds', authenticateToken, async (req, res, next) => {
   try {
-    const task = await Task.findByPk(Number(req.params.id));
+    const taskId = posInt(req.params.id);
+    const task = taskId ? await Task.findByPk(taskId) : null;
     if (!task) return errorResponse(res, 'task_not_found', 404);
-    const raw = Array.isArray(req.body.output_kind_ids) ? req.body.output_kind_ids : [];
+    // 전체 교체라 배열이 아니면 거절한다 — 빠뜨린 본문이 «전부 지우기» 가 되지 않게(빈 배열은 명시적 비우기).
+    if (!Array.isArray(req.body.output_kind_ids)) return errorResponse(res, 'output_kind_ids_required', 400);
+    const raw = req.body.output_kind_ids;
     const { setOutputKinds } = require('../services/actions/task_output_actions');
     const r = await setOutputKinds(task, { kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req },
       { kindIds: raw, seriesScope: req.body.series_scope });

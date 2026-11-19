@@ -15,6 +15,9 @@ const { sequelize } = require('../config/database');
 const BASE = process.env.API_BASE || 'http://127.0.0.1:3003';
 const KEEP = process.argv.includes('--keep');
 const WS = 6; const WS_OTHER = 7;
+// 실행마다 다른 이름 — 남겨 둔 «확인할 곳» 업무의 직접 입력 행을 이 검사가 집어 지우지 않게(재실행 안전)
+const RUN = Date.now().toString(36).slice(-5);
+const CUST = `[확인용] 검사 북 ${RUN}`;
 let fail = 0; let pass = 0;
 const madeTasks = []; const madeKinds = new Set();
 function check(name, ok, detail) {
@@ -67,10 +70,10 @@ const ids = (arr) => (arr || []).map((k) => k.id).sort((a, b) => a - b).join(','
     const design = (await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, preset_key: 'design_draft' }))[1].data;
 
     // ④ 직접 입력 — 저장·정리·멱등·길이·빈값
-    const c1 = await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: '  [확인용]  브랜드  북 ' });
-    const c2 = await api(m1.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: '[확인용] 브랜드 북' });
+    const c1 = await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: `  [확인용]  검사  북 ${RUN} ` });
+    const c2 = await api(m1.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: CUST });
     const custom = c1[1].data; madeKinds.add(custom.id);
-    check('④ 첫 201 · 이름 정리', c1[0] === 201 && custom.name === '[확인용] 브랜드 북' && custom.preset_key === null, JSON.stringify(c1));
+    check('④ 첫 201 · 이름 정리', c1[0] === 201 && custom.name === CUST && custom.preset_key === null, JSON.stringify(c1));
     check('④ 둘째 200 같은 id', c2[0] === 200 && c2[1].data.id === custom.id, JSON.stringify(c2));
     check('④ 41자 400', (await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: 'x'.repeat(41) }))[0] === 400);
     check('④ 빈 이름 400', (await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: '   ' }))[0] === 400);
@@ -101,6 +104,12 @@ const ids = (arr) => (arr || []).map((k) => k.id).sort((a, b) => a - b).join(','
     check('⑦ 무관 멤버 403', (await put(m2, [proposal.id]))[0] === 403);
     check('⑦ 고객 403', (await put(client, [proposal.id]))[0] === 403);
     check('⑦ 11개 400', (await put(owner, Array.from({ length: 11 }, (_, i) => i + 1)))[0] === 400);
+    // 입력 모양(Fable 비차단 N2·N3·N5) — 숫자 아닌 id 는 404 · 배열 없는 교체는 400(전부 지우지 않음) · 문자열 아닌 이름 400
+    check('⑦b 숫자 아닌 업무 id 404', (await api(owner.tok, 'PUT', '/api/tasks/abc/output-kinds', { output_kind_ids: [] }))[0] === 404);
+    check('⑦b 숫자 아닌 사전 id 404', (await api(owner.tok, 'DELETE', '/api/tasks/output-kinds/abc'))[0] === 404);
+    const keepN = await M.TaskOutputKindLink.count({ where: { task_id: tB } });
+    check('⑦b 배열 없는 교체 400 · 연결 그대로', (await api(owner.tok, 'PUT', `/api/tasks/${tB}/output-kinds`, {}))[0] === 400 && (await M.TaskOutputKindLink.count({ where: { task_id: tB } })) === keepN);
+    check('⑦b 객체 이름 400', (await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: { a: 1 } }))[0] === 400);
 
     // ⑧ 격리 — ws 7 사전 행
     const other = await M.TaskOutputKind.create({ business_id: WS_OTHER, name: `[확인용] 남의 산출물 ${Date.now() % 100000}`, created_by: owner.id });
@@ -164,13 +173,14 @@ const ids = (arr) => (arr || []).map((k) => k.id).sort((a, b) => a - b).join(','
     const tCopy = j?.data?.id; madeTasks.push(tCopy);
     const dCopy = (await api(owner.tok, 'GET', `/api/tasks/${tCopy}/detail`))[1]?.data;
     const dA2 = (await api(owner.tok, 'GET', `/api/tasks/${tA}/detail`))[1]?.data;
+    check('⑮ 복사 응답에 output_kinds', ids(j?.data?.output_kinds) === ids(dA2?.output_kinds), JSON.stringify(j?.data?.output_kinds));
     check('⑮ 복사본 같은 집합 · 원본 불변', s < 300 && ids(dCopy?.output_kinds) === ids(dA2?.output_kinds) && dA2.output_kinds.length === 3, `${s} ${ids(dCopy?.output_kinds)} vs ${ids(dA2?.output_kinds)}`);
 
     // ⑯ 템플릿 왕복(서비스 함수 — 저장 collect → 적용 materialize). 지운 직접 입력 이름은 다시 만들어진다.
     const td = require('../services/templateDetails');
     const ex = await td.collectTaskExtras([await M.Task.findByPk(tA)], WS);
     const names = ex.get(tA).output_names || [];
-    check('⑯ 저장: output_names 수집', names.length === 3 && names.includes('[확인용] 브랜드 북'), JSON.stringify(names));
+    check('⑯ 저장: output_names 수집', names.length === 3 && names.includes(CUST), JSON.stringify(names));
     const norm = td.normalizeItemDetails({ output_names: [...names, ' 영상 ', '영상'] }, 0).output_names;
     check('⑯ 정리: 중복 제거', JSON.stringify(norm) === JSON.stringify([...names, '영상']), JSON.stringify(norm));
     [s, j] = await api(owner.tok, 'POST', '/api/tasks', { business_id: WS, title: '[확인용] 템플릿 적용' });
@@ -178,7 +188,7 @@ const ids = (arr) => (arr || []).map((k) => k.id).sort((a, b) => a - b).join(','
     await M.TaskOutputKind.destroy({ where: { id: custom.id } });   // 직접 입력을 지운 뒤 적용 → 다시 만들어져야 한다
     const res = await td.materializeItemExtras([{ task: { id: tT }, item: { output_names: names } }], { businessId: WS, actorUserId: owner.id, indexOf: () => 0 });
     const dT = (await api(owner.tok, 'GET', `/api/tasks/${tT}/detail`))[1]?.data;
-    const recreated = await M.TaskOutputKind.findOne({ where: { business_id: WS, name: '[확인용] 브랜드 북' } });
+    const recreated = await M.TaskOutputKind.findOne({ where: { business_id: WS, name: CUST } });
     if (recreated) madeKinds.add(recreated.id);
     check('⑯ 적용: 같은 이름 3개 · 지운 이름 다시 생김 · 기본은 preset 유지',
       res.outputs === 3 && dT.output_kinds.length === 3 && !!recreated && dT.output_kinds.some((k) => k.preset_key === 'proposal'), JSON.stringify(dT?.output_kinds));
@@ -189,9 +199,9 @@ const ids = (arr) => (arr || []).map((k) => k.id).sort((a, b) => a - b).join(','
     const p = { businessId: WS, userId: owner.id, platformRole: null, provider: 'check', grantId: null };
     const actor = { kind: 'user', userId: owner.id, platformRole: null, req: null, channel: { kind: 'agent', provider: 'check', grant_id: null } };
     const kindsBefore = await M.TaskOutputKind.count({ where: { business_id: WS } });
-    const ai1 = await tools.createTask(p, { title: '[확인용] AI 산출물', output_names: ['Proposal', '[확인용] 브랜드 북'] }, actor);
+    const ai1 = await tools.createTask(p, { title: '[확인용] AI 산출물', output_names: ['Proposal', CUST] }, actor);
     madeTasks.push(ai1.task.task_id);
-    check('⑰ AI 만들기: 영어 라벨이 같은 행으로', JSON.stringify(ai1.task.outputs) === JSON.stringify(['제안서', '[확인용] 브랜드 북']), JSON.stringify(ai1.task.outputs));
+    check('⑰ AI 만들기: 영어 라벨이 같은 행으로', JSON.stringify(ai1.task.outputs) === JSON.stringify(['제안서', CUST]), JSON.stringify(ai1.task.outputs));
     const tasksBefore = await M.Task.count({ where: { business_id: WS } });
     let aiErr = null;
     try { await tools.createTask(p, { title: '[확인용] AI 없는 이름', output_names: ['없는이름XYZ'] }, actor); } catch (e) { aiErr = e; }
@@ -213,9 +223,9 @@ const ids = (arr) => (arr || []).map((k) => k.id).sort((a, b) => a - b).join(','
     check('⑱ 감사 행 via agent', !!nv && String(nv.via || '').startsWith('agent:'), JSON.stringify(nv));
 
     // ⑲ 사전 관리
-    [s] = await api(owner.tok, 'PUT', `/api/tasks/output-kinds/${custom.id}`, { name: '[확인용] 브랜드 가이드' });
+    [s] = await api(owner.tok, 'PUT', `/api/tasks/output-kinds/${custom.id}`, { name: `${CUST} 가이드` });
     const dT2 = (await api(owner.tok, 'GET', `/api/tasks/${tT}/detail`))[1]?.data;
-    check('⑲ 이름 변경이 업무에 보임', s === 200 && dT2.output_kinds.some((k) => k.name === '[확인용] 브랜드 가이드'));
+    check('⑲ 이름 변경이 업무에 보임', s === 200 && dT2.output_kinds.some((k) => k.name === `${CUST} 가이드`));
     check('⑲ 기본 라벨로 변경 409', (await api(owner.tok, 'PUT', `/api/tasks/output-kinds/${custom.id}`, { name: 'Proposal' }))[0] === 409);
     check('⑲ 기본 항목 PUT 400', (await api(owner.tok, 'PUT', `/api/tasks/output-kinds/${proposal.id}`, { name: 'zz' }))[0] === 400);
     check('⑲ 기본 항목 DELETE 400', (await api(owner.tok, 'DELETE', `/api/tasks/output-kinds/${proposal.id}`))[0] === 400);
@@ -226,10 +236,10 @@ const ids = (arr) => (arr || []).map((k) => k.id).sort((a, b) => a - b).join(','
     // ⑳ 상한 100 — 직접 입력 채우고 101번째 / 기본 항목은 성공
     const have = await M.TaskOutputKind.count({ where: { business_id: WS, preset_key: null } });
     const fill = [];
-    for (let i = have; i < 100; i++) fill.push({ business_id: WS, name: `[확인용] 상한 ${i}`, created_by: owner.id });
+    for (let i = have; i < 100; i++) fill.push({ business_id: WS, name: `[확인용] 상한 ${RUN} ${i}`, created_by: owner.id });
     const filled = await M.TaskOutputKind.bulkCreate(fill);
     filled.forEach((r) => madeKinds.add(r.id));
-    [s, j] = await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: '[확인용] 101번째' });
+    [s, j] = await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, name: `[확인용] 101번째 ${RUN}` });
     check('⑳ 101번째 400 output_kind_limit', s === 400 && j?.message === 'output_kind_limit', `${s} ${j?.message}`);
     [s] = await api(owner.tok, 'POST', '/api/tasks/output-kinds', { business_id: WS, preset_key: 'video' });
     check('⑳ 상한이어도 기본 항목은 성공', s === 200 || s === 201, String(s));
