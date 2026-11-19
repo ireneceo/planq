@@ -1,0 +1,92 @@
+{
+  "version": "1.70.17",
+  "date": "2026-11-19",
+  "_auto": true,
+  "_range": "2171cba8..a3af5ccd",
+  "summary": {
+    "ko": "Q task 산출물 선택과 고객 메일 보내기, 워크스페이스 전환 경험이 좋아졌어요",
+    "en": "Improved Q task deliverables, customer email sending, and workspace switching experience"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "고객 링크를 바로 메일로 보낼 수 있어요",
+        "body": "고객 링크 화면에서 [보내기]를 누르면 고객에게 바로 메일을 보낼 수 있어요. 받는 주소는 대화방의 고객 정보로 자동 채워지고, 보내기 전 확인창에서 내용을 다시 확인할 수 있습니다."
+      },
+      "en": {
+        "title": "Send customer links directly by email",
+        "body": "On the customer link screen, you can now click [Send] to email the link directly to the customer. The recipient address is filled automatically from the chat’s customer info, and you can review everything in a confirmation window before sending."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q task에서 산출물을 쉽게 선택·저장해요",
+        "body": "Q task에서 업무를 만들 때 산출물을 기본 목록 22개 중에서 검색해 고를 수 있어요. 목록에 없는 산출물은 직접 입력해 쓸 수 있고, 한 번 입력한 내용은 워크스페이스에 저장되어 다음에 다시 선택할 수 있습니다."
+      },
+      "en": {
+        "title": "Choose and reuse deliverables easily in Q task",
+        "body": "When creating a task in Q task, you can now search and select from 22 default deliverables. If what you need isn’t listed, type your own deliverable; it will be saved in the workspace so you can quickly reuse it next time."
+      }
+    },
+    {
+      "ko": {
+        "title": "워크스페이스 전환 시 보던 화면으로 이어져요",
+        "body": "워크스페이스를 바꿀 때 이제 항상 채팅이 아니라, 전환 전 보고 있던 메뉴로 최대한 이어집니다. 새 워크스페이스에 해당 메뉴가 없을 때만 Q Talk으로 이동합니다."
+      },
+      "en": {
+        "title": "Stay on the same type of page when switching workspaces",
+        "body": "When you switch workspaces, PlanQ now tries to keep you on the same type of page instead of always sending you to chat. Only if that menu doesn’t exist in the new workspace will you be taken to Q Talk."
+      }
+    },
+    {
+      "ko": {
+        "title": "데스크탑 앱에서 Q note 회의 소리를 녹음해요(윈도우)",
+        "body": "윈도우용 데스크탑 앱 1.1.0에서 Q note로 회의 중 소리를 함께 녹음할 수 있어요. 회의 메모와 음성을 한 번에 남기고, 이후 다시 들으며 정리할 수 있습니다."
+      },
+      "en": {
+        "title": "Record meeting audio in Q note on the desktop app (Windows)",
+        "body": "In desktop app version 1.1.0 for Windows, Q note can now record meeting audio along with your notes. Capture voice and notes together, then replay the recording later while you organize your minutes."
+      }
+    },
+    {
+      "ko": {
+        "title": "Cue에서 제안된 업무를 바로 자세히 편집해요",
+        "body": "Cue 바에서 제안된 업무 카드가 하나일 때 [자세히 편집] 버튼이 생겼어요. 버튼을 누르면 업무 추가 화면이 열리고, 카드에 있던 내용이 그대로 채워진 상태에서 세부 내용을 수정해 저장할 수 있습니다."
+      },
+      "en": {
+        "title": "Edit suggested tasks in detail from Cue with one click",
+        "body": "When there is a single suggested task card in the Cue bar, you’ll now see a [Edit details] button. Clicking it opens the task creation form with the card’s information prefilled, so you can adjust the details and save it as a task."
+      }
+    },
+    {
+      "ko": {
+        "title": "AI로 Q file 폴더와 파일을 더 편하게 다뤄요",
+        "body": "AI 기능을 통해 Q file에서 폴더 목록을 보고, 새 폴더를 만들고, 파일을 폴더로 옮기고, 새 텍스트 파일을 만드는 작업을 요청할 수 있게 준비했습니다. 폴더를 기준으로 파일 정리를 더 쉽게 할 수 있습니다."
+      },
+      "en": {
+        "title": "Use AI to better organize folders and files in Q file",
+        "body": "AI features are now prepared to help you manage Q file: you can ask it to list folders, create new folders, move files into folders, and create new text files. This makes it easier to keep your files organized by folder."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선",
+        "body": "AI로 업무를 만들 때 프로젝트 업무그룹 안내를 더 분명히 해, 잘못된 그룹 선택을 줄였습니다. Cue에서 \"다음주 금요일까지\" 같은 마감 표현을 더 정확한 날짜로 인식하도록 개선했습니다."
+      },
+      "en": {
+        "title": "Other improvements",
+        "body": "Guidance for choosing project task groups when creating tasks with AI has been clarified to reduce wrong selections. Cue now interprets due dates like “by next Friday” more accurately as specific calendar dates."
+      }
+    },
+    {
+      "ko": {
+        "title": "보안과 안정성 강화",
+        "body": "데이터를 더 안전하게 지키도록 보안과 안정성을 강화했습니다."
+      },
+      "en": {
+        "title": "Security and stability improvements",
+        "body": "We strengthened security and stability to keep your data safer."
+      }
+    }
+  ]
+}
