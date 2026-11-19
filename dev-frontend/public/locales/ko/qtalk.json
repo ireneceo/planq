@@ -594,7 +594,18 @@
     "replaceTitle": "새 링크로 교체할까요?",
     "replaceBody": "지금 링크는 닫히고 새 주소가 만들어집니다. 이전 주소로 들어오던 사람·답글 알림 신청자가 끊깁니다. 주고받은 대화와 파일은 그대로 남습니다.",
     "scopeProject": "프로젝트 열람",
-    "scopeConversation": "대화만"
+    "scopeConversation": "대화만",
+    "mailSend": "메일로 보내기",
+    "shareOther": "다른 앱으로 공유",
+    "mailSent": "{{email}} 로 메일을 보냈어요.",
+    "mailTo": "메일 받는 사람: {{name}} · {{email}}",
+    "mailNoEmailHint": "고객 이메일이 없어 메일로 보낼 수 없어요 — 고객 정보에 이메일을 넣거나 복사해서 보내 주세요.",
+    "mailNoEmail": "고객 이메일이 없어 메일로 보낼 수 없어요. 복사해서 카톡·문자로 보내 주세요.",
+    "mailTooMany": "짧은 시간에 너무 많이 보냈어요. 잠시 후 다시 보내 주세요.",
+    "mailFailed": "메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    "mailConfirmTitle": "링크를 메일로 보낼까요?",
+    "mailConfirmBody": "{{name}} 님({{email}})에게 이 링크를 메일로 보냅니다.",
+    "mailSuppressed": "개발 서버라 실제 메일은 나가지 않았어요 ({{email}}). 운영에서는 바로 보내집니다."
   },
   "workbench": {
     "loadFailed": "작업대 정보를 불러오지 못했습니다",

@@ -21,6 +21,8 @@ export type GuestLink = {
   url?: string | null;
   /** 이 링크로 답글 알림을 신청한 사람들 (#259 A안). 링크가 아니라 링크에 딸린 사람이다. */
   contacts?: GuestContact[];
+  /** 메일로 보낼 고객 — 서버가 링크가 걸린 방의 고객에서 정한다(services/guestLinkMail). 주소가 없으면 null. */
+  recipient?: { client_id: number; name: string; email: string } | null;
 };
 
 /** 지금 이 링크로 고객이 들어올 수 있는가. 회수됐거나 만료됐으면 아니다. */

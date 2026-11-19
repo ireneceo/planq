@@ -467,6 +467,7 @@ app.use('/api/projects', require('./routes/projects'));
 // 일정 일괄 수정 — `/:id/schedule/*`. projects.js 의 `/:id` 핸들러보다 **경로가 깊어** 가려지지 않는다
 //   (Express 는 세그먼트 단위로 맞춘다). 순서를 바꿀 일이 생기면 router.stack 덤프로 확인할 것.
 app.use('/api/projects', require('./routes/schedule_edit'));
+app.use('/api/projects', require('./routes/project_guest_link_mail'));   // 프로젝트 링크 메일로 보내기(2026-11-19) — 꼬리 /:id/guest-links/:linkId/email 은 이 파일만 받는다
 // 프로젝트 연결(문서·파일을 다른 프로젝트에도) — `/projects/:id/refs…` · `/project-refs/:type/:id` (docs/PROJECT_REFS_DESIGN.md)
 app.use('/api', require('./routes/project_refs'));
 // 자동 히스토리 «설명 줄» 고치기 — `/history-overrides/:source_table/:source_id` (docs/HISTORY_OVERRIDE_DESIGN.md)

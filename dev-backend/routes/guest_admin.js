@@ -2,6 +2,7 @@
 //
 // 공개 표면(routes/guest.js)과 **파일을 나눈다.** 한 파일에 인증·무인증이 섞이면
 //   다음 사람이 어느 라우트가 공개인지 못 본다. 여기는 전부 authenticateToken 이다.
+// platformroom-exempt: 대화방은 URL 의 id 하나로만 찾고 세지 않는다 — 발급·발송은 assertGuestLinkIssuable 이 고객 방(customer)만 통과시킨다
 const express = require('express');
 const router = express.Router();
 const { GuestLink, Client, Conversation, User, PlatformSetting, Business } = require('../models');
@@ -10,6 +11,8 @@ const { attachWorkspaceScope, assertMemberOrAbove } = require('../middleware/acc
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { createAuditLog } = require('../services/auditService');
 const { issueOrReuseSharedLink, urlForSharedLink, serializeGuestLink, serializeGuestContact, assertGuestLinkIssuable } = require('../services/guest_link');
+const { guestLinkRecipient, sendGuestLinkMail } = require('../services/guestLinkMail');
+const { perUserDaily } = require('../middleware/costGuard');
 
 
 /** 관리 화면용 직렬화 — **원문 토큰은 없다**(해시만 저장하므로 복원 불가). */
@@ -48,11 +51,15 @@ router.get('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSco
       if (!byParent.has(c.parent_link_id)) byParent.set(c.parent_link_id, []);
       byParent.get(c.parent_link_id).push(serializeContact(c));
     }
+    // 메일로 보낼 사람 — 화면이 누르기 전에 주소를 보여 주고 확인받는다. 발송 라우트와 **같은 함수**.
+    const conv = await Conversation.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+    const recipient = conv ? await guestLinkRecipient(conv, businessId) : null;
     return successResponse(res, rows.map((l) => ({
       ...serialize(l),
       // 주소를 **다시 볼 수 있다**(§B-2) — 파생 토큰의 살아 있는 링크만. 옛 난수 링크·회수된 것은 null.
       url: urlForSharedLink(l),
       contacts: byParent.get(l.id) || [],
+      recipient,
     })));
   } catch (err) { next(err); }
 });
@@ -127,6 +134,30 @@ router.post('/:businessId/:id/guest-links', authenticateToken, attachWorkspaceSc
       r.reused ? 'reused' : 'issued', r.reused ? 200 : 201);
   } catch (err) { next(err); }
 });
+
+// POST — 이 링크를 대화방 고객에게 **메일로** 보낸다(2026-11-19). 받는 주소는 서버가 정한다(services/guestLinkMail).
+//   외부 발송이라 사람당 분 5회·하루 50회.
+router.post('/:businessId/:id/guest-links/:linkId/email', authenticateToken, attachWorkspaceScope(), // audit-exempt: 감사는 sendGuestLinkMail 이 남긴다(guest_link.email)
+  ...perUserDaily('guest-link-mail', { perMin: 5, perDay: 50 }), async (req, res, next) => {
+    try {
+      const businessId = Number(req.params.businessId);
+      if (!(await assertMemberOrAbove(req.user.id, businessId, req.user.platform_role))) {
+        return errorResponse(res, 'forbidden', 403);
+      }
+      const conv = await Conversation.findOne({ where: { id: Number(req.params.id), business_id: businessId } });
+      if (!conv) return errorResponse(res, 'conversation_not_found', 404);
+      const link = await GuestLink.findOne({
+        where: { id: Number(req.params.linkId), business_id: businessId, conversation_id: conv.id, kind: 'shared' },
+      });
+      if (!link) return errorResponse(res, 'not_found', 404);
+      const r = await sendGuestLinkMail({
+        link, url: urlForSharedLink(link), conv, businessId, userId: req.user.id,
+        locale: req.body?.locale === 'en' ? 'en' : 'ko',
+      });
+      if (!r.ok) return errorResponse(res, r.code, r.status);
+      return successResponse(res, { to: r.to, suppressed: r.suppressed }, r.suppressed ? 'suppressed' : 'sent');
+    } catch (err) { next(err); }
+  });
 
 // DELETE — 회수 (단건). 즉시 404 가 된다.
 router.delete('/:businessId/:id/guest-links/:linkId', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {

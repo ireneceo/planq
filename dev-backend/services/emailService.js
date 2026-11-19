@@ -407,7 +407,7 @@ const deliverEmail = async ({
 
   // ① dev 서버 발송 정지 — 운영서버만 실제 발송 (dev .env 에 EMAIL_SENDING_ENABLED=false).
   //    미설정(운영) 이면 기본 발송 ON.
-  if (String(process.env.EMAIL_SENDING_ENABLED ?? 'true').toLowerCase() === 'false') {
+  if (emailSendingDisabled()) {
     console.warn(`Email suppressed (sending disabled on this server): to=${to}, subject=${subject}`);
     await recordLog({ ...baseLog, status: 'skipped', error_message: 'sending disabled (non-prod)' });
     return { status: 'skipped', error: 'sending_disabled' };
@@ -471,6 +471,9 @@ const deliverEmail = async ({
 
 // 공용 발송 — 예전 그대로 true/false 만 돌려준다(호출부 수십 곳 불변).
 const sendEmail = async (opts) => (await deliverEmail(opts)).status === 'sent';
+
+/** 이 서버가 메일을 실제로 보내지 않는가(dev — ① 발송 정지와 같은 판정). 화면이 «안 나갔다» 를 정직하게 말할 때 쓴다. */
+const emailSendingDisabled = () => String(process.env.EMAIL_SENDING_ENABLED ?? 'true').toLowerCase() === 'false';
 
 // ═══════════════════════════════════════════════════════════════
 // 1. 초대 메일
@@ -761,6 +764,67 @@ async function sendGuestReplyNotifyEmail({ to, workspaceName, openUrl, unsubscri
     businessId: businessId || null,
     relatedEntityType: 'conversation',
     relatedEntityId: conversationId || null,
+  });
+}
+
+// ── 고객 링크 보내기 (2026-11-19, Irene «고객에게 링크보내기 누르면 이메일로 보내줘야지») ─────────────
+//   받는 사람은 서버가 대화방의 고객에서 정한다(services/guestLinkMail). 대화 내용은 싣지 않는다 — 이름·워크스페이스·여는 버튼뿐.
+const GUEST_LINK_MAIL_TEXT = {
+  ko: {
+    subject: (ws, project) => (project
+      ? `${ws ? `${ws} — ` : ''}프로젝트 진행 상황을 보실 수 있는 링크입니다`
+      : `${ws ? `${ws} — ` : ''}대화 링크를 보내 드립니다`),
+    hello: (name) => `안녕하세요${name ? ` ${name}님` : ''},`,
+    lead: (ws, project) => (project
+      ? `<b>${ws}</b> 에서 로그인 없이 프로젝트 진행 상황·업무를 보고 문의하실 수 있는 링크를 보냈습니다.`
+      : `<b>${ws}</b> 에서 로그인 없이 대화를 보고 바로 답하실 수 있는 링크를 보냈습니다.`),
+    cta: (project) => (project ? '프로젝트 열기' : '대화 열기'),
+    note: '이 링크는 받는 분만 쓰도록 보내 드린 것입니다. 다른 분께 전달하지 말아 주세요.',
+    pre: (ws) => `${ws} 에서 보낸 링크`,
+  },
+  en: {
+    subject: (ws, project) => (project
+      ? `${ws ? `${ws} — ` : ''}A link to follow your project`
+      : `${ws ? `${ws} — ` : ''}A link to our conversation`),
+    hello: (name) => `Hello${name ? ` ${name}` : ''},`,
+    lead: (ws, project) => (project
+      ? `<b>${ws}</b> sent you a link to follow the project and its tasks and send questions — no sign-in needed.`
+      : `<b>${ws}</b> sent you a link to read and reply to the conversation — no sign-in needed.`),
+    cta: (project) => (project ? 'Open project' : 'Open conversation'),
+    note: 'This link was sent for you. Please do not forward it to others.',
+    pre: (ws) => `A link from ${ws}`,
+  },
+};
+const guestLinkText = (locale) => GUEST_LINK_MAIL_TEXT[String(locale || 'ko').slice(0, 2)] || GUEST_LINK_MAIL_TEXT.ko;
+
+function guestLinkEmailHtml({ recipientName, workspaceName, openUrl, scope, locale }) {
+  const T = guestLinkText(locale);
+  const project = scope === 'project';
+  const ws = escapeHtml(workspaceName || PLATFORM.brand);
+  const body = `
+    <div style="font-size:14px;color:#64748B;margin-bottom:8px;">${T.hello(escapeHtml(recipientName || ''))}</div>
+    <div style="font-size:15px;line-height:1.7;color:#0F172A;">${T.lead(ws, project)}</div>
+    <div style="margin-top:20px;text-align:center;">
+      ${ctaButton(openUrl, T.cta(project))}
+    </div>
+    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">${escapeHtml(T.note)}</div>
+    ${fallbackLink(openUrl)}`;
+  return emailWrap({ title: T.cta(project), body, preheader: T.pre(workspaceName || PLATFORM.brand), footerOptions: { workspaceName } });
+}
+
+async function sendGuestLinkEmail({ to, recipientName, workspaceName, fromName, replyTo, openUrl, scope, businessId, conversationId, initiatedBy, locale }) {
+  if (!to || !openUrl) return false;
+  const T = guestLinkText(locale);
+  return sendEmail({
+    to,
+    subject: T.subject(workspaceName || '', scope === 'project'),
+    fromName, replyTo,
+    html: guestLinkEmailHtml({ recipientName, workspaceName, openUrl, scope, locale }),
+    template: 'guest_link_send',
+    businessId: businessId || null,
+    relatedEntityType: 'conversation',
+    relatedEntityId: conversationId || null,
+    initiatedBy: initiatedBy || null,
   });
 }
 
@@ -1637,12 +1701,12 @@ async function sendTermsNoticeEmail({ to, name, lang, userId, effectiveOn, templ
 module.exports = {
   sendTrialRefundDoneEmail,
   MAIL_FONT_STACK,
-  sendEmail,
+  sendEmail, emailSendingDisabled,
   sendInviteEmail, normalizeInviteMessage, sendPostShareEmail, sendEntityShareEmail, sendSignatureRequestEmail, sendSignatureOtpEmail,
   sendSurveyInviteEmail,
   sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,
   sendUnreadNotificationEmail,
-  sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail, sendGuestBookingEmail,
+  sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail, sendGuestBookingEmail, sendGuestLinkEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendInquiryReplyEmail,

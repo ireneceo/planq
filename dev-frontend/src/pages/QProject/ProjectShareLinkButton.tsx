@@ -70,6 +70,7 @@ export default function ProjectShareLinkButton({ projectId, projectName, busines
           list: `/api/projects/${projectId}/guest-links${q}`,
           issue: `/api/projects/${projectId}/guest-links${q}`,
           revoke: (id: number) => `/api/projects/${projectId}/guest-links/${id}`,
+          email: (id: number) => `/api/projects/${projectId}/guest-links/${id}/email`,
         }}
       />
     );

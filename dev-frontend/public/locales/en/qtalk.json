@@ -594,7 +594,18 @@
     "replaceTitle": "Replace with a new link?",
     "replaceBody": "The current link will close and a new address will be created. Anyone using the old address, and anyone signed up for reply alerts, will be cut off. Messages and files stay as they are.",
     "scopeProject": "Project view",
-    "scopeConversation": "Chat only"
+    "scopeConversation": "Chat only",
+    "mailSend": "Send by email",
+    "shareOther": "Share to another app",
+    "mailSent": "Email sent to {{email}}.",
+    "mailTo": "Email goes to: {{name}} · {{email}}",
+    "mailNoEmailHint": "No email for this client, so it can’t be sent by email — add one in the client info or copy the link.",
+    "mailNoEmail": "No email for this client. Copy the link and send it by message instead.",
+    "mailTooMany": "Too many sent in a short time. Please try again shortly.",
+    "mailFailed": "Couldn’t send the email. Please try again shortly.",
+    "mailConfirmTitle": "Send the link by email?",
+    "mailConfirmBody": "This link will be emailed to {{name}} ({{email}}).",
+    "mailSuppressed": "This is a development server, so no email actually went out ({{email}}). On the live service it is sent right away."
   },
   "workbench": {
     "loadFailed": "Could not load the workbench",

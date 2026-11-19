@@ -1284,8 +1284,11 @@ router.get('/:id/guest-links', authenticateToken, async (req, res, next) => {
     }
     // 주소를 **다시 볼 수 있다**(§B-2) — 파생 토큰의 살아 있는 링크만. 옛 난수 링크는 null.
     const { urlForSharedLink } = require('../services/guest_link');
+    // 메일로 보낼 사람 — 링크가 걸린 방의 고객(방마다 다르다). 발송 라우트(routes/project_guest_link_mail.js)와 같은 함수.
+    const rcptByConv = await require('../services/guestLinkMail').recipientsByConversation(rows, project.business_id);
     return successResponse(res, rows.map((l) => ({
       ...serializeGuestLink(l), url: urlForSharedLink(l), contacts: byParent.get(l.id) || [],
+      recipient: rcptByConv.get(l.conversation_id) || null,
     })));
   } catch (err) { next(err); }
 });

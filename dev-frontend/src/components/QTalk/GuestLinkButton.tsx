@@ -31,7 +31,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
    *   (docs/PROJECT_EXTERNAL_VIEW_DESIGN §9). 프로젝트 링크는 여기에 프로젝트 라우트를 준다.
    *   안 주면 종전대로 대화방 라우트 — 기존 호출부는 무변경으로 같은 동작이다.
    */
-  endpoints?: { list: string; issue: string; revoke: (linkId: number) => string };
+  endpoints?: { list: string; issue: string; revoke: (linkId: number) => string; email?: (linkId: number) => string };
   /** 모달 안내 문구·제목 — 링크가 여는 것이 다르면 문구도 달라야 한다(문구가 거짓말이 되지 않게). */
   lead?: string;
   /** 안내 아래 작은 줄들 — 이 링크로 무엇이 보이고 무엇이 비었는지(프로젝트 링크, GUEST_PROJECT_VIEW_DECISIONS §I-1·I-3). */
@@ -40,11 +40,12 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
   /** 이 모달이 **만드는** 링크의 종류. 발급이 이 종류로 멱등이다 — 다른 종류 링크는 목록에만 보인다. */
   scope?: 'conversation' | 'project';
 }) {
-  const { t } = useTranslation('qtalk');
+  const { t, i18n } = useTranslation('qtalk');
   const api = endpoints || {
     list: `/api/conversations/${businessId}/${conversationId}/guest-links`,
     issue: `/api/conversations/${businessId}/${conversationId}/guest-links`,
     revoke: (id: number) => `/api/conversations/${businessId}/${conversationId}/guest-links/${id}`,
+    email: (id: number) => `/api/conversations/${businessId}/${conversationId}/guest-links/${id}/email`,
   };
   const [open, setOpen] = useState(!!autoOpen);
   const [links, setLinks] = useState<Link[]>([]);
@@ -67,7 +68,7 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
     //   프로젝트 모달이 대화방 목록을 들고 있게 된다(memory feedback_guard_variable_needs_deps).
   }, [api.list]);
 
-  useEffect(() => { if (open) { setJustIssued(false); setCopied(false); setErr(null); load(); } }, [open, load]);
+  useEffect(() => { if (open) { setJustIssued(false); setCopied(false); setErr(null); setMailedTo(null); load(); } }, [open, load]);
 
   // 이 모달이 책임지는 링크 — 같은 종류로 **하나**다(서버 발급이 멱등). 없으면 만드는 문, 있으면 교체하는 문.
   const own = links.find((l) => (l.scope || 'conversation') === scope) || null;
@@ -147,13 +148,47 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
 
   // ★ 카톡 도달의 실질 — 폰에서 공유 시트를 열면 카톡이 목록에 뜬다.
   //   알림톡 연동(채널 개설·템플릿 심사·대행사 계약) 없이 v1 에서 되는 유일한 길이다.
+  //   2026-11-19 — [보내기] 는 이제 **고객 메일**이다. 공유 시트는 그 기능이 있는 기기(폰)에서만 [다른 앱으로 공유] 로 남긴다.
+  const nav = (typeof navigator !== 'undefined' ? navigator : null) as (Navigator & { share?: (d: { title?: string; text?: string; url?: string }) => Promise<void> }) | null;
+  const canShare = !!nav?.share;
   const share = async () => {
-    if (!url) return;
-    const nav = navigator as Navigator & { share?: (d: { title?: string; text?: string; url?: string }) => Promise<void> };
-    if (nav.share) {
-      try { await nav.share({ title: clientName, url }); return; } catch { /* 사용자가 취소 */ }
-    }
-    copy();
+    if (!url || !nav?.share) return;
+    try { await nav.share({ title: clientName, url }); } catch { /* 사용자가 취소 */ }
+  };
+
+  // 고객에게 메일로 보내기 (Irene 2026-11-19 «고객에게 링크보내기 누르면 이메일로 보내줘야지»).
+  //   받는 주소는 서버가 정한다(대화방의 고객). 외부 발송이라 **보낼 주소를 적은 확인창**을 먼저 띄운다(CLAUDE.md «외부 발송은 확인을 받는다»).
+  //   주소가 없으면 버튼을 끄고 이유를 말한다 — 눌리게 두고 400 을 받으면 «아무 일도 안 일어남» 이다.
+  const recipient = own?.recipient || null;
+  const [confirmMail, setConfirmMail] = useState(false);
+  const [mailedTo, setMailedTo] = useState<string | null>(null);
+  // 개발 서버는 메일을 실제로 보내지 않는다 — 서버가 그렇게 말하면 «보냈어요» 라고 하지 않는다.
+  const [mailSuppressed, setMailSuppressed] = useState(false);
+  const sendMail = async () => {
+    if (!own || !api.email || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await apiFetch(api.email(own.id), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locale: (i18n.language || 'ko').startsWith('en') ? 'en' : 'ko' }),
+      });
+      const j = await r.json().catch(() => ({} as { success?: boolean; message?: string; data?: { to?: string } }));
+      setConfirmMail(false);
+      if (!r.ok || !j.success) {
+        const code = (j as { message?: string })?.message || '';
+        setErr(
+          code === 'no_recipient_email' ? t('guestLink.mailNoEmail', { defaultValue: '고객 이메일이 없어 메일로 보낼 수 없어요. 복사해서 카톡·문자로 보내 주세요.' }) as string
+          : code === 'guest_links_disabled' ? t('guestLink.errDisabled', { defaultValue: '게스트 링크 기능이 꺼져 있습니다. 관리자에게 문의해 주세요.' }) as string
+          : r.status === 429 ? t('guestLink.mailTooMany', { defaultValue: '짧은 시간에 너무 많이 보냈어요. 잠시 후 다시 보내 주세요.' }) as string
+          : t('guestLink.mailFailed', { defaultValue: '메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string,
+        );
+        return;
+      }
+      const d = (j as { data?: { to?: string; suppressed?: boolean } }).data;
+      setMailSuppressed(!!d?.suppressed);
+      setMailedTo(d?.to || recipient?.email || '');
+    } finally { setBusy(false); }
   };
   const scopeChip = (l: Link) => ((l.scope || 'conversation') === 'project'
     ? t('guestLink.scopeProject', { defaultValue: '프로젝트 열람' })
@@ -221,13 +256,29 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
                     <UrlText readOnly value={url} data-testid="guest-link-url" onFocus={(e) => e.currentTarget.select()} />
                   </UrlRow>
                   <BtnRow>
-                    <ActionButton tone="primary" size="sm" onClick={share}>
-                      {t('guestLink.share', { defaultValue: '보내기' })}
+                    <ActionButton tone="primary" size="sm" onClick={() => setConfirmMail(true)}
+                      disabled={!recipient?.email || !api.email || busy} loading={busy && confirmMail}
+                      data-testid="guest-link-mail">
+                      {t('guestLink.mailSend', { defaultValue: '메일로 보내기' })}
                     </ActionButton>
                     <ActionButton tone="secondary" size="sm" onClick={copy}>
                       {copied ? t('guestLink.copied', { defaultValue: '복사됨' }) : t('guestLink.copy', { defaultValue: '복사' })}
                     </ActionButton>
+                    {canShare && (
+                      <ActionButton tone="secondary" size="sm" onClick={() => { void share(); }}>
+                        {t('guestLink.shareOther', { defaultValue: '다른 앱으로 공유' })}
+                      </ActionButton>
+                    )}
                   </BtnRow>
+                  {mailedTo ? (
+                    <MailNote data-testid="guest-link-mailed">{mailSuppressed
+                      ? t('guestLink.mailSuppressed', { defaultValue: '개발 서버라 실제 메일은 나가지 않았어요 ({{email}}). 운영에서는 바로 보내집니다.', email: mailedTo })
+                      : t('guestLink.mailSent', { defaultValue: '{{email}} 로 메일을 보냈어요.', email: mailedTo })}</MailNote>
+                  ) : recipient?.email ? (
+                    <Note data-testid="guest-link-recipient">{t('guestLink.mailTo', { defaultValue: '메일 받는 사람: {{name}} · {{email}}', name: recipient.name || clientName, email: recipient.email })}</Note>
+                  ) : (
+                    <Note data-testid="guest-link-noemail">{t('guestLink.mailNoEmailHint', { defaultValue: '고객 이메일이 없어 메일로 보낼 수 없어요 — 고객 정보에 이메일을 넣거나 복사해서 보내 주세요.' })}</Note>
+                  )}
                   <Note>{t('guestLink.reusableNote', { defaultValue: '이 주소는 언제든 여기서 다시 볼 수 있어요. 같은 링크를 계속 보내면 됩니다.' })}</Note>
                 </>
               ) : (
@@ -342,6 +393,18 @@ export default function GuestLinkButton({ businessId, conversationId, clientName
         cancelText={t('common:cancel', { defaultValue: '취소' }) as string}
       />
       <ConfirmDialog
+        isOpen={confirmMail}
+        onClose={() => setConfirmMail(false)}
+        onConfirm={() => { void sendMail(); }}
+        title={t('guestLink.mailConfirmTitle', { defaultValue: '링크를 메일로 보낼까요?' }) as string}
+        message={t('guestLink.mailConfirmBody', {
+          defaultValue: '{{name}} 님({{email}})에게 이 링크를 메일로 보냅니다.',
+          name: recipient?.name || clientName, email: recipient?.email || '',
+        }) as string}
+        confirmText={t('guestLink.mailSend', { defaultValue: '메일로 보내기' }) as string}
+        cancelText={t('common:cancel', { defaultValue: '취소' }) as string}
+      />
+      <ConfirmDialog
         isOpen={confirmReplace}
         variant="danger"
         onClose={() => setConfirmReplace(false)}
@@ -381,7 +444,8 @@ const UrlText = styled.input`
   flex:1;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:0.8125rem;
   font-family:monospace;background:#fff;color:#0f172a;
 `;
-const BtnRow = styled.div`display:flex;gap:8px;`;
+const BtnRow = styled.div`display:flex;gap:8px;flex-wrap:wrap;`;
+const MailNote = styled.div`font-size:0.75rem;color:#0F766E;font-weight:600;margin-top:10px;line-height:1.5;`;
 const ScopeChip = styled.span`
   display:inline-flex;align-items:center;padding:1px 6px;margin-left:6px;border-radius:4px;line-height:16px;
   background:#F1F5F9;color:#475569;font-size:0.6875rem;font-weight:600;font-family:inherit;vertical-align:middle;
