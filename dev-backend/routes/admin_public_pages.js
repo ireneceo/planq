@@ -40,13 +40,13 @@ router.get('/public-pages', ...chain, async (req, res, next) => {
     const rows = await Business.findAll({
       where: { public_page_status: status, deleted_at: null },
       attributes: [...wp.PUBLIC_ATTRS, 'public_block_reason', 'plan', 'subscription_status'],
-      order: [['updated_at', 'DESC']], limit: 200,
+      order: [['updatedAt', 'DESC']], limit: 200,
     });
     const items = [];
     for (const b of rows) {
       items.push({
         id: b.id, slug: b.slug, name: b.brand_name || b.name, category: b.public_category, region: b.public_region,
-        status: b.public_page_status, published_at: b.public_published_at, updated_at: b.updated_at,
+        status: b.public_page_status, published_at: b.public_published_at, updated_at: b.updatedAt,
         block_reason: b.public_block_reason, plan: b.plan, eligible: await wp.listingEligible(b.id),
         preview: wp.publicPageView(b),
       });
@@ -73,7 +73,7 @@ async function transition(req, res, next, { from, to, needReason = false, action
     if (to === 'off' && before === 'blocked') patch.public_block_reason = null;
     await Business.update(patch, { where: { id, public_page_status: before } });
     if (to !== 'public') seo.removeWorkspacePageFiles(biz.slug);
-    seo.regenerateSoon();
+    await seo.regenerateNow();   // 사이트맵·회사 찾기 목록까지 이 요청 안에서(Fable N3)
     createAuditLog({ userId: req.user.id, businessId: id, action, targetType: 'business', targetId: id,
       oldValue: { status: before }, newValue: { status: to, reason: reason || null } });
     if (notifyAction) await notifyOwner(biz, { action: notifyAction, detail: reason || null, ioApp: req.app });
@@ -98,7 +98,7 @@ router.put('/public-pages/switch', ...chain, async (req, res, next) => {
     const before = row.public_pages_enabled;
     await row.update({ public_pages_enabled: enabled });
     wp.invalidatePublicSwitch();
-    seo.regenerateSoon();
+    await seo.regenerateNow();
     createAuditLog({ userId: req.user.id, businessId: null, action: 'public_page.switch', targetType: 'platform_setting', targetId: row.id,
       oldValue: { enabled: before }, newValue: { enabled } });
     return successResponse(res, { enabled });

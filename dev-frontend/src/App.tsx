@@ -282,7 +282,8 @@ function ShellApp() {
   // 판정은 utils/publicSurface 단일 원천 — 새 공개 페이지는 거기만 갱신.
   const isPublicSurface = isPublicSurfacePath(_loc.pathname);
   // 게스트 대화 표면 — 공개 표면 중에서도 **PlanQ 안내를 일절 띄우지 않는** 곳.
-  const isGuestSurface = _loc.pathname.startsWith('/g/');
+  // /w/ (공개 회사 페이지)도 같다 — 방문자가 보는 것은 그 회사지 PlanQ 안내가 아니다(Fable U1 · 문의를 PlanQ 로 보내지 않게)
+  const isGuestSurface = _loc.pathname.startsWith('/g/') || /^\/(en\/)?w\//.test(_loc.pathname);
   // «시작하기»(/welcome) 는 워크스페이스가 없을 수 있는 착지 — 업무·도구 크롬(FAB·Dock)을 띄우지 않는다
   const hideAppChrome = isPopout || isPublicSurface || _loc.pathname === '/welcome';
   // 앱 로그인 마무리 프롬프트 — 이미 로그인돼 있으면 띄우지 않는다.

@@ -7,6 +7,7 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import PlanQSelect from '../../components/Common/PlanQSelect';
 
 export type InquiryService = { id: string; name: string };
 type Props = {
@@ -109,11 +110,11 @@ const InquiryForm = forwardRef<HTMLDivElement, Props>(function InquiryForm(
           {services.length > 0 && (
             <Field>
               <Lbl htmlFor="inq-service">{t('inquiry.service', { defaultValue: '관심 서비스' })}</Lbl>
-              <Sel id="inq-service" data-testid="entry-inquiry-service" value={serviceId} disabled={preview}
-                onChange={(e) => setServiceId(e.target.value)}>
-                <option value="">{t('inquiry.serviceNone', { defaultValue: '선택 안 함' })}</option>
-                {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </Sel>
+              <PlanQSelect inputId="inq-service" name="service_id" isSearchable={false} isDisabled={preview}
+                options={[{ value: '', label: t('inquiry.serviceNone', { defaultValue: '선택 안 함' }) as string },
+                  ...services.map((s) => ({ value: s.id, label: s.name }))]}
+                value={{ value: serviceId, label: serviceId ? (services.find((s) => s.id === serviceId)?.name || '') : t('inquiry.serviceNone', { defaultValue: '선택 안 함' }) as string }}
+                onChange={(opt: unknown) => setServiceId(String((opt as { value?: string } | null)?.value ?? ''))} />
             </Field>
           )}
           <Field>
@@ -162,10 +163,6 @@ const In = styled.input`
   height:40px;padding:0 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:0.875rem;color:#0F172A;box-sizing:border-box;width:100%;
   &:focus{outline:none;border-color:#14B8A6;}
   &:disabled{background:#F8FAFC;}
-`;
-const Sel = styled.select`
-  height:40px;padding:0 10px;border:1px solid #CBD5E1;border-radius:8px;font-size:0.875rem;color:#0F172A;background:#fff;
-  &:focus{outline:none;border-color:#14B8A6;}
 `;
 const Area = styled.textarea`
   padding:10px 12px;border:1px solid #CBD5E1;border-radius:8px;font-size:0.875rem;line-height:1.6;color:#0F172A;

@@ -50,6 +50,14 @@ export default function PublicWorkspacePage() {
     const id = window.setTimeout(() => document.querySelector('[data-testid="entry-inquiry-form"]')?.scrollIntoView({ block: 'start' }), 300);
     return () => window.clearTimeout(id);
   }, [state, hash]);
+  // 없는·꺼진 주소 — 앱 화면은 200 이라 검색엔진이 «빈 회사 페이지» 로 색인하지 않게 noindex(Fable N4)
+  useEffect(() => {
+    if (state !== 'gone') return;
+    const m = document.createElement('meta');
+    m.name = 'robots'; m.content = 'noindex,follow'; m.setAttribute('data-wspage-gone', '1');
+    document.head.appendChild(m);
+    return () => { m.remove(); };
+  }, [state]);
   useEffect(() => {
     if (!view) return;
     const cat = view.category ? t(`category.${view.category}`) : '';

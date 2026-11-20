@@ -276,7 +276,7 @@ function criteriaOf(biz, { ownerEmailVerified = false } = {}) {
 }
 
 const PUBLIC_ATTRS = [...PROFILE_ATTRS, 'slug', 'deleted_at', 'public_page_status', 'public_category', 'public_region',
-  'public_published_at', 'updated_at'];
+  'public_published_at', 'updatedAt'];
 
 /** 공개 주소 화면의 모양 — publicView + 머리(이름·로고·업종·지역·주소) + 창구 링크(예약·채팅으로 보낼 곳). */
 function publicPageView(biz, { lang = 'ko', entryUrl = null } = {}) {

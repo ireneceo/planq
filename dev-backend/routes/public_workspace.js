@@ -57,6 +57,7 @@ router.get('/workspaces/:slug', readLimit, async (req, res, next) => {
 
 router.get('/directory', readLimit, async (req, res, next) => {
   try {
+    if (!(await wp.publicPagesOn())) return NOT_FOUND(res);   // 전체 끄기 — 회사 찾기도 닫는다(Fable N6)
     const { listedBusinesses } = require('../services/seoWorkspacePages');
     const lang = langOf(req);
     const category = wp.CATEGORIES.includes(req.query.category) ? req.query.category : null;
@@ -71,7 +72,7 @@ router.get('/directory', readLimit, async (req, res, next) => {
     const counts = {};
     for (const b of base) if (b.public_category) counts[b.public_category] = (counts[b.public_category] || 0) + 1;
     const rows = base.filter((b) => !category || b.public_category === category)
-      .sort((a, b) => new Date(b.updated_at || b.public_published_at || 0) - new Date(a.updated_at || a.public_published_at || 0));
+      .sort((a, b) => new Date(b.updatedAt || b.public_published_at || 0) - new Date(a.updatedAt || a.public_published_at || 0));
     const slice = rows.slice((page - 1) * PER, page * PER);
     res.set('Cache-Control', 'no-store');
     return successResponse(res, {

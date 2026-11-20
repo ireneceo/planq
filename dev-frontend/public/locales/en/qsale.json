@@ -529,6 +529,11 @@
     "err": {
       "generic": "Couldn't complete. Please try again.",
       "quota": "Prospect limit reached. Please check your plan."
+    },
+    "received": "Received",
+    "via": {
+      "public_page": "Public page",
+      "entry_link": "Customer link"
     }
   }
 }

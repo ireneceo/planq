@@ -367,4 +367,35 @@ Business.init({
   ],
 });
 
+// 공개 페이지 P3 (2026-11-20 · Fable 완료 검증 B1) — 공개 중인 워크스페이스의 정보·창구 설정이 바뀌면
+//   미리 만든 회사 HTML·JSON-LD 를 **그 자리에서 지우고**(가린 항목·지운 전화가 다음 0시까지 남지 않게) 곧 다시 만든다.
+//   지운 사이에는 nginx 가 앱 화면(index.html)으로 떨어져 API 로 그린다 — 화면은 끊기지 않는다.
+//   ★ 판정 축은 services/workspacePage.PUBLIC_ATTRS(공개 화면이 읽는 칸) — 칸을 늘리면 거기에 더한다.
+function publicFieldsTouched(fields) {
+  const { PUBLIC_ATTRS } = require('../services/workspacePage');
+  // 요금제·구독 상태도 본다 — 노출 자격(유료+체험)을 잃으면 그날 0시 정리를 기다리지 않고 회사 HTML 을 내린다(Fable N5)
+  const watch = new Set([...PUBLIC_ATTRS, 'permissions', 'public_page_status', 'plan', 'subscription_status', 'trial_ends_at', 'billing_exempt']);
+  // 시각·식별자는 내용이 아니다 — 저장할 때마다 붙는 updatedAt 으로 매번 다시 만들지 않는다
+  for (const k of ['id', 'updatedAt', 'updated_at', 'public_published_at']) watch.delete(k);
+  return Array.isArray(fields) && fields.some((f) => watch.has(f));
+}
+Business.addHook('afterUpdate', (inst, opts) => {
+  try {
+    if (!publicFieldsTouched(opts && opts.fields)) return;
+    const prevStatus = inst.previous ? inst.previous('public_page_status') : null;
+    if (inst.public_page_status !== 'public' && prevStatus !== 'public') return;
+    const seo = require('../services/seoWorkspacePages');
+    seo.removeWorkspacePageFiles(inst.slug);
+    const prevSlug = inst.previous ? inst.previous('slug') : null;
+    if (prevSlug && prevSlug !== inst.slug) seo.removeWorkspacePageFiles(prevSlug);
+    seo.regenerateSoon();
+  } catch (e) { console.warn('[business] public page refresh 실패', e.message); }
+});
+Business.addHook('afterBulkUpdate', (opts) => {
+  try {
+    const fields = (opts && opts.fields) || Object.keys((opts && opts.attributes) || {});
+    if (publicFieldsTouched(fields)) require('../services/seoWorkspacePages').regenerateSoon();
+  } catch { /* 다음 0시 생성이 맞춘다 */ }
+});
+
 module.exports = Business;

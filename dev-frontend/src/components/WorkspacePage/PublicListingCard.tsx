@@ -12,6 +12,7 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { isEnterAction } from '../../utils/imeKey';
 import AutoSaveField, { type AutoSaveHandle } from '../Common/AutoSaveField';
 import ConfirmDialog from '../Common/ConfirmDialog';
+import PlanQSelect from '../Common/PlanQSelect';
 
 type State = {
   status: 'off' | 'pending' | 'public' | 'blocked';
@@ -123,19 +124,21 @@ export default function PublicListingCard({ businessId, isOwner, shownItems, onC
         <Field>
           <Lbl htmlFor="wslist-cat">{t('wspage.category', '업종')} *</Lbl>
           <AutoSaveField type="select" key={`wslist-cat-${businessId}`} onSave={saveCat}>
-            <Sel id="wslist-cat" data-testid="wspage-listing-category" value={cat} disabled={!isOwner} onChange={(e) => setCat(e.target.value)}>
-              <option value="">{t('wspage.choose', '고르기')}</option>
-              {st.categories.map((c) => <option key={c} value={c}>{tw(`category.${c}`)}</option>)}
-            </Sel>
+            <PlanQSelect inputId="wslist-cat" name="public_category" isSearchable={false} isDisabled={!isOwner}
+              placeholder={t('wspage.choose', '고르기') as string}
+              options={st.categories.map((c) => ({ value: c, label: tw(`category.${c}`) as string }))}
+              value={cat ? { value: cat, label: tw(`category.${cat}`) as string } : null}
+              onChange={(opt: unknown) => setCat(String((opt as { value?: string } | null)?.value ?? ''))} />
           </AutoSaveField>
         </Field>
         <Field>
           <Lbl htmlFor="wslist-region">{t('wspage.region', '지역')}</Lbl>
           <AutoSaveField type="select" key={`wslist-region-${businessId}`} onSave={saveRegion}>
-            <Sel id="wslist-region" value={region} disabled={!isOwner} onChange={(e) => setRegion(e.target.value)}>
-              <option value="">{t('wspage.choose', '고르기')}</option>
-              {st.regions.map((r) => <option key={r} value={r}>{tw(`region.${r}`)}</option>)}
-            </Sel>
+            <PlanQSelect inputId="wslist-region" name="public_region" isSearchable={false} isDisabled={!isOwner}
+              placeholder={t('wspage.choose', '고르기') as string}
+              options={st.regions.map((r) => ({ value: r, label: tw(`region.${r}`) as string }))}
+              value={region ? { value: region, label: tw(`region.${region}`) as string } : null}
+              onChange={(opt: unknown) => setRegion(String((opt as { value?: string } | null)?.value ?? ''))} />
           </AutoSaveField>
         </Field>
       </Grid>
@@ -230,7 +233,6 @@ const UrlLink = styled.a`font-size:0.8125rem;color:#0D9488;word-break:break-all;
 const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:10px;`;
 const Field = styled.div`display:flex;flex-direction:column;gap:4px;min-width:0;`;
 const Lbl = styled.label`font-size:0.75rem;font-weight:600;color:#475569;`;
-const Sel = styled.select`height:36px;padding:0 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:0.8125rem;width:100%;`;
 const TagRow = styled.div`display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:36px;`;
 const TagChip = styled.span`display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 10px;border-radius:999px;background:#F1F5F9;font-size:0.75rem;font-weight:600;color:#334155;`;
 const X = styled.button`border:none;background:none;cursor:pointer;color:#94A3B8;font-size:0.875rem;padding:0;`;

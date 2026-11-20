@@ -1281,7 +1281,7 @@
       "slug_taken": "This address is taken.",
       "criteria_unmet": "Please meet the listing criteria first.",
       "plan_required": "Listing requires a paid plan or trial.",
-      "blocked": "Pages taken down by PlanQ cannot be reopened.",
+      "blocked": "Pages taken down by PlanQ cannot be reopened or renamed.",
       "public_pages_disabled": "Listing is temporarily unavailable."
     },
     "dialogTitle": "Our page",

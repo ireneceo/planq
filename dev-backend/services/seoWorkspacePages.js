@@ -104,8 +104,14 @@ async function buildWorkspacePages({ origin, template, renderPage, breadcrumb })
     const byCat = new Map();
     for (const b of list) {
       const e = wp.entryOf(b);
-      if (lang === 'en' && !e.intro_en) continue;
       const v = wp.publicPageView(b, { lang });
+      // 영어 회사 페이지는 영어 소개글이 있을 때만 — 없으면 영어 목록에서 한국어 페이지로 잇는다(Fable N7)
+      v.page_href = lang === 'en' && !e.intro_en ? `/w/${encodeURIComponent(b.slug)}/` : `${pre}/w/${encodeURIComponent(b.slug)}/`;
+      if (v.category) {
+        if (!byCat.has(v.category)) byCat.set(v.category, []);
+        byCat.get(v.category).push(v);
+      }
+      if (lang === 'en' && !e.intro_en) continue;
       const loc = `${origin}${pre}/w/${encodeURIComponent(b.slug)}/`;
       const catL = v.category ? CAT_LABEL[lang][v.category] : null;
       const regL = v.region ? REGION_LABEL[lang][v.region] : null;
@@ -139,23 +145,21 @@ async function buildWorkspacePages({ origin, template, renderPage, breadcrumb })
         jsonld: { '@context': 'https://schema.org', '@graph': [companyLd(origin, v, loc, lang), breadcrumb(origin, crumbs)] },
       });
       out.push({ rel: path.join(...(lang === 'en' ? ['en'] : []), 'w', b.slug, 'index.html'), html: mark(html, lang) });
-      urls.push({ loc, lastmod: b.updated_at ? new Date(b.updated_at).toISOString().slice(0, 10) : undefined, changefreq: 'weekly', priority: '0.6' });
-      if (v.category) {
-        if (!byCat.has(v.category)) byCat.set(v.category, []);
-        byCat.get(v.category).push(v);
-      }
+      urls.push({ loc, lastmod: b.updatedAt ? new Date(b.updatedAt).toISOString().slice(0, 10) : undefined, changefreq: 'weekly', priority: '0.6' });
     }
 
     // ② 회사 찾기 — 전체 · 업종별(얇은 업종은 noindex + 사이트맵 제외)
     const listBlocks = (items) => items.map((v) => ({
-      tag: 'a', href: `${pre}/w/${encodeURIComponent(v.slug)}/`, text: v.name,
+      tag: 'a', href: v.page_href, text: v.name,
       sub: [v.category ? CAT_LABEL[lang][v.category] : null, v.region ? REGION_LABEL[lang][v.region] : null, v.tagline].filter(Boolean).join(' · '),
     }));
     const all = [...byCat.values()].flat();
     const dirLoc = `${origin}${pre}/directory/`;
+    const emptyDir = all.length === 0;   // 공개 회사 0곳 — 빈 목록을 색인시키지 않는다(Fable N10, 첫 배포 직후가 이 상태)
+    const dirWrap = (h) => (emptyDir ? noindex(h) : h);
     out.push({
       rel: path.join(...(lang === 'en' ? ['en'] : []), 'directory', 'index.html'),
-      html: mark(renderPage(template, {
+      html: dirWrap(mark(renderPage(template, {
         lang, title: T.dirTitle, description: T.dirDesc, url: dirLoc, canonical: dirLoc, h1: T.dir,
         alternates: { ko: `${origin}/directory/`, en: `${origin}/en/directory/` },
         blocks: [{ tag: 'p', text: T.dirDesc },
@@ -164,11 +168,11 @@ async function buildWorkspacePages({ origin, template, renderPage, breadcrumb })
         nav: [{ href: `${pre}/`, label: 'PlanQ' }],
         jsonld: { '@context': 'https://schema.org', '@graph': [
           { '@type': 'CollectionPage', name: T.dir, url: dirLoc, inLanguage: lang },
-          { '@type': 'ItemList', itemListElement: all.map((v, i) => ({ '@type': 'ListItem', position: i + 1, url: `${origin}${pre}/w/${encodeURIComponent(v.slug)}/`, name: v.name })) },
+          { '@type': 'ItemList', itemListElement: all.map((v, i) => ({ '@type': 'ListItem', position: i + 1, url: `${origin}${v.page_href}`, name: v.name })) },
         ] },
-      }), lang),
+      }), lang)),
     });
-    urls.push({ loc: dirLoc, changefreq: 'daily', priority: '0.6' });
+    if (!emptyDir) urls.push({ loc: dirLoc, changefreq: 'daily', priority: '0.6' });
     for (const [c, items] of byCat) {
       const loc = `${origin}${pre}/directory/${c}/`;
       const label = CAT_LABEL[lang][c];
@@ -252,4 +256,10 @@ async function sweepIneligible({ ioApp } = {}) {
   return { checked: rows.length, down };
 }
 
-module.exports = { buildWorkspacePages, removeWorkspacePageFiles, regenerateSoon, sweepIneligible, listedBusinesses, CAT_LABEL, REGION_LABEL, THIN_CATEGORY };
+/** 끄기·내리기·전체 끄기 — 사이트맵·회사 찾기 목록까지 **그 요청 안에서** 다시 만든다(Fable N3). 실패해도 던지지 않는다. */
+async function regenerateNow() {
+  try { await require('./seoArtifacts').generateSeoArtifacts({ log: { log: () => {}, warn: console.warn } }); return true; }
+  catch (e) { console.warn('[seo-workspace] regenerate now failed', e.message); regenerateSoon(); return false; }
+}
+
+module.exports = { regenerateNow, buildWorkspacePages, removeWorkspacePageFiles, regenerateSoon, sweepIneligible, listedBusinesses, CAT_LABEL, REGION_LABEL, THIN_CATEGORY };

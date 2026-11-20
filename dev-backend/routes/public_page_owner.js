@@ -28,7 +28,7 @@ async function stateOf(biz) {
   const owner = await User.findByPk(biz.owner_id, { attributes: ['email_verified_at'] });
   const criteria = wp.criteriaOf(biz, { ownerEmailVerified: !!(owner && owner.email_verified_at) });
   const eligible = await wp.listingEligible(biz.id);
-  const origin = process.env.APP_ORIGIN || process.env.FRONTEND_URL || 'https://planq.kr';
+  const origin = require('../services/platformNotify').APP_URL;   // dev = dev 주소, 운영 = planq.kr
   return {
     status: biz.public_page_status,
     category: biz.public_category,
@@ -48,7 +48,7 @@ async function stateOf(biz) {
   };
 }
 
-const loadBiz = (id) => Business.findByPk(id, { attributes: [...wp.PUBLIC_ATTRS, 'owner_id'] });
+const loadBiz = (id) => Business.findByPk(id, { attributes: [...wp.PUBLIC_ATTRS, 'owner_id', 'public_block_reason'] });
 
 router.get('/:businessId/public-page', authenticateToken, attachWorkspaceScope(), async (req, res, next) => {
   try {
@@ -67,6 +67,7 @@ router.put('/:businessId/public-page', authenticateToken, attachWorkspaceScope()
     const biz = await Business.findByPk(businessId);
     if (!biz) return errorResponse(res, 'business_not_found', 404);
     const b = req.body || {};
+    if (biz.public_page_status === 'blocked' && b.slug !== undefined && b.slug !== biz.slug) return errorResponse(res, 'blocked', 409);
     const before = { category: biz.public_category, region: biz.public_region, slug: biz.slug };
     const patch = {};
     if (b.category !== undefined) {
@@ -89,7 +90,10 @@ router.put('/:businessId/public-page', authenticateToken, attachWorkspaceScope()
     }
     if (b.tags !== undefined) {
       const permissions = { ...(biz.permissions && typeof biz.permissions === 'object' ? biz.permissions : {}) };
-      const ce = wp.normalizeEntry({ ...wp.entryOf(biz), tags: b.tags }, { hadSaved: true });
+      // 처음 꾸미는 워크스페이스(저장값·창구 링크 없음)는 새 기본 가림에서 시작한다 — customer_entry PUT 과 같은 규칙(Fable N8)
+      const { findLiveSharedLink } = require('../services/guest_link');
+      const fresh0 = !wp.savedEntryOf(biz) && !(await findLiveSharedLink({ businessId, scope: 'workspace' }));
+      const ce = wp.normalizeEntry({ ...(fresh0 ? wp.newDefaults() : wp.entryOf(biz)), tags: b.tags }, { hadSaved: true });
       permissions.customer_entry = ce;
       patch.permissions = permissions;
     }
@@ -157,7 +161,7 @@ router.post('/:businessId/public-page/off', authenticateToken, attachWorkspaceSc
     await Business.update({ public_page_status: 'off' }, { where: { id: businessId } });
     // ★ 그 요청 안에서 생성 파일을 지운다 — 다음 0시까지 남으면 «껐는데 보인다»(§3). 사이트맵·목록은 곧 다시 만든다.
     const removed = require('../services/seoWorkspacePages').removeWorkspacePageFiles(biz.slug);
-    require('../services/seoWorkspacePages').regenerateSoon();
+    await require('../services/seoWorkspacePages').regenerateNow();   // 사이트맵·목록도 이 요청 안에서
     createAuditLog({ userId: req.user.id, businessId, action: 'public_page.off', targetType: 'business', targetId: businessId,
       oldValue: { status: before }, newValue: { status: 'off', removed_files: removed } });
     return successResponse(res, await stateOf(await loadBiz(businessId)), 'off');

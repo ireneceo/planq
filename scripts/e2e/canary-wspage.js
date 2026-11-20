@@ -90,7 +90,7 @@ async function run() {
         // [이 서비스 문의] → 폼으로 내려가고 서비스가 미리 골라진다
         await page.click('[data-testid^="entry-service-ask-"]');
         await sleep(700);
-        const picked = await page.$eval('[data-testid="entry-inquiry-service"]', (e) => e.value).catch(() => '');
+        const picked = await page.$eval('input[name="service_id"]', (e) => e.value).catch(() => '');
         push('[desktop] [이 서비스 문의] → 서비스 미리 선택', !!picked, picked);
         const sendDisabled = await page.$eval('[data-testid="entry-inquiry-send"]', (e) => e.disabled);
         push('[desktop] 빈 폼은 보내기 비활성(+이유)', sendDisabled === true);

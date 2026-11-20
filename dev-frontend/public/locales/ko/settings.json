@@ -1281,7 +1281,7 @@
       "slug_taken": "이미 쓰는 주소예요.",
       "criteria_unmet": "공개 기준을 먼저 채워 주세요.",
       "plan_required": "유료 플랜·체험 중에만 공개할 수 있어요.",
-      "blocked": "PlanQ 가 내린 페이지는 다시 켤 수 없어요.",
+      "blocked": "PlanQ 가 내린 페이지는 다시 켜거나 주소를 바꿀 수 없어요.",
       "public_pages_disabled": "지금은 공개를 신청할 수 없어요."
     },
     "dialogTitle": "우리 페이지",

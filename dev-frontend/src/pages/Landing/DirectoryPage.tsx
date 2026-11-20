@@ -9,6 +9,7 @@ import { Link, useNavigate, useParams, useLocation, useSearchParams } from 'reac
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import LandingLayout from '../../components/Landing/LandingLayout';
+import PlanQSelect from '../../components/Common/PlanQSelect';
 
 const CATEGORIES = ['design', 'marketing', 'development', 'media', 'consulting', 'accounting', 'legal', 'translation',
   'education', 'interior', 'manufacturing', 'events', 'realestate', 'healthcare', 'lifestyle', 'other'];
@@ -91,11 +92,12 @@ export default function DirectoryPage() {
               </Chip>
             ))}
           </ChipRow>
-          <RegionSel value={region} onChange={(e) => setQuery({ region: e.target.value })} aria-label={t('dir.region', '지역') as string}
-            data-testid="directory-region">
-            <option value="">{t('dir.regionAll', '지역 전체')}</option>
-            {REGIONS.map((r) => <option key={r} value={r}>{t(`region.${r}`)}</option>)}
-          </RegionSel>
+          <RegionBox data-testid="directory-region">
+            <PlanQSelect size="sm" name="region" isSearchable={false} aria-label={t('dir.region', '지역') as string}
+              options={[{ value: '', label: t('dir.regionAll', '지역 전체') as string }, ...REGIONS.map((r) => ({ value: r, label: t(`region.${r}`) as string }))]}
+              value={{ value: region, label: region ? t(`region.${region}`) as string : t('dir.regionAll', '지역 전체') as string }}
+              onChange={(opt: unknown) => setQuery({ region: String((opt as { value?: string } | null)?.value ?? '') })} />
+          </RegionBox>
         </Filters>
 
         {state === 'loading' ? <Muted>{t('loading', '불러오는 중…')}</Muted>
@@ -161,7 +163,7 @@ const ChipRow = styled.div`display:flex;gap:6px;flex:1;min-width:0;flex-wrap:wra
 const Chip = styled.button<{ $on: boolean }>`flex-shrink:0;height:36px;padding:0 14px;border-radius:999px;cursor:pointer;font-size:0.8125rem;font-weight:600;
   border:1px solid ${(p) => (p.$on ? '#14B8A6' : '#E2E8F0')};background:${(p) => (p.$on ? '#F0FDFA' : '#fff')};color:${(p) => (p.$on ? '#0F766E' : '#475569')};
   b{margin-left:6px;}`;
-const RegionSel = styled.select`height:36px;padding:0 10px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;font-size:0.8125rem;color:#334155;`;
+const RegionBox = styled.div`width:160px;flex-shrink:0;@media (max-width:640px){ width:100%; }`;
 const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));gap:14px;`;
 const CardBox = styled.article`display:flex;flex-direction:column;gap:10px;padding:16px;background:#fff;border:1px solid #E2E8F0;border-radius:14px;min-width:0;`;
 const CardHead = styled.div`display:flex;align-items:center;gap:10px;min-width:0;`;

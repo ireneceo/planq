@@ -83,7 +83,7 @@ export default function InquiryDrawer({ inquiry, businessId, canWrite, onClose, 
             <Meta>
               <Badge $s={q.status}>{t(`inquiryBox.status.${q.status}`, q.status)}</Badge>
               {q.status === 'held' && q.held_reason && <Muted>{t(`inquiryBox.held.${q.held_reason}`, q.held_reason)}</Muted>}
-              <Muted>{formatDateTime(q.created_at)}</Muted>
+              <Muted data-testid="inquiry-drawer-received">{t('inquiryBox.received', '받은 시각')} {formatDateTime(q.created_at)} · {t(`inquiryBox.via.${q.via}`, q.via)}</Muted>
             </Meta>
             <Sec>
               <L>{t('inquiryBox.contact', '연락처')}</L>
