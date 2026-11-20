@@ -202,6 +202,60 @@ async function run() {
     } finally { await browser.close(); }
   }
 
+  // ⑨ (P3) 공개 주소 /w/ · 회사 찾기 /directory · 설정 «공개» 카드 · 관리자 심사 — ws6 이 공개 상태일 때
+  const pp = await api(`/api/businesses/${BIZ}/public-page`);
+  if (pp.body?.data?.status !== 'public') {
+    push('P3 픽스처(ws6 공개 상태)', false, String(pp.body?.data?.status));
+  } else {
+    const slug = pp.body.data.slug;
+    for (const vp of VPS) {
+      const { browser, page } = await launch({ mobile: vp.mobile });
+      try {
+        await page.setViewport({ width: vp.w, height: vp.h, isMobile: vp.mobile, hasTouch: vp.mobile, deviceScaleFactor: vp.mobile ? 2 : 1 });
+        await page.goto(`${BASE}/w/${slug}`, { waitUntil: 'networkidle2' });
+        await page.waitForSelector('[data-testid="wspage-public-head"]', { timeout: 20000 }).catch(() => null);
+        await sleep(600);
+        const head = await visibleText(page, '[data-testid="wspage-public-head"]');
+        push(`[${vp.name}] 공개 주소: 머리(이름·업종) 보임`, head.ok, head.why);
+        const form = await visibleText(page, '[data-testid="entry-inquiry-form"]');
+        push(`[${vp.name}] 공개 주소: 문의 폼 보임`, form.ok, form.why);
+        const txt = await page.evaluate(() => document.body.innerText);
+        push(`[${vp.name}] 공개 주소: 가린 이메일 화면 0`, !txt.includes(email));
+        push(`[${vp.name}] 공개 주소: 가로 넘침 0`, (await overflowX(page)) <= 0);
+        await page.goto(`${BASE}/directory`, { waitUntil: 'networkidle2' });
+        await page.waitForSelector(`[data-testid="directory-card-${slug}"]`, { timeout: 20000 }).catch(() => null);
+        const card = await visibleText(page, `[data-testid="directory-card-${slug}"]`);
+        push(`[${vp.name}] 회사 찾기: 카드 보임`, card.ok, card.why);
+        push(`[${vp.name}] 회사 찾기: 가로 넘침 0`, (await overflowX(page)) <= 0);
+        const hdr = await page.evaluate(() => {
+          const h = document.querySelector('header'); if (!h) return 0;
+          return Math.max(0, ...[...h.querySelectorAll('a,button')].filter((e) => e.offsetParent).map((e) => e.getBoundingClientRect().right)) - window.innerWidth;
+        });
+        push(`[${vp.name}] 랜딩 머리줄 넘침 0`, hdr <= 0, `${Math.round(hdr)}px`);
+        if (vp.name === 'desktop') {
+          await page.type('[data-testid="directory-search"]', '절대없는검색어zz');
+          await page.keyboard.press('Enter');
+          await page.waitForSelector('[data-testid="directory-empty"]', { timeout: 10000 }).catch(() => null);
+          push('[desktop] 회사 찾기 검색 0건 안내', !!(await page.$('[data-testid="directory-empty"]')));
+          await login(page, OWNER);
+          await page.goto(`${BASE}/business/settings/public-page`, { waitUntil: 'networkidle2' });
+          await page.waitForSelector('[data-testid="wspage-listing"]', { timeout: 20000 }).catch(() => null);
+          const lc = await visibleText(page, '[data-testid="wspage-listing-status"]');
+          push('[desktop] 설정 «공개» 카드 상태 줄', lc.ok && /공개 중|Public/.test(lc.text || ''), lc.text);
+        }
+      } catch (e) { push(`[${vp.name}] P3 하니스`, false, e.message); } finally { await browser.close(); }
+    }
+    const { browser, page } = await launch({});
+    try {
+      await page.setViewport({ width: 1440, height: 900 });
+      await login(page, { email: 'admin@test.planq.kr', password: 'Test1234!' });
+      await page.goto(`${BASE}/admin/public-pages?status=public`, { waitUntil: 'networkidle2' });
+      await page.waitForSelector(`[data-testid="admin-pp-row-${BIZ}"]`, { timeout: 20000 }).catch(() => null);
+      const row = await visibleText(page, `[data-testid="admin-pp-row-${BIZ}"]`);
+      push('[desktop] 관리자 «공개 페이지 심사» 공개 중 목록에 ws6', row.ok, row.why);
+    } catch (e) { push('관리자 화면 하니스', false, e.message); } finally { await browser.close(); }
+  }
+
   // 대조군 — 가림을 풀면 창구 화면에 이메일이 보여야 한다
   await api(`/api/businesses/${BIZ}/customer-entry`, { method: 'PUT', body: JSON.stringify({ hidden: hidden.filter((k) => k !== 'email') }) });
   try {

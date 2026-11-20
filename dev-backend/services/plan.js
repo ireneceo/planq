@@ -451,6 +451,12 @@ async function canInner(businessId, action, ctx = {}) {
       }
       return { ok: true };
     }
+    case 'public_listing': {
+      // PlanQ «회사 찾기»·공개 주소(/w/) 노출 자격 (2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §6.5 · Irene 결정 ⑤ 가)
+      //   = 유료 플랜 + 체험 중. 무료면 내려간다(창구 링크·문의 폼은 모든 플랜에 그대로 — 그쪽은 이 판정을 보지 않는다).
+      if (inTrial || plan.code !== 'free') return { ok: true };
+      return { ok: false, reason: 'plan_required', required: 'paid_or_trial' };
+    }
     case 'feature': {
       const key = ctx.feature;
       if (!features[key]) {

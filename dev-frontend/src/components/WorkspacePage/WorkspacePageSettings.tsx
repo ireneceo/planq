@@ -19,6 +19,7 @@ import StandardModal from '../Common/StandardModal';
 import { Switch, SwitchKnob } from '../Common/switchShell';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import CustomerEntrySection from '../Permissions/CustomerEntrySection';
+import PublicListingCard from './PublicListingCard';
 import EntryInfoView from '../../pages/Guest/EntryInfoView';
 import type { EntryInfo } from '../../pages/Guest/GuestWorkspacePage';
 import { formatWorkHours, type WorkHours } from '../../utils/workHoursText';
@@ -194,6 +195,16 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
     <Layout data-testid="wspage-settings">
       <EditCol>
         <CustomerEntrySection businessId={businessId} isOwner={isOwner} />
+
+        {/* 공개(회사 찾기·검색) — 확인 창에 «누구나 보게 되는 항목» 을 적는다(지금 보임으로 켜 둔 것만) */}
+        <PublicListingCard businessId={businessId} isOwner={isOwner}
+          shownItems={[
+            t('wspage.auto.name', '회사 이름·로고') as string,
+            ...autoKeys.filter((k) => !entry.hidden.includes(k) && autoValue(k)).map((k) => autoLabel(k) as string),
+            ...(entry.intro ? [t('wspage.introTitle', '소개글') as string] : []),
+            ...(entry.services.length ? [`${t('wspage.servicesTitle', '서비스')} ${entry.services.length}`] : []),
+            ...entry.extras.filter((x) => x.label && x.value).map((x) => x.label),
+          ]} />
 
         <Card data-testid="wspage-auto">
           <CardHeader>

@@ -102,3 +102,4 @@ paths:
   메일·재알림 메일 끔, 수락·취소 때 읽음). 알림 클릭은 `utils/notificationLink.openNotificationTarget`(앱 셸 밖 경로는 문서 이동). 회귀 `--suite invitenotify`.
 - **「같은 서버에서 왔나」를 접속 IP 로만 보지 않는다** — nginx 도 127.0.0.1 에서 프록시한다. q-note 는 `X-Real-IP`/`X-Forwarded-For` 가 있으면 바깥으로 본다(`main.py _internal_gate`), Node 는 `trust proxy` 로 본 `req.ip`(`utils/internalAuth`).
 
+- **워크스페이스 공개 표면은 한 직렬화·한 술어** (2026-11-20) — 밖으로 나가는 모양은 `services/workspacePage.publicView`/`publicPageView`/`directoryCard`(화이트리스트 — 가린 항목은 API·HTML·JSON-LD 어디에도 없다), «공개인가» 는 `isPubliclyListed`. 꺼짐·대기·내림·자격 없음·없는 주소는 **같은 404 본문**(열거 방지). 무인증 라우트 `routes/public_workspace.js` · 신고는 PlanQ 로만(`contact_inquiries kind='report'`, 랜딩 문의 폼은 report 를 못 쓴다).

@@ -401,6 +401,13 @@ async function generateSeoArtifacts({ dir = frontendDir(), log = console } = {})
     });
   }
 
+  // 공개 회사 페이지·회사 찾기(2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §8) — 공개를 켜고 승인된 워크스페이스만.
+  //   같은 목록 파일에 실리므로 공개를 끄면 다음 생성에서 «자기가 만든 파일» 로 지워진다(끄는 요청은 즉시 지운다).
+  try {
+    const ws = await require('./seoWorkspacePages').buildWorkspacePages({ origin, template, renderPage, breadcrumb });
+    out.push(...ws.out); urls.push(...ws.urls);
+  } catch (e) { if (log && log.warn) log.warn('[seo-artifacts] workspace pages failed', e.message); }
+
   // 슬러그에 경로 문자가 섞이면 쓰지 않는다(빌드 폴더 밖으로 나가지 않게)
   const safe = out.filter((o) => {
     const abs = path.resolve(dir, o.rel);

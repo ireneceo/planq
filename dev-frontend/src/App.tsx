@@ -111,7 +111,11 @@ const PublicKbDocumentPage = lazy(() => import('./pages/Public/PublicKbDocumentP
 const PublicKbBundlePage = lazy(() => import('./pages/Public/PublicKbBundlePage'));
 const PublicCalendarEventPage = lazy(() => import('./pages/Public/PublicCalendarEventPage'));
 const PublicSurveyPage = lazy(() => import('./pages/Public/PublicSurveyPage'));   // #460 설문 응답 (무로그인)
-const PublicCardPage = lazy(() => import('./pages/Public/PublicCardPage'));   // 내 명함 공개 페이지 (무로그인, 2026-10-17)
+const PublicCardPage = lazy(() => import('./pages/Public/PublicCardPage'));
+// 공개 회사 페이지 /w/:slug · 회사 찾기 /directory (2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md P3)
+const PublicWorkspacePage = lazy(() => import('./pages/Public/PublicWorkspacePage'));
+const LandingDirectory = lazy(() => import('./pages/Landing/DirectoryPage'));
+const AdminPublicPagesPage = lazy(() => import('./pages/Admin/AdminPublicPagesPage'));   // 내 명함 공개 페이지 (무로그인, 2026-10-17)
 const MyCardsPage = lazy(() => import('./pages/MyCards/MyCardsPage'));   // 내 명함·받은 명함 (2026-10-17)
 const PublicSignPage = lazy(() => import('./pages/QDocs/PublicSignPage'));
 const PublicInvoicePage = lazy(() => import('./pages/QBill/PublicInvoicePage'));
@@ -735,6 +739,11 @@ function ShellApp() {
             <MainLayout><AdminFollowupPage /></MainLayout>
           </ProtectedRoute>
         } />
+        <Route path="/admin/public-pages" element={
+          <ProtectedRoute requiredRole={['platform_admin']}>
+            <MainLayout><AdminPublicPagesPage /></MainLayout>
+          </ProtectedRoute>
+        } />
         <Route path="/admin/payments" element={
           <ProtectedRoute requiredRole={['platform_admin']}>
             <MainLayout><AdminPaymentsPage /></MainLayout>
@@ -790,6 +799,9 @@ function ShellApp() {
         <Route path="/public/survey/:token" element={<PublicSurveyPage />} />
         {/* 내 명함 — 주소를 짧게(QR 밀도). 색인 차단은 서버(nginx location ^~ /c/ · ogMeta) — docs/BUSINESS_CARD_DESIGN.md */}
         <Route path="/c/:token" element={<PublicCardPage />} />
+        {/* 공개 회사 페이지 — 공개를 켜고 PlanQ 가 승인한 워크스페이스만(서버 404 = 없는 주소). 앱 안에서도 열린다(요금 표면 아님) */}
+        <Route path="/w/:slug" element={<PublicWorkspacePage />} />
+        <Route path="/en/w/:slug" element={<EnglishRoute><PublicWorkspacePage /></EnglishRoute>} />
         <Route path="/public/invoices/:token" element={<PublicInvoicePage />} />
         <Route path="/public/qnote-sessions/:token" element={<PublicQNoteSessionPage />} />
         <Route path="/public/report/:token" element={<PublicReportPage />} />
@@ -820,6 +832,11 @@ function ShellApp() {
         <Route path="/service" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingService />} />
         {/* #426 무료 업무체계 자가진단 — 공개 */}
         <Route path="/service/diagnosis" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingDiagnosis />} />
+        {/* 회사 찾기 — 랜딩(요금 CTA 가 있어 앱에서는 막는다) */}
+        <Route path="/directory" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingDirectory />} />
+        <Route path="/directory/:category" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingDirectory />} />
+        <Route path="/en/directory" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingDirectory /></EnglishRoute>} />
+        <Route path="/en/directory/:category" element={isNativeApp() ? <NativeMarketingRedirect /> : <EnglishRoute><LandingDirectory /></EnglishRoute>} />
         <Route path="/insights" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBlog />} />
         <Route path="/insights/:slug" element={isNativeApp() ? <NativeMarketingRedirect /> : <LandingBlogPost />} />
         {/* 옛 /blog URL → /insights 영구 이전 (SEO·외부 링크 보존) */}

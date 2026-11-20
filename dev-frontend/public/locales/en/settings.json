@@ -1275,7 +1275,14 @@
     "deleteServiceBody": "It disappears from your customer page right away.",
     "err": {
       "unsupported_file_type": "Only PNG, JPG or WEBP photos.",
-      "file_too_large": "Photos must be 3MB or smaller."
+      "file_too_large": "Photos must be 3MB or smaller.",
+      "invalid_slug": "Use 3–40 lowercase letters, numbers or hyphens.",
+      "reserved_slug": "This address is reserved.",
+      "slug_taken": "This address is taken.",
+      "criteria_unmet": "Please meet the listing criteria first.",
+      "plan_required": "Listing requires a paid plan or trial.",
+      "blocked": "Pages taken down by PlanQ cannot be reopened.",
+      "public_pages_disabled": "Listing is temporarily unavailable."
     },
     "dialogTitle": "Our page",
     "dialogDesc": "Give customers this link. They can see your intro and services and send an inquiry or book a consultation.",
@@ -1287,6 +1294,41 @@
     "formDesc": "A no-sign-in inquiry form appears at the bottom of your customer page. Inquiries land in Q sale «New inquiries» and notify owners and admins. The sender gets one automatic «received» email.",
     "formEnabled": "Inquiry form",
     "formPhone": "Ask for phone",
-    "formCompany": "Ask for company"
+    "formCompany": "Ask for company",
+    "listTitle": "Listing",
+    "listDesc": "When on, this page appears in PlanQ «Find a company» and in search / AI search. The first listing opens after PlanQ reviews it (usually 1 business day).",
+    "listOff": "Only people with the link",
+    "listOn": "List in PlanQ «Find a company» and search",
+    "statusPending": "Pending review — it goes public once PlanQ approves (usually 1 business day)",
+    "statusPublic": "Public",
+    "statusBlocked": "Taken down by PlanQ — reason: {{reason}}. Contact PlanQ to list again.",
+    "statusReturned": "Your request was returned — {{reason}}",
+    "statusOff": "Only people with the link can see it now.",
+    "notEligible": "Listing is available on paid plans and during the trial. Your link and inquiry form keep working.",
+    "switchOff": "PlanQ has temporarily closed public pages.",
+    "category": "Industry",
+    "region": "Region",
+    "choose": "Choose",
+    "tags": "Search keywords (up to 5)",
+    "tagPh": "e.g. branding (Enter)",
+    "slug": "Public address",
+    "criteria": {
+      "name": "Name",
+      "tagline": "Tagline",
+      "intro": "Intro 100+ characters",
+      "services": "At least 1 service",
+      "category": "Industry",
+      "contact": "A way to contact (form or phone)",
+      "owner_email": "Owner email verified"
+    },
+    "criteriaHint": "Fill the ✗ items to request listing.",
+    "confirmOnTitle": "Request listing in «Find a company»?",
+    "confirmOnBody": "Once approved, anyone can see the items below, and they appear in search / AI search.",
+    "confirmOnOk": "Request listing",
+    "confirmOffTitle": "Turn listing off?",
+    "confirmOffBody": "{{url}} closes now. It may take days to weeks to disappear from search results. Your customer link and inquiry form keep working.",
+    "confirmOffOk": "Turn off",
+    "confirmSlugTitle": "Change the public address?",
+    "confirmSlugBody": "{{from}} will stop working right away, including links already shared and in search results."
   }
 }

@@ -30,3 +30,10 @@ dev 에만 있는 글이 운영에 샌다(그래서 배포 rsync 가 생성물�
 방문 집계 `landing_visits`(숫자만)·`landing_visitors`(하루 비밀 해시) — 쿠키·IP·UA 저장 없음, 무인증 `POST /api/landing-visits` 는
 랜딩 주소만·봇 제외·IP 분당 60. 조회는 플랫폼 관리자 > 랜딩 방문.
 
+**★ 2026-11-20 — 공개를 켜고 PlanQ 가 승인한 워크스페이스 페이지(/w/<주소>)와 회사 찾기(/directory·/directory/<업종>)도 대상이다** (docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §8 · Irene «권고대로»).
+위 «워크스페이스는 대상 아니다» 의 예외는 이것 하나 — 켜지 않은 워크스페이스는 그대로 대상 아니다.
+- 생성은 `services/seoWorkspacePages.buildWorkspacePages`(seoArtifacts 가 부른다 · 같은 목록 파일이라 끄면 다음 생성에서 지워진다) — **끄기·내리기·주소 바꾸기는 그 요청 안에서** `removeWorkspacePageFiles` 로 HTML·.gz 를 지운다.
+- «공개인가» = `services/workspacePage.isPubliclyListed` 한 술어(상태 public ∧ 삭제 안 됨 ∧ 전체 스위치 ∧ 노출 자격 plan.can('public_listing')). API·HTML·디렉터리·공개 문의가 같이 쓴다.
+- 공개 회사 3곳 미만 업종 목록은 noindex + 사이트맵 제외. 영어 회사 페이지는 영어 소개글이 있을 때만(hreflang 짝).
+- **배포 rsync 는 `/w/`·`/directory/`·`/en/w/`·`/en/directory/` 와 하위 index.html.gz 를 뺀다**(dev 시험 회사가 운영에 새지 않게 — 생성은 운영 DB 로 운영에서).
+- 랜딩 머리줄은 9번째 항목 자리가 없다(1280~1440 에서 넘침 실측) — «회사 찾기» 는 리소스 첫 줄 + 바닥글.

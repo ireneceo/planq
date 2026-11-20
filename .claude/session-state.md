@@ -20,6 +20,14 @@
 - 실측: 실호출 37(1건은 시험 가정 오류 — 동작은 맞음) · canary wspage 61/0 · build EXIT 0 · guard 85/86
 - ★ 운영 배포 전 남은 것: Fable 검증(P2+P3 묶음) · **약관·개인정보처리방침 문구**(문의자 개인정보 전달·보존 1년 / 공개 디렉터리 게시) Irene 확인
 
+### 🔄 워크스페이스 공개 페이지 P3 — 공개 주소 /w/ · 회사 찾기 · 관리자 승인 · 검색용 HTML (방 81169704 · 2026-11-20 · [Opus]) — 커밋됨 · Fable 검증 전(P2 와 묶음)
+- 스키마 `migrate-public-page.js`(businesses.public_* 5칸·색인 · platform_settings.public_pages_enabled · contact_inquiries.kind 'report', 멱등 · 배포 슬롯) · 판정 `workspacePage.isPubliclyListed` 한 술어 · 자격 `plan.can('public_listing')`(유료+체험)
+- 대표: 설정 «공개» 카드(신청·끄기·업종·지역·키워드·주소) · 관리자 `/admin/public-pages`(승인·돌려보내기·내리기·전체 끄기) · 무인증 `/api/public/*` · 화면 `/w/:slug`·`/directory(/:업종)`(+/en) · 신고
+- 검색: seoWorkspacePages(회사 HTML·JSON-LD·업종 목록·사이트맵·noindex 얇은 업종) · 끄면 그 요청 안에서 파일 삭제 · 매일 자격 정리 · 배포 rsync 에서 /w/·/directory/·.gz 제외 · llms.txt «회사 찾기»
+- 실측: 실호출 40/40 · canary wspage 85/0(3폭) · build EXIT 0 · guard 85/86
+- 화면 결정(작은 것): 랜딩 머리줄에 9번째 메뉴 자리가 없어(1280~1440 넘침 실측) «회사 찾기» 는 리소스 첫 줄 + 바닥글
+- 확인용(ws6 «PlanQ 테스트 워크스페이스» = 공개 중 /w/planq-test · 업종 디자인·브랜딩 · 서울)
+
 ### (이전) 답 기다림: 워크스페이스 공개 페이지 — 페이지 구성 컨펌 + 결정 4건 (방 81169704 · 2026-11-20 · [Opus] · Fable 설계 NEEDS-IRENE)
 - → Irene 답 2026-11-20 «권고대로 진행해 줘» (①예 ②가 ③가 ④가 ⑤가) — 설계 문서 머리에 기록함
 - 무엇을: 설계 `docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md` 와이어 ①공개 페이지 ②설정 «공개 페이지» 탭 ③planq.kr/directory + 업종 16개 컨펌 · ②접수 확인 메일 보낼지 ③문의 저장(신규 문의함 → 한 번 눌러 고객 등록 vs 즉시 고객) ④디렉터리 첫 공개 관리자 승인 ⑤노출 자격(유료+체험)

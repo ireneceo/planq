@@ -479,6 +479,10 @@ app.use('/api/users', require('./routes/workspace_deletion').restoreRouter);   /
 //   고유한 꼬리 경로만 들었다(client_links.js + clients.js 와 같은 패턴, CLAUDE.md 라우트 순서 절).
 //   businesses.js 에 `/:businessId/:xxx` 2-세그먼트 와일드카드가 없음을 실측으로 확인했다.
 app.use('/api/businesses', require('./routes/customer_entry'));
+// 공개 페이지 P3 — 워크스페이스 «공개» 설정(꼬리 경로 /public-page* 만, businesses.js 앞) · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md
+app.use('/api/businesses', require('./routes/public_page_owner'));
+// 공개 회사 페이지·회사 찾기 — **무인증** 표면(파일을 나눠 둔다)
+app.use('/api/public', require('./routes/public_workspace'));
 // #424 휴일·근무일 — `/:businessId/holiday…` 꼬리 경로만 둔다(위와 같은 패턴).
 app.use('/api/businesses', require('./routes/business_holidays'));
 // 휴가 종류 설정 — `/:businessId/leave-types…` 꼬리 경로만(docs/LEAVE_TYPES_DESIGN.md).
@@ -640,6 +644,8 @@ app.use('/api/admin', require('./routes/admin_credits'));
 app.use('/api/admin', require('./routes/admin_journey'));
 // 신규 고객 팔로업(가입 N일·체험 중 목록 + 도울 일 + 초안) — 같은 /api/admin 아래, platform_admin 으로 닫혀 있다.
 app.use('/api/admin', require('./routes/admin_followup'));
+// 공개 페이지 심사(승인·돌려보내기·내리기·전체 끄기) — 플랫폼 관리자
+app.use('/api/admin', require('./routes/admin_public_pages'));
 // PlanQ 안내방 — 관리자 받은편지함(/api/admin/support/*, platform_admin 전용) · 워크스페이스 쪽(/api/support-room, 사람 멤버만).
 app.use('/api/admin', require('./routes/admin_support'));
 app.use('/api/support-room', require('./routes/support_room'));
@@ -736,6 +742,9 @@ function scheduleNextMidnight() {
       const r = await taskSnapshot.snapshotAllTasks();
       console.log('[daily-snapshot]', r);
     } catch (e) { console.warn('[daily-snapshot] failed', e.message); }
+    // 공개 페이지 노출 자격(유료+체험) 잃은 곳 내리기 — 아래 검색 페이지 생성보다 먼저(2026-11-20)
+    try { const r = await require('./services/seoWorkspacePages').sweepIneligible({ ioApp: app }); if (r.down) console.log('[public-page sweep]', r); }
+    catch (e) { console.warn('[public-page sweep] failed', e.message); }
     // 검색용 공개 페이지·사이트맵 — 새로 발행하거나 내린 위키·인사이트 글을 하루 안에 반영한다
     try { await require('./services/seoArtifacts').generateSeoArtifacts(); }
     catch (e) { console.warn('[seo-artifacts] failed', e.message); }

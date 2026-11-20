@@ -48,6 +48,9 @@ const NAV_ITEMS: { to: string; key: string }[] = [
   { to: '/insights', key: 'nav.blog' },     // 별도 메뉴 — 위 주석
 ];
 const RESOURCE_ITEMS: { to: string; key: string }[] = [
+  // 회사 찾기(2026-11-20 · 공개 페이지 P3) — 위 줄에 9번째로 넣으면 1280~1440 폭에서 머리줄이 넘쳐 [무료로 시작] 이 잘렸다(실측 오른쪽 끝 1451/1440).
+  //   그래서 리소스 첫 줄 + 바닥글. 위 줄 자리를 다시 나누는 것은 별도 결정.
+  { to: '/directory', key: 'nav.directory' },
   { to: '/start', key: 'nav.start' },      // 처음 시작하는 팀의 5단계
   { to: '/guide', key: 'nav.help' },       // 도움말
 ];
@@ -256,6 +259,7 @@ const LandingLayout: React.FC<Props> = ({ children, transparentTop = true }) => 
               <FooterLink to="/pricing">{t('nav.pricing')}</FooterLink>
               <FooterLink to="/service">{t('nav.service')}</FooterLink>
               <FooterLink to="/insights">{t('nav.blog')}</FooterLink>
+              <FooterLink to="/directory">{t('nav.directory', '회사 찾기')}</FooterLink>
               <FooterLink to="/guide">{t('nav.help')}</FooterLink>{/* F7 — 도움말 (같은 창 — 위 NAV_ITEMS 주석) */}
               {/* 앱 다운로드 — `/app` 라우트는 있었지만 **앱 어디에서도 링크가 없어**
                   주소를 아는 사람만 닿을 수 있었다(2026-09-04 Irene 신고: "아이폰 다운로드가 안 나와").

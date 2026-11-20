@@ -99,6 +99,8 @@ PlatformSetting.init({
     type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false,
     comment: '#259 platform kill switch (default CLOSED - opening is a deliberate decision)',
   },
+  // 공개 페이지(/w/·회사 찾기·공개 문의) 전체 끄기 — 사고 때 한 번에 닫는 문(2026-11-20, scripts/migrate-public-page.js)
+  public_pages_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
   maintenance_message: { type: DataTypes.STRING(500), allowNull: true },
   // 사이드바 상단 공지 배너 — 운영자 일괄 안내 (점검 일정·신규 기능·약관 변경 등)
   announcement_text: { type: DataTypes.STRING(500), allowNull: true },

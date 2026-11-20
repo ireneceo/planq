@@ -5,7 +5,8 @@ const { sequelize } = require('../config/database');
 // platform_admin 이 관리자 대시보드에서 확인/답변.
 class ContactInquiry extends Model {}
 // 종류 목록 정본 — 라우트의 «받는 종류» 도 여기서 고른다(두 벌이 되면 한쪽만 늘어난다).
-ContactInquiry.KINDS = ['enterprise', 'general', 'landing', 'diagnosis', 'onboarding_call'];
+// report — 공개 페이지 «이 페이지 신고»(2026-11-20, scripts/migrate-public-page.js 가 ENUM 끝에 append)
+ContactInquiry.KINDS = ['enterprise', 'general', 'landing', 'diagnosis', 'onboarding_call', 'report'];
 
 ContactInquiry.init({
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },

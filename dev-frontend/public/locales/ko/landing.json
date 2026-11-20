@@ -13,7 +13,8 @@
     "service": "컨설팅",
     "app": "앱 다운로드",
     "start": "시작 가이드",
-    "resources": "리소스"
+    "resources": "리소스",
+    "directory": "회사 찾기"
   },
   "hero": {
     "slogan": "일이 일이 되지 않게",

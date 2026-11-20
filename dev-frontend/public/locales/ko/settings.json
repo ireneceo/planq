@@ -1275,7 +1275,14 @@
     "deleteServiceBody": "고객 페이지에서 바로 사라집니다.",
     "err": {
       "unsupported_file_type": "PNG·JPG·WEBP 사진만 올릴 수 있어요.",
-      "file_too_large": "사진은 3MB 이하만 올릴 수 있어요."
+      "file_too_large": "사진은 3MB 이하만 올릴 수 있어요.",
+      "invalid_slug": "주소는 영문 소문자·숫자·- 로 3~40자예요.",
+      "reserved_slug": "쓸 수 없는 주소예요.",
+      "slug_taken": "이미 쓰는 주소예요.",
+      "criteria_unmet": "공개 기준을 먼저 채워 주세요.",
+      "plan_required": "유료 플랜·체험 중에만 공개할 수 있어요.",
+      "blocked": "PlanQ 가 내린 페이지는 다시 켤 수 없어요.",
+      "public_pages_disabled": "지금은 공개를 신청할 수 없어요."
     },
     "dialogTitle": "우리 페이지",
     "dialogDesc": "고객에게 이 링크를 주세요. 회사 소개·서비스를 보고 바로 문의·상담 예약을 남길 수 있어요.",
@@ -1287,6 +1294,41 @@
     "formDesc": "고객 페이지 맨 아래에 로그인 없이 쓰는 문의 폼이 생깁니다. 문의가 오면 Q sale «신규 문의» 에 쌓이고 대표·관리자에게 알림이 갑니다. 문의한 분에게는 «접수되었습니다» 안내 메일이 한 번 갑니다.",
     "formEnabled": "문의 폼",
     "formPhone": "전화번호도 받기",
-    "formCompany": "회사명도 받기"
+    "formCompany": "회사명도 받기",
+    "listTitle": "공개",
+    "listDesc": "켜면 PlanQ «회사 찾기» 와 검색·AI 검색에 이 페이지가 나옵니다. 처음 공개는 PlanQ 가 확인한 뒤 열립니다(보통 1영업일).",
+    "listOff": "링크를 받은 사람만",
+    "listOn": "PlanQ «회사 찾기» 와 검색에 공개",
+    "statusPending": "승인 대기 중 — PlanQ 가 확인하면 공개됩니다 (보통 1영업일)",
+    "statusPublic": "공개 중",
+    "statusBlocked": "PlanQ 가 내렸어요 — 사유: {{reason}}. 다시 공개하려면 PlanQ 에 문의해 주세요.",
+    "statusReturned": "공개 신청이 돌려보내졌어요 — {{reason}}",
+    "statusOff": "지금은 링크를 받은 사람만 볼 수 있어요.",
+    "notEligible": "«회사 찾기» 공개는 유료 플랜과 체험 중인 워크스페이스만 할 수 있어요. 링크·문의 폼은 그대로 쓸 수 있어요.",
+    "switchOff": "PlanQ 가 지금 공개 페이지를 잠시 닫아 두었어요.",
+    "category": "업종",
+    "region": "지역",
+    "choose": "고르기",
+    "tags": "검색 키워드 (최대 5개)",
+    "tagPh": "예: 브랜딩 (Enter)",
+    "slug": "공개 주소",
+    "criteria": {
+      "name": "회사 이름",
+      "tagline": "한 줄 소개",
+      "intro": "소개글 100자 이상",
+      "services": "서비스 1개 이상",
+      "category": "업종",
+      "contact": "문의 받을 길(문의 폼 또는 전화)",
+      "owner_email": "대표 이메일 인증"
+    },
+    "criteriaHint": "✗ 항목을 채우면 공개를 신청할 수 있어요.",
+    "confirmOnTitle": "«회사 찾기» 공개를 신청할까요?",
+    "confirmOnBody": "승인되면 아래 정보를 누구나 볼 수 있고, 검색·AI 검색에 나옵니다.",
+    "confirmOnOk": "공개 신청",
+    "confirmOffTitle": "공개를 끌까요?",
+    "confirmOffBody": "{{url}} 주소가 바로 닫힙니다. 검색 결과에서 사라지는 데는 며칠~몇 주 걸립니다. 고객 링크·문의 폼은 그대로입니다.",
+    "confirmOffOk": "공개 끄기",
+    "confirmSlugTitle": "공개 주소를 바꿀까요?",
+    "confirmSlugBody": "{{from}} 은(는) 바로 열리지 않게 됩니다. 이미 알린 주소·검색 결과의 옛 주소도 끊깁니다."
   }
 }

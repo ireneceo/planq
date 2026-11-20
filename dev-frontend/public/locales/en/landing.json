@@ -13,7 +13,8 @@
     "service": "Consulting",
     "app": "Get the app",
     "start": "Getting started",
-    "resources": "Resources"
+    "resources": "Resources",
+    "directory": "Find a company"
   },
   "hero": {
     "slogan": "WORK, JUST WORK",

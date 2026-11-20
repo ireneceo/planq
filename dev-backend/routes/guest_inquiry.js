@@ -46,3 +46,6 @@ router.post('/:token/inquiries',
   });
 
 module.exports = router;
+// 공개 주소 문(routes/public_workspace.js)이 **같은 리미터 인스턴스**를 쓴다 — 인스턴스마다 저장소가 따로라 두 문을 오가면 한도가 두 배가 된다
+module.exports.ipHour = ipHour;
+module.exports.ipDay = ipDay;

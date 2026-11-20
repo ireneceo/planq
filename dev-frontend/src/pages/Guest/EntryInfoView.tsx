@@ -30,6 +30,10 @@ type Props = {
   inquiryUrl?: string | null;
   /** 폼 문구의 회사 이름 */
   workspaceName?: string;
+  /** 공개 주소(/w/) — 머리에 이미 [문의하기][상담 예약] 이 있어 본문 첫 줄 버튼을 감춘다 */
+  hideActions?: boolean;
+  /** 공개 주소 데스크탑 — 본문 | 오른쪽에 따라오는 문의 카드(설계 §7 ①). 1024 이하는 한 칸(폼은 맨 아래) */
+  splitForm?: boolean;
 };
 
 type Svc = { id: string; name: string; summary: string | null; price_text: string | null; image_url: string | null };
@@ -40,7 +44,7 @@ const servicesOf = (e: EntryInfo | null): Svc[] => (e?.services || []).map((s: u
     : (s as Svc)
 )).filter((s) => s && s.name);
 
-export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskService, emptyText, preview, inquiryUrl, workspaceName }: Props) {
+export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskService, emptyText, preview, inquiryUrl, workspaceName, hideActions, splitForm }: Props) {
   // 폼이 있으면 [문의하기]·[이 서비스 문의] 는 폼으로 내려간다(서비스를 미리 골라서) — 인증 없이 바로 남기는 문
   const formOn = !!entry?.form?.enabled && (!!inquiryUrl || !!preview);
   const formRef = useRef<HTMLDivElement>(null);
@@ -77,9 +81,17 @@ export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskSe
     if (s && onAskService) onAskService(s.id, s.name); else onAsk();
   };
 
-  return (
+  const form = formOn ? (
+    <InquiryForm ref={formRef} submitUrl={preview ? null : (inquiryUrl || null)} preview={preview}
+      workspaceName={workspaceName || ''}
+      services={services.map((x) => ({ id: x.id, name: x.name }))}
+      askPhone={!!entry?.form?.ask_phone} askCompany={!!entry?.form?.ask_company}
+      presetServiceId={presetSvc} />
+  ) : null;
+
+  const body = (
     <>
-      <BtnRow>
+      {!hideActions && <BtnRow>
         <AskBtn type="button" data-testid="entry-go-chat" onClick={() => ask()} disabled={preview}>
           {t('entry.goChat', { defaultValue: '문의하기' })}
         </AskBtn>
@@ -88,7 +100,7 @@ export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskSe
             {t('entry.goBook', { defaultValue: '상담 예약' })}
           </AskGhost>
         )}
-      </BtnRow>
+      </BtnRow>}
 
       {entry?.intro ? (
         <Section data-testid="entry-sec-intro">
@@ -128,17 +140,27 @@ export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskSe
           ))}
         </Section>
       )}
-      {formOn && (
-        <InquiryForm ref={formRef} submitUrl={preview ? null : (inquiryUrl || null)} preview={preview}
-          workspaceName={workspaceName || ''}
-          services={services.map((x) => ({ id: x.id, name: x.name }))}
-          askPhone={!!entry?.form?.ask_phone} askCompany={!!entry?.form?.ask_company}
-          presetServiceId={presetSvc} />
-      )}
+      {!splitForm && form}
     </>
   );
+  if (splitForm && form) {
+    return (
+      <Split>
+        <SplitMain>{body}</SplitMain>
+        <SplitSide>{form}</SplitSide>
+      </Split>
+    );
+  }
+  return body;
 }
 
+// 공개 주소 데스크탑 — 본문 | 오른쪽 문의 카드(스크롤해도 따라온다). 1024 이하 한 칸.
+const Split = styled.div`
+  display:grid;grid-template-columns:minmax(0, 1fr) minmax(300px, 360px);gap:24px;align-items:start;
+  @media (max-width:1024px){ grid-template-columns:minmax(0, 1fr); }
+`;
+const SplitMain = styled.div`display:flex;flex-direction:column;gap:18px;min-width:0;`;
+const SplitSide = styled.div`position:sticky;top:16px;min-width:0;@media (max-width:1024px){ position:static; }`;
 const Para = styled.p`margin:0;font-size:0.8125rem;color:#475569;line-height:1.6;white-space:pre-wrap;`;
 const Section = styled.div`display:flex;flex-direction:column;gap:8px;`;
 export const Label = styled.div`font-size:0.6875rem;font-weight:600;color:#94a3b8;letter-spacing:-0.1px;`;

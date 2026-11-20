@@ -348,6 +348,14 @@ Business.init({
   weekly_finalize_dow: { type: DataTypes.TINYINT, allowNull: false, defaultValue: 1, comment: '자동 확정 요일 (0=일~6=토). default 1=월요일' },
   weekly_finalize_hour: { type: DataTypes.TINYINT, allowNull: false, defaultValue: 0, comment: '자동 확정 시각 (0-23). default 0 (자정 직후)' },
   weekly_finalize_enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true, comment: '자동 확정 ON/OFF' },
+  // 공개 페이지 P3 (2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §3·§4) — 운영 적용 scripts/migrate-public-page.js(배포 슬롯)
+  //   «공개인가» 판정은 services/workspacePage.isPubliclyListed **한 술어**(이 칸을 다른 곳에서 직접 읽어 판정하지 않는다).
+  //   off(기본) · pending(공개 신청, PlanQ 승인 대기) · public · blocked(PlanQ 가 내림 — 주인이 다시 못 켠다)
+  public_page_status: { type: DataTypes.ENUM('off', 'pending', 'public', 'blocked'), allowNull: false, defaultValue: 'off' },
+  public_category: { type: DataTypes.STRING(32), allowNull: true },
+  public_region: { type: DataTypes.STRING(32), allowNull: true },
+  public_published_at: { type: DataTypes.DATE, allowNull: true },
+  public_block_reason: { type: DataTypes.STRING(255), allowNull: true },
 }, {
   sequelize,
   tableName: 'businesses',
@@ -355,6 +363,7 @@ Business.init({
   underscored: true,
   indexes: [
     { unique: true, fields: ['slug'], name: 'businesses_slug_unique' },
+    { fields: ['public_page_status', 'public_category'], name: 'businesses_public_status_cat' },
   ],
 });
 

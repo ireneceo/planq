@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-11-18",
+  "_generated": "2026-11-20",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -339,7 +339,12 @@
       "join_code",
       "join_code_rotated_at",
       "industry",
-      "team_conversation_id"
+      "team_conversation_id",
+      "public_page_status",
+      "public_category",
+      "public_region",
+      "public_published_at",
+      "public_block_reason"
     ],
     "calendar_event_attachments": [
       "id",
@@ -2080,7 +2085,8 @@
       "apple_private_key_enc",
       "image_gate_l1_off_until",
       "gtm_container_id",
-      "feedback_approval_since"
+      "feedback_approval_since",
+      "public_pages_enabled"
     ],
     "post_attachments": [
       "id",
@@ -2960,6 +2966,22 @@
       "created_by",
       "created_at"
     ],
+    "task_output_kind_links": [
+      "id",
+      "task_id",
+      "output_kind_id",
+      "created_at",
+      "updated_at"
+    ],
+    "task_output_kinds": [
+      "id",
+      "business_id",
+      "name",
+      "preset_key",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
     "task_reviewers": [
       "id",
       "task_id",
@@ -3024,7 +3046,8 @@
       "security_level",
       "recurrence_rule",
       "tag_names",
-      "action_items"
+      "action_items",
+      "output_names"
     ],
     "task_templates": [
       "id",
@@ -3336,6 +3359,30 @@
       "source",
       "is_off",
       "created_by",
+      "created_at",
+      "updated_at"
+    ],
+    "workspace_inquiries": [
+      "id",
+      "business_id",
+      "status",
+      "via",
+      "name",
+      "email",
+      "phone",
+      "company",
+      "message",
+      "service_id",
+      "service_name",
+      "locale",
+      "ip_hash",
+      "message_hash",
+      "held_reason",
+      "client_id",
+      "email_thread_id",
+      "handled_by",
+      "handled_at",
+      "ack_sent_at",
       "created_at",
       "updated_at"
     ],

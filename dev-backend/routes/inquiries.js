@@ -10,7 +10,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { perUserLimiter } = require('../middleware/costGuard');
 
 // 공개 폼이 보낼 수 있는 종류 — 모델 목록(ContactInquiry.KINDS)에서 고른다. diagnosis 는 자가진단 라우트만 만든다.
-const VALID_KINDS = ContactInquiry.KINDS.filter(k => k !== 'diagnosis');
+const VALID_KINDS = ContactInquiry.KINDS.filter(k => k !== 'diagnosis' && k !== 'report');   // report 는 공개 페이지 신고 라우트(routes/public_workspace.js)만 만든다
 const onboardingCall = require('../services/onboardingCall');
 
 // 비용폭탄 C3 — 공개 문의폼이 임의 from_email 로 Irene SMTP 자동회신을 발송 → 스팸 릴레이·발신평판 파괴.

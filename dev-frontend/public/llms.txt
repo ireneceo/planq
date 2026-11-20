@@ -31,6 +31,11 @@
 - [회의록 자동 정리](https://planq.kr/insights/meeting-notes-to-tasks/): 녹음·요약·후속 업무
 - [PlanQ 자주 묻는 질문](https://planq.kr/insights/planq-faq/): 요금·고객·기능·보안·앱 26문항
 
+## 회사 찾기 (PlanQ 로 일하는 회사)
+- [회사 찾기](https://planq.kr/directory/): PlanQ 를 쓰는 회사 중 공개를 켜고 PlanQ 가 확인한 곳을 업종·지역으로 모은 목록 — 회사마다 소개·서비스·문의 폼이 있다
+- 업종별 목록: https://planq.kr/directory/<업종>/ (design · marketing · development · media · consulting · accounting · legal · translation · education · interior · manufacturing · events · realestate · healthcare · lifestyle · other)
+- 회사 페이지: https://planq.kr/w/<회사주소>/ (회사별 주소는 sitemap.xml 에 있다)
+
 ## 정책
 - [개인정보처리방침](https://planq.kr/privacy)
 - [이용약관](https://planq.kr/terms)

@@ -130,6 +130,11 @@ const ACTIONS = {
   // 공개 페이지·창구 문의 폼(2026-11-20)
   sale_new_inquiry: { ko: '신규 문의', en: 'New inquiry' },
   sale_inquiry_flood: { ko: '문의가 몰려 보류함에 넣었어요', en: 'Inquiries held — unusual volume' },
+  // 공개 페이지 심사 결과(2026-11-20) — 워크스페이스 대표에게
+  public_page_approved: { ko: '공개 페이지가 «회사 찾기» 에 공개됐어요', en: 'Your public page is now listed' },
+  public_page_returned: { ko: '공개 신청이 돌려보내졌어요', en: 'Public listing request returned' },
+  public_page_blocked: { ko: '공개 페이지가 내려졌어요', en: 'Your public page was taken down' },
+  public_page_ineligible: { ko: '요금제가 바뀌어 «회사 찾기» 에서 내려갔어요', en: 'Your listing was removed — plan changed' },
 };
 
 function pickLang(lang) {

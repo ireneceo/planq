@@ -136,6 +136,8 @@ export const ADMIN_MENUS: NavMenuEntry[] = [
   { key: 'admin-feedback', to: '/admin/feedback', labelKey: 'nav.feedback', section: 'admin', roles: 'any' },
   { key: 'admin-support', to: '/admin/support', labelKey: 'nav.support', section: 'admin', roles: 'any' },
   { key: 'admin-followup', to: '/admin/followup', labelKey: 'nav.followup', section: 'admin', roles: 'any' },
+  // 공개 페이지 심사(2026-11-20) — «회사 찾기» 첫 공개 승인·돌려보내기·내리기·전체 끄기
+  { key: 'admin-public-pages', to: '/admin/public-pages', labelKey: 'nav.publicPages', section: 'admin', roles: 'any' },
   { key: 'admin-subscriptions', to: '/admin/subscriptions', labelKey: 'nav.subscriptions', section: 'admin', roles: 'any' },
   { key: 'admin-payments', to: '/admin/payments', labelKey: 'nav.payments', section: 'admin', roles: 'any' },
   { key: 'admin-users', to: '/admin/users', labelKey: 'nav.users', section: 'admin', roles: 'any' },

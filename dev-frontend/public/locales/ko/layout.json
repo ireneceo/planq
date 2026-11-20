@@ -200,7 +200,8 @@
     "signatureManage": "서명 관리",
     "support": "안내방",
     "followup": "신규 고객",
-    "publicPage": "공개 페이지"
+    "publicPage": "공개 페이지",
+    "publicPages": "공개 페이지 심사"
   },
   "user": {
     "profile": "내 프로필",

@@ -649,6 +649,9 @@ sync_database() {
   # 2026-11-20 공개 페이지 P2 — workspace_inquiries 새 표(문의 건). 멱등(있으면 no-op). 새 표만, 기존 행 무변경.
   #   ★ 순서: PM2 reload 보다 먼저 — 표가 없으면 문의 접수·Q sale 신규 문의·확인필요가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-workspace-inquiries.js 2>&1 | tail -6"
+  # 2026-11-20 공개 페이지 P3 — businesses.public_* 5칸 + 색인 · platform_settings.public_pages_enabled · contact_inquiries.kind 'report' append. 멱등.
+  #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 워크스페이스 조회 전체가 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-public-page.js 2>&1 | tail -12"
   # 2026-10-07 일정 ↔ 업무 연결 — calendar_events.task_id INT NULL + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-task-link.js 2>&1 | tail -6"
@@ -1174,7 +1177,9 @@ deploy_frontend() {
   #   (dev DB 의 위키·인사이트 글 페이지 · 그 목록 파일)을 올리면 dev 에만 있는 글이 운영에 샌다.
   #   루트 index.html 은 올리고, 하위 폴더의 index.html(=생성 페이지)·목록 파일·사이트맵은 뺀다.
   #   ★ 패턴 주의 — `**/index.html` 은 **루트 index.html 까지** 뺀다(실측). 하위 폴더만 정확히 뺀다.
-  SEO_EXCLUDES=(--exclude='/*/index.html' --exclude='/*/**/index.html' --exclude='/.seo-generated.json' --exclude='/sitemap.xml' --exclude='/rss.xml')
+  #   ★ 2026-11-20 — 압축본(.gz)도 뺀다(생성기는 원본과 .gz 를 짝으로 쓴다 — 원본만 빼면 dev 압축본이 운영 디스크에 남는다).
+  #     공개 페이지 P3 의 회사 페이지(/w/<주소>/)·회사 찾기(/directory/)는 통째로 뺀다 — dev 시험 회사가 운영에 새지 않게.
+  SEO_EXCLUDES=(--exclude='/*/index.html' --exclude='/*/**/index.html' --exclude='/*/index.html.gz' --exclude='/*/**/index.html.gz' --exclude='/w/' --exclude='/directory/' --exclude='/en/w/' --exclude='/en/directory/' --exclude='/.seo-generated.json' --exclude='/sitemap.xml' --exclude='/sitemap.xml.gz' --exclude='/rss.xml' --exclude='/rss.xml.gz' --exclude='/llms.txt.gz')
 
   if [ "$DRY_RUN" = true ]; then
     dim "  [dry] rsync $RSYNC_FLAGS $DEV_FE_BUILD/ $PROD_HOST:$PROD_FE_BUILD/"

@@ -200,7 +200,8 @@
     "signatureManage": "Signature management",
     "support": "Help rooms",
     "followup": "New customers",
-    "publicPage": "Public page"
+    "publicPage": "Public page",
+    "publicPages": "Public page review"
   },
   "user": {
     "profile": "My Profile",

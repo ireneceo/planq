@@ -1417,6 +1417,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                 {/* 신규 고객 팔로업(2026-11-06) — 가입·체험 중 워크스페이스 상태·도울 일·안내방 메시지 */}
                 {adminCountItem('/admin/followup', t('nav.followup', '신규 고객'), 0, 'nav-badge-admin-followup',
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>)}
+                {adminCountItem('/admin/public-pages', t('nav.publicPages', '공개 페이지 심사'), 0, 'nav-badge-admin-public-pages', <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>)}
               </NavSection>
               <NavSection>
                 <NavTitle $isCollapsed={isCollapsed}>{t('nav.adminSecBilling','결제·구독')}</NavTitle>

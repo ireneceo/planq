@@ -205,7 +205,118 @@ function autoValuesOf(biz) {
   };
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// P3 — 공개 주소(/w/<주소>) · PlanQ 회사 찾기(/directory) (설계 §3·§6 · Irene 결정 ④ 첫 공개 승인 · ⑤ 유료+체험)
+// ══════════════════════════════════════════════════════════════════════════
+
+/** 업종 16개 — 고정 목록(키는 영문). 라벨은 i18n wspage.category.<key>. 워크스페이스가 새 업종을 만들지 못한다(§6.2). */
+const CATEGORIES = ['design', 'marketing', 'development', 'media', 'consulting', 'accounting', 'legal', 'translation',
+  'education', 'interior', 'manufacturing', 'events', 'realestate', 'healthcare', 'lifestyle', 'other'];
+/** 지역 — 시·도 17 + 전국/온라인. 라벨은 i18n wspage.region.<key>. */
+const REGIONS = ['seoul', 'busan', 'daegu', 'incheon', 'gwangju', 'daejeon', 'ulsan', 'sejong', 'gyeonggi', 'gangwon',
+  'chungbuk', 'chungnam', 'jeonbuk', 'jeonnam', 'gyeongbuk', 'gyeongnam', 'jeju', 'nationwide'];
+const PUBLIC_STATUSES = ['off', 'pending', 'public', 'blocked'];
+
+/** 회사 주소(slug) 규칙 — 영문 소문자·숫자·`-` 3~40자 · 예약어 금지(§3). */
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{1,38})[a-z0-9]$/;
+const RESERVED_SLUGS = new Set(['admin', 'api', 'planq', 'www', 'directory', 'login', 'register', 'w', 'g', 'c', 'public',
+  'app', 'en', 'help', 'guide', 'support', 'mail', 'static', 'assets', 'about', 'pricing', 'features', 'insights', 'blog',
+  'contact', 'security', 'terms', 'privacy', 'start', 'service', 'sign', 'invite', 'dashboard', 'settings']);
+function slugProblem(slug) {
+  const v = String(slug || '');
+  if (!SLUG_RE.test(v) || v.includes('--')) return 'invalid_slug';
+  if (RESERVED_SLUGS.has(v)) return 'reserved_slug';
+  return null;
+}
+
+/** 전체 끄기 스위치 — 30초 캐시(사고 때 끄면 30초 안에 모든 공개 표면이 닫힌다). */
+let _switch = { at: 0, on: true };
+async function publicPagesOn() {
+  if (Date.now() - _switch.at < 30000) return _switch.on;
+  try {
+    const { PlatformSetting } = require('../models');
+    const row = await PlatformSetting.findOne({ attributes: ['public_pages_enabled'] });
+    _switch = { at: Date.now(), on: !row || row.public_pages_enabled !== false };
+  } catch { _switch = { at: Date.now(), on: false }; }   // 못 읽으면 닫는다(fail-closed)
+  return _switch.on;
+}
+function invalidatePublicSwitch() { _switch.at = 0; }
+
+/** 노출 자격 — 판정은 services/plan.can('public_listing') 한 곳(유료 + 체험 중). */
+async function listingEligible(businessId) {
+  try {
+    const r = await require('./plan').can(businessId, 'public_listing');
+    return !!(r && r.ok);
+  } catch { return false; }
+}
+
+/**
+ * «공개인가» — **한 술어**(§10 하지 말 것). API·미리 만든 HTML·디렉터리·공개 문의가 같이 부른다.
+ * 공개 상태 + 삭제 안 됨 + 전체 스위치 + 노출 자격. 아니면 «없는 주소» 와 같은 404 다(구별 불가).
+ */
+async function isPubliclyListed(biz) {
+  if (!biz || biz.deleted_at || biz.public_page_status !== 'public') return false;
+  if (!(await publicPagesOn())) return false;
+  return listingEligible(biz.id);
+}
+
+/** 공개 최소 기준(§6.3) — 못 채우면 공개 신청 스위치가 비활성 + 이유. */
+function criteriaOf(biz, { ownerEmailVerified = false } = {}) {
+  const e = entryOf(biz);
+  const list = [
+    ['name', !!(biz.brand_name || biz.name)],
+    ['tagline', !!(biz.brand_tagline && String(biz.brand_tagline).trim())],
+    ['intro', (e.intro || '').length >= 100],
+    ['services', e.services.length >= 1],
+    ['category', CATEGORIES.includes(biz.public_category)],
+    ['contact', e.form.enabled || !!(biz.phone && !e.hidden.includes('phone'))],
+    ['owner_email', !!ownerEmailVerified],
+  ];
+  return list.map(([key, ok]) => ({ key, ok }));
+}
+
+const PUBLIC_ATTRS = [...PROFILE_ATTRS, 'slug', 'deleted_at', 'public_page_status', 'public_category', 'public_region',
+  'public_published_at', 'updated_at'];
+
+/** 공개 주소 화면의 모양 — publicView + 머리(이름·로고·업종·지역·주소) + 창구 링크(예약·채팅으로 보낼 곳). */
+function publicPageView(biz, { lang = 'ko', entryUrl = null } = {}) {
+  const v = publicView(biz, { lang });
+  return {
+    ...v,
+    name: (lang === 'en' && biz.brand_name_en) || biz.brand_name || biz.name,
+    logo_url: biz.brand_logo_url && SYMBOL_PATH.test(biz.brand_logo_url) ? biz.brand_logo_url : null,
+    slug: biz.slug,
+    category: CATEGORIES.includes(biz.public_category) ? biz.public_category : null,
+    region: REGIONS.includes(biz.public_region) ? biz.public_region : null,
+    // 예약·채팅은 인증 뒤 창구에서 — 창구 링크가 없으면 null(버튼 자체가 없다)
+    entry_url: entryUrl || null,
+  };
+}
+
+/** 회사 찾기 카드 — 공개 주소 화면의 부분집합. */
+function directoryCard(biz, { lang = 'ko' } = {}) {
+  const v = publicPageView(biz, { lang });
+  return {
+    slug: v.slug, name: v.name, logo_url: v.logo_url, tagline: v.tagline,
+    category: v.category, region: v.region,
+    services: v.services.slice(0, 2).map((s) => s.name), services_total: v.services.length,
+  };
+}
+
+/** 검색 — 이름·한 줄 소개·소개글·서비스 이름/설명·키워드 부분 일치(공개 500곳 넘으면 전문 색인으로 — §6.6). */
+function matchesQuery(biz, q) {
+  const needle = String(q || '').toLowerCase().replace(/\s+/g, '');
+  if (!needle) return true;
+  const e = entryOf(biz);
+  const hay = [biz.brand_name, biz.name, biz.brand_name_en, biz.brand_tagline, biz.brand_tagline_en, e.intro, e.intro_en,
+    ...e.tags, ...e.services.flatMap((s) => [s.name, s.name_en, s.summary, s.summary_en])]
+    .filter(Boolean).join(' ').toLowerCase().replace(/\s+/g, '');
+  return hay.includes(needle);
+}
+
 module.exports = {
   AUTO_KEYS, PROFILE_ATTRS, SYMBOL_PATH, SERVICE_MAX, EXTRA_MAX, TAG_MAX, INTRO_MAX,
   normalizeEntry, entryOf, savedEntryOf, newDefaults, publicView, autoValuesOf, webUrl,
+  CATEGORIES, REGIONS, PUBLIC_STATUSES, PUBLIC_ATTRS, slugProblem, publicPagesOn, invalidatePublicSwitch,
+  listingEligible, isPubliclyListed, criteriaOf, publicPageView, directoryCard, matchesQuery,
 };

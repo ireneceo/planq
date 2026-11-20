@@ -100,3 +100,6 @@ paths:
   바깥에서 가리킬 방법이 없었다. 키는 `member.id` 가 아니라 **user_id** 다(부르는 쪽이 아는 것은 사람의 id).
 - 둘 다 **새 탭**으로 연다 — 대화 중에 눌렀는데 보던 대화가 사라지면 안 된다.
 
+**공개 페이지·창구 문의 폼 → «신규 문의» (2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §5 · Irene 결정 ③)** — 원장 `workspace_inquiries`(대화방·고객 행을 자동으로 만들지 않는다).
+접수는 `services/workspaceInquiry.submit` 한 함수(두 문: `/api/guest/:token/inquiries` · `/api/public/workspaces/:slug/inquiries` — IP 리미터 인스턴스 공유). 스팸 기준(§5.2)은 계약 — 바꾸려면 Fable.
+팀 화면은 상담 탭 맨 위 «신규 문의»(`components/QSale/InquirySection`·`InquiryDrawer`, API `routes/sale_inquiries.js`) · 고객 등록 = `save-as-client {from:'inquiry'}`(같은 중복 판정·문의 한도·setStage, 문의 내용이 타임라인 첫 줄) · 확인필요 ⑥ `sale_new_inquiry`(오너·관리자, Q sale 배지 안 — badges 부분집합 그대로) · 실시간 `inquiry:updated` 신호만.
