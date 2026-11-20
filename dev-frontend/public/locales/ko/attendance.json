@@ -287,7 +287,10 @@
       "not_today": "오늘 날짜 안의 시각만 넣을 수 있어요.",
       "already_working": "이미 근무 중이에요.",
       "out_before_in": "퇴근 시각이 출근보다 빨라요.",
-      "self_fix_window_expired": "14일이 지난 기록은 관리자에게 정정을 요청하세요."
+      "self_fix_window_expired": "14일이 지난 기록은 관리자에게 정정을 요청하세요.",
+      "outside_work_date": "그 날짜 안의 시각만 넣을 수 있어요.",
+      "not_auto_closed": "자동 마감된 날만 여기서 고칠 수 있어요.",
+      "already_clocked_in_today": "오늘은 이미 출근 기록이 있어요."
     }
   },
   "fixAdmin": {

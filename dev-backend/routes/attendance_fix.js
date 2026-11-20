@@ -101,11 +101,14 @@ router.post('/days/:id/fix-close', authenticateToken, fixLimiter, async (req, re
   try {
     const day = await ownRecentDay(req, res);
     if (!day) return;
+    // 자동 마감된 날만 — 정상 퇴근한 날의 시각은 정정 창(사유 필수·관리자 알림)으로 고친다(Fable 완료 검증 B2).
+    if (!day.auto_closed) return errorResponse(res, 'not_auto_closed', 400);
     if (day.state !== 'done' || !day.clock_out_at) return errorResponse(res, 'not_closed', 400);
     const at = new Date(req.body.at);
     if (Number.isNaN(at.getTime())) return errorResponse(res, 'invalid_at', 400);
     if (at.getTime() > Date.now() + 60 * 1000) return errorResponse(res, 'future_time_not_allowed', 400);
     if (at <= new Date(day.clock_in_at)) return errorResponse(res, 'out_before_in', 400);
+    // 상한 = 그 근무일 다음 자정(자동 마감과 같은 상한) — 나머지 범위 검사는 submit 의 validateTimeline 이 한다.
     const r = await F.submit({
       day, userId: req.user.id, origin: 'prompt_out',
       events: [{ kind: 'clock_out', at: at.toISOString() }],

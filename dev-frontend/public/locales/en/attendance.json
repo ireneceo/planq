@@ -287,7 +287,10 @@
       "not_today": "Only times within today can be entered.",
       "already_working": "You're already working.",
       "out_before_in": "Clock-out is earlier than clock-in.",
-      "self_fix_window_expired": "For records older than 14 days, ask your admin to correct them."
+      "self_fix_window_expired": "For records older than 14 days, ask your admin to correct them.",
+      "outside_work_date": "Only times within that date can be entered.",
+      "not_auto_closed": "Only auto-closed days can be fixed here.",
+      "already_clocked_in_today": "You already have a clock-in today."
     }
   },
   "fixAdmin": {

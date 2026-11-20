@@ -10,7 +10,8 @@ const {
   AttendanceFixRequest, AttendanceDay, AttendanceEvent, Business, BusinessMember, User,
 } = require('../models');
 const A = require('./attendanceTransition');
-const { ymd } = require('../utils/datetime');
+const { ymd, addDaysStr, startOfDayInTz } = require('../utils/datetime');
+const { sequelize } = require('../config/database');
 
 const STATUSES = ['applied', 'pending', 'confirmed', 'approved', 'rejected', 'withdrawn'];
 const ORIGINS = ['prompt_in', 'prompt_out', 'manual'];
@@ -62,6 +63,31 @@ function timelineFor(origin, submitted, current) {
     out[i].at = at;
   }
   return out;
+}
+
+/**
+ * 하루 타임라인 검사 — **접수 때와 승인 때 같은 함수**(Fable 완료 검증 B1: 승인 대기 분기가 검사를 안 거쳐
+ *   승인으로는 영영 끝낼 수 없는 요청·40일 전 출근 같은 값이 대기에 쌓였다).
+ *   ① 종류 4개 ② 시각이 읽힘 ③ 출근으로 시작 ④ 모두 그 근무일 [0시, 다음 날 0시] 안 ⑤ 지금(+1분) 이후 금지.
+ */
+async function validateTimeline(day, timeline) {
+  if (!Array.isArray(timeline) || !timeline.length) throw new FixError('events_required');
+  const tz = await A.workspaceTz(day.business_id);
+  const wd = ymd(day.work_date);
+  const lo = startOfDayInTz(wd, tz).getTime();
+  const hi = startOfDayInTz(addDaysStr(wd, 1), tz).getTime();
+  const nowMax = Date.now() + 60 * 1000;
+  const parsed = [];
+  for (const e of timeline) {
+    if (!['clock_in', 'break_start', 'break_end', 'clock_out'].includes(e?.kind)) throw new FixError('invalid_kind');
+    const t = new Date(e.at).getTime();
+    if (Number.isNaN(t)) throw new FixError('invalid_at');
+    if (t > nowMax) throw new FixError('future_time_not_allowed');
+    if (t < lo || t > hi) throw new FixError('outside_work_date');
+    parsed.push({ kind: e.kind, t });
+  }
+  parsed.sort((a, b) => a.t - b.t);
+  if (parsed[0].kind !== 'clock_in') throw new FixError('timeline_must_start_with_clock_in');
 }
 
 /** 요청 때 본 값이 지금도 그대로인가 — 아니면 409 day_changed(관리자 정정 등으로 그사이 바뀜). */
@@ -122,19 +148,35 @@ async function submit({ day, userId, origin, events, reason, before: beforeOverr
   const before = beforeOverride || snapshot(day);
   const ownerId = await ownerIdOf(businessId);
   const needApproval = !alreadyApplied && (await approvalOn(businessId)) && userId !== ownerId;
+  // 접수 때 검사 — 승인 때와 같은 함수(대기로 가는 값도 반영될 수 있는 값이어야 한다).
+  const timeline = timelineFor(origin, events, await currentEvents(day.id));
+  await validateTimeline(day, timeline);
 
-  // 같은 날 대기는 한 건 — 다시 고치면 앞 요청은 거둔다.
-  const prevPending = await AttendanceFixRequest.findAll({
-    where: { business_id: businessId, attendance_day_id: day.id, user_id: userId, status: 'pending' },
-  });
-  for (const p of prevPending) {
-    await p.update({ status: 'withdrawn', decided_at: new Date(), decided_by: userId });
-    await audit('attendance.fix_withdraw', p, userId, { status: 'pending' }, { status: 'withdrawn', reason: 'replaced' });
-  }
+  // 같은 날 대기는 한 건 — 다시 고치면 앞 요청은 거둔다. 하루 행을 잠가 동시 요청 두 개가 둘 다 대기로 남지 않게(Fable 비차단).
+  const t = await sequelize.transaction();
+  let request;
+  const withdrawn = [];
+  try {
+    await AttendanceDay.findByPk(day.id, { transaction: t, lock: t.LOCK.UPDATE });
+    const prevPending = await AttendanceFixRequest.findAll({
+      where: { business_id: businessId, attendance_day_id: day.id, user_id: userId, status: 'pending' }, transaction: t,
+    });
+    for (const p of prevPending) {
+      await p.update({ status: 'withdrawn', decided_at: new Date(), decided_by: userId }, { transaction: t });
+      withdrawn.push(p);
+    }
+    if (needApproval) {
+      request = await AttendanceFixRequest.create({
+        business_id: businessId, user_id: userId, attendance_day_id: day.id, work_date: workDate,
+        origin, before, events, reason: String(reason).slice(0, 300), status: 'pending',
+      }, { transaction: t });
+    }
+    await t.commit();
+  } catch (e) { await t.rollback().catch(() => null); throw e; }
+  for (const p of withdrawn) await audit('attendance.fix_withdraw', p, userId, { status: 'pending' }, { status: 'withdrawn', reason: 'replaced' });
 
   let updatedDay = day;
   if (!needApproval && !alreadyApplied) {
-    const timeline = timelineFor(origin, events, await currentEvents(day.id));
     updatedDay = await A.applyAdminFix({ dayId: day.id, events: timeline, fixReason: String(reason).slice(0, 300), actorUserId: userId });
   }
   // 자동 마감된 날을 본인이 고쳤거나(또는 승인 대기로 답했으면) «확인 안 된 자동 마감» 에서 뺀다.
@@ -142,11 +184,12 @@ async function submit({ day, userId, origin, events, reason, before: beforeOverr
     await updatedDay.update({ close_confirmed_at: new Date() });
   }
 
-  const request = await AttendanceFixRequest.create({
-    business_id: businessId, user_id: userId, attendance_day_id: day.id, work_date: workDate,
-    origin, before, events, reason: String(reason).slice(0, 300),
-    status: needApproval ? 'pending' : 'applied',
-  });
+  if (!request) {
+    request = await AttendanceFixRequest.create({
+      business_id: businessId, user_id: userId, attendance_day_id: day.id, work_date: workDate,
+      origin, before, events, reason: String(reason).slice(0, 300), status: 'applied',
+    });
+  }
   await audit('attendance.fix_request', request, userId, before, { origin, status: request.status, events });
 
   const managers = await managerIds(businessId);
@@ -174,15 +217,19 @@ async function confirm({ businessId, ids, actorUserId }) {
     where: { business_id: businessId, id: { [Op.in]: ids.map(Number).filter(Boolean) } },
   });
   let done = 0; let skipped = 0;
+  // 자기 것은 자기가 못 정한다 — «확인함» 도 같다(대표만 예외 · Fable 완료 검증 B3).
+  const ownerId = await ownerIdOf(businessId);
+  let ownSkipped = 0;
   for (const r of rows) {
     if (r.status !== 'applied') { skipped += 1; continue; }
+    if (r.user_id === actorUserId && actorUserId !== ownerId) { skipped += 1; ownSkipped += 1; continue; }
     await r.update({ status: 'confirmed', decided_by: actorUserId, decided_at: new Date() });
     await audit('attendance.fix_confirm', r, actorUserId, { status: 'applied' }, { status: 'confirmed' });
     emitFix(r.id, [r.user_id, ...(await managerIds(businessId))]);
     done += 1;
   }
   skipped += ids.length - rows.length;
-  return { confirmed: done, skipped };
+  return { confirmed: done, skipped, own_skipped: ownSkipped };
 }
 
 async function loadForDecision({ businessId, id, actorUserId }) {
@@ -200,9 +247,22 @@ async function approve({ businessId, id, actorUserId, decideNote, ioApp }) {
   if (!day) throw new FixError('not_found', 404);
   if (!stillSame(r.origin, r.before || {}, day)) throw new FixError('day_changed', 409);
   const timeline = timelineFor(r.origin, r.events, await currentEvents(day.id));
-  // 요청자 이름으로 반영 — 원장 actor 가 요청자다(«누가 고쳤는지» 는 요청자, «누가 승인했는지» 는 요청 행).
-  const updated = await A.applyAdminFix({ dayId: day.id, events: timeline, fixReason: r.reason || 'approved', actorUserId: r.user_id });
-  await r.update({ status: 'approved', decided_by: actorUserId, decided_at: new Date(), decide_note: decideNote ? String(decideNote).slice(0, 300) : null });
+  await validateTimeline(day, timeline);
+  // 먼저 «승인» 으로 잡는다(조건부 갱신) — 동시에 두 번 눌러도 반영은 한 번(Fable 비차단).
+  const [claimed] = await AttendanceFixRequest.update(
+    { status: 'approved', decided_by: actorUserId, decided_at: new Date(), decide_note: decideNote ? String(decideNote).slice(0, 300) : null },
+    { where: { id: r.id, business_id: businessId, status: 'pending' } },
+  );
+  if (!claimed) throw new FixError('not_pending', 409);
+  let updated;
+  try {
+    // 요청자 이름으로 반영 — 원장 actor 가 요청자다(«누가 고쳤는지» 는 요청자, «누가 승인했는지» 는 요청 행).
+    updated = await A.applyAdminFix({ dayId: day.id, events: timeline, fixReason: r.reason || 'approved', actorUserId: r.user_id });
+  } catch (e) {
+    await AttendanceFixRequest.update({ status: 'pending', decided_by: null, decided_at: null, decide_note: null }, { where: { id: r.id } });
+    throw e;
+  }
+  await r.reload();
   await audit('attendance.fix_approve', r, actorUserId, { status: 'pending' }, { status: 'approved' });
   emitFix(r.id, [r.user_id, ...(await managerIds(businessId))]);
   if (r.user_id !== actorUserId) {
@@ -217,7 +277,12 @@ async function approve({ businessId, id, actorUserId, decideNote, ioApp }) {
 async function reject({ businessId, id, actorUserId, decideNote, ioApp }) {
   if (!decideNote || !String(decideNote).trim()) throw new FixError('decide_note_required');
   const r = await loadForDecision({ businessId, id, actorUserId });
-  await r.update({ status: 'rejected', decided_by: actorUserId, decided_at: new Date(), decide_note: String(decideNote).slice(0, 300) });
+  const [claimed] = await AttendanceFixRequest.update(
+    { status: 'rejected', decided_by: actorUserId, decided_at: new Date(), decide_note: String(decideNote).slice(0, 300) },
+    { where: { id: r.id, business_id: businessId, status: 'pending' } },
+  );
+  if (!claimed) throw new FixError('not_pending', 409);
+  await r.reload();
   await audit('attendance.fix_reject', r, actorUserId, { status: 'pending' }, { status: 'rejected', note: r.decide_note });
   emitFix(r.id, [r.user_id, ...(await managerIds(businessId))]);
   await notifyOne({
@@ -289,6 +354,6 @@ async function selfFixOf(dayIds) {
 }
 
 module.exports = {
-  selfFixOf,
+  selfFixOf, validateTimeline,
   STATUSES, ORIGINS, FixError, snapshot, approvalOn, submit, confirm, approve, reject, withdraw, serializeList,
 };

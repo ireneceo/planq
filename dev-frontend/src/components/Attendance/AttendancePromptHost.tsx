@@ -159,7 +159,10 @@ const Section = styled.div`
   & + & { margin-top: 16px; padding-top: 16px; border-top: 1px solid #E2E8F0; }
 `;
 const Line = styled.div`font-size: 0.875rem; color: #0F172A; line-height: 1.6;`;
-const Row = styled.div`display: flex; gap: 8px; align-items: center; flex-wrap: wrap;`;
+const Row = styled.div`
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  @media (max-width: 480px) { button, input { min-height: 48px; } }
+`;
 const Label = styled.label`font-size: 0.75rem; font-weight: 600; color: #475569;`;
 const TimeInput = styled.input`
   border: 1px solid #E2E8F0; border-radius: 8px; padding: 8px 10px; min-height: 40px;

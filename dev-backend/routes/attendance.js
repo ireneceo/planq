@@ -106,6 +106,11 @@ router.post('/clock-in', authenticateToken, clockLimiter, async (req, res, next)
     if (!scope) return;
     const P = require('../services/attendancePrompt');
     const now = new Date();
+    // observed/at 는 **오늘 행이 없을 때만**(묻는 창의 조건) — 퇴근 뒤 재출근에 과거 시각을 붙이면 «원래 값» 이 거짓이 된다(Fable 비차단).
+    const todayRow = await AttendanceDay.findOne({
+      where: { business_id: businessId, user_id: req.user.id, work_date: await A.todayFor(businessId, now) }, attributes: ['id'],
+    });
+    if (todayRow) return errorResponse(res, 'already_clocked_in_today', 409);
     // 묻는 창이 보여 준 값과 같은 함수 — 새벽 잠깐 진입은 제안에서 빠진다(services/attendancePrompt.observedStart).
     const seen = await P.observedStart({ businessId, userId: req.user.id, now });
     const machineAt = seen || now;
