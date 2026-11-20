@@ -27,6 +27,7 @@ import { useNavPressFeedback, useNavWidthVar } from '../../hooks/useNavPressFeed
 import { useAuthedImageSrc } from '../../hooks/useAuthedImageSrc';
 import FocusWidget from '../Focus/FocusWidget';
 import AttendanceWidget from '../Attendance/AttendanceWidget';   // #208 출퇴근
+import AttendancePromptHost from '../Attendance/AttendancePromptHost';   // «출근하셨어요?» 묻는 창 — 위젯은 여러 벌이라 메인 창 한 곳(AnnouncementBanner 아래)
 import PanelHeader, { PanelTitle } from './PanelHeader';
 import TabStrip from '../Tab/TabStrip';
 import { TABSTRIP_H } from '../../theme/layout';
@@ -2539,7 +2540,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
         {/* 운영 공지 — 본문 **위**(2026-10-22). 여태 화면 맨 아래 줄이라 닫기(×)가 우하단 도크 버튼 밑에 깔렸다
             (Irene: "공지배너가 사용자가 직접 닫을 수 있는 기능을 넣어두고는 우측 하단 채팅아이콘으로 가려버리는데").
             ChromeOverlays·App.tsx 에서는 뺐다 — 두 곳에 두면 두 번 뜬다. */}
-        <AnnouncementBanner />
+        <AnnouncementBanner /><AttendancePromptHost />
         {/* N+72-6 — 알림 안내 모든 페이지 mount (옛: TodoPage 만). granted-off 자동 silent re-subscribe + iOS 비-PWA 안내 */}
         {/* ★ 안내 배너는 콘텐츠 흐름 안에 둔다 — 화면에 떠 있으면 목록의 마지막 항목을 덮는다
             (2026-08-25: "말풍선 옆이 하얗게 가려진다" 의 정체가 하단 플로팅 설치 배너였다).

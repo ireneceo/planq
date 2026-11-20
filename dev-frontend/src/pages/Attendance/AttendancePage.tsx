@@ -15,6 +15,7 @@ import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { ATTENDANCE_REFRESH_EVENT, formatHours, type AttendanceDay } from '../../hooks/useAttendance';
 import { LeaveRequestDrawer } from './LeaveRequestDrawer';
 import CorrectDayModal from './CorrectDayModal';
+import SelfFixBadge from './SelfFixBadge';
 import {
   type LeaveRequestRow, type Balance,
   hhmm, unitKey,
@@ -63,6 +64,8 @@ const AttendancePage: React.FC = () => {
   // #208 — 근태 설정의 집은 근태 화면이다. 처음엔 '업무 흐름' 카드 안에 뒀는데,
   //   그 카드는 focus_enabled 가 꺼져 있으면 통째로 안 보여서 설정이 영영 닿지 않았다.
   const [autoClockIn, setAutoClockIn] = useState<boolean | null>(null);
+  // 그날 첫 진입 때 «출근하셨어요?»·«어제 퇴근 맞나요?» 묻기 (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §3.5)
+  const [promptOn, setPromptOn] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   const year = new Date().getFullYear();
 
@@ -98,7 +101,10 @@ const AttendancePage: React.FC = () => {
       const r = await apiFetch('/api/attendance/settings');
       if (!r.ok || cancelled) return;
       const j = await r.json().catch(() => null);
-      if (j?.success) setAutoClockIn(!!j.data.auto_clock_in_on_focus);
+      if (j?.success) {
+        setAutoClockIn(!!j.data.auto_clock_in_on_focus);
+        setPromptOn(j.data.attendance_prompt_on !== false);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -120,6 +126,27 @@ const AttendancePage: React.FC = () => {
       setAutoClockIn(!next);                    // 실패하면 되돌린다(거짓 성공 금지)
       throw new Error('save_failed');           // 던져야 래퍼가 ! 를 띄운다
     }
+  };
+  const promptOnRef = useRef<boolean | null>(null);
+  promptOnRef.current = promptOn;
+  const flipPromptOn = () => setPromptOn((v) => !v);
+  const persistPromptOn = async () => {
+    const next = promptOnRef.current;
+    if (next === null) return;
+    const r = await apiFetch('/api/attendance/settings', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attendance_prompt_on: next }),
+    });
+    if (!r.ok) { setPromptOn(!next); throw new Error('save_failed'); }
+  };
+  /** 내 승인 대기 거두기 */
+  const withdrawFix = async (requestId: number) => {
+    if (!bizId) return;
+    const r = await apiFetch(`/api/attendance/fix-requests/${requestId}/withdraw`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_id: bizId }),
+    });
+    if (r.ok) { void silentLoad(); window.dispatchEvent(new CustomEvent(ATTENDANCE_REFRESH_EVENT)); }
   };
   useVisibilityRefresh(silentLoad);
 
@@ -235,8 +262,11 @@ const AttendancePage: React.FC = () => {
                       <Td>{formatHours(d.break_sec)}</Td>
                       <Td><strong>{formatHours(d.work_sec)}</strong></Td>
                       <Td>
-                        {d.auto_closed && <Badge $tone="warn" title={t('my.autoClosedHint') as string}>{t('my.autoClosed')}</Badge>}
+                        {d.auto_closed && (d.close_confirmed
+                          ? <Badge $tone="info">{t('my.autoClosedConfirmed')}</Badge>
+                          : <Badge $tone="warn" title={t('my.autoClosedHint') as string}>{t('my.autoClosed')}</Badge>)}
                         {d.admin_fixed && <Badge $tone="info">{t('my.adminFixed')}</Badge>}
+                        {d.self_fix && <SelfFixBadge fix={d.self_fix} onWithdraw={withdrawFix} />}
                       </Td>
                       <Td>
                         {/* 운영 #392 — 자동 기록이 안 맞을 때 본인이 고칠 자리. 여태 없었다. */}
@@ -276,6 +306,28 @@ const AttendancePage: React.FC = () => {
               <SettingText id="attn-auto-clockin-label" onClick={flipAutoClockIn}>
                 <b>{t('settings.autoClockIn')}</b>
                 <span>{t('settings.autoClockInHint')}</span>
+              </SettingText>
+            </SettingRow>
+          )}
+          {promptOn !== null && (
+            <SettingRow>
+              <AutoSaveField type="toggle" onSave={persistPromptOn}>
+                <SettingSwitch
+                  type="button" role="switch" id="attn-prompt-on"
+                  aria-checked={!!promptOn}
+                  aria-labelledby="attn-prompt-on-label"
+                  $on={!!promptOn}
+                  onClick={flipPromptOn}
+                  data-testid="attn-prompt-toggle"
+                >
+                  <SettingTrack $on={!!promptOn}>
+                    <SettingKnob $on={!!promptOn} />
+                  </SettingTrack>
+                </SettingSwitch>
+              </AutoSaveField>
+              <SettingText id="attn-prompt-on-label" onClick={flipPromptOn}>
+                <b>{t('settings.promptOn')}</b>
+                <span>{t('settings.promptOnHint')}</span>
               </SettingText>
             </SettingRow>
           )}

@@ -298,7 +298,10 @@ async function applyAdminFix({ dayId, events, fixReason, actorUserId }) {
     for (const e of parsed) {
       await appendEvent({ day, kind: e.kind, at: e.at, source: 'admin_fix', actorUserId, fixReason }, t);
     }
-    await day.update({ admin_fixed: true }, { transaction: t });
+    // «관리자 정정» 표시는 남이 고쳤을 때만 — 본인 수정은 attendance_fix_requests 가 «본인 수정» 으로 보여 준다
+    //   (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §5). 승인으로 반영될 때도 actor 는 요청자다.
+    if (actorUserId !== day.user_id) await day.update({ admin_fixed: true }, { transaction: t });
+    else if (day.auto_closed && !day.close_confirmed_at) await day.update({ close_confirmed_at: new Date() }, { transaction: t });
     await recomputeDay(day.id, t);
     await t.commit();
     await day.reload();

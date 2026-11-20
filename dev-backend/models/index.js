@@ -47,6 +47,8 @@ const TaskDeliverableVersion = require('./TaskDeliverableVersion');
 // 근태·휴가 (#208·#285) — docs/ATTENDANCE_LEAVE_DESIGN.md
 const AttendanceDay = require('./AttendanceDay');
 const AttendanceEvent = require('./AttendanceEvent');
+const AttendanceFixRequest = require('./AttendanceFixRequest');
+const AttendanceActivity = require('./AttendanceActivity');
 const LeaveGrant = require('./LeaveGrant');
 const LeaveRequest = require('./LeaveRequest');
 const LeaveType = require('./LeaveType');
@@ -701,7 +703,7 @@ module.exports = {
   ProjectHistoryEntry,
   HistoryOverride,
   ProviderCredit,
-  AttendanceDay, AttendanceEvent, LeaveGrant, LeaveRequest, LeaveType, WorkspaceHoliday,
+  AttendanceDay, AttendanceEvent, AttendanceFixRequest, AttendanceActivity, LeaveGrant, LeaveRequest, LeaveType, WorkspaceHoliday,
   TaskDeliverableVersion,
   EmailAccountAlias,
   EmailAccountNotifyPref,

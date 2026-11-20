@@ -461,6 +461,8 @@ app.use('/api/payroll', require('./routes/payroll'));
 app.use('/api/payroll', require('./routes/payroll_items'));   // 항목·프리셋 — 경로가 겹치지 않는다(items·item-presets)
 app.use('/api/payroll', require('./routes/payroll_runs'));    // 회차·칸·사람줄·대장·확정
 app.use('/api/payroll', require('./routes/payroll_me'));      // 본인 명세서·계약(관리자 술어 없음 — 자기 것만)
+// 근태 «마지막 활동» — 사람이 직접 한 쓰기 목록만, 성공했을 때만(middleware/attendanceTouch). 라우터들보다 앞.
+app.use(require('./middleware/attendanceTouch').attendanceTouch);
 app.use('/api/projects', require('./routes/projects'));
 // (2026-10-08 0-J) routes/project_process.js(공정 표 — status-options·process-columns·process-parts) 삭제:
 //   화면(ProcessPartsTab)이 어디서도 import 되지 않아 호출처 0. 표는 Q 레코드로 이관됨(migrate-process-to-records).
@@ -552,6 +554,7 @@ app.use('/api/client-errors', require('./routes/client_errors'));
 app.use('/api/app-diag', require('./routes/app_diag'));
 app.use('/api/focus', require('./routes/focus'));
 app.use('/api/attendance', require('./routes/attendance'));   // #208 출퇴근
+app.use('/api/attendance', require('./routes/attendance_fix'));   // 본인 수정 요청·승인·출근 묻기 답 (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md) — attendance.js 뒤
 app.use('/api/leave', require('./routes/leave'));               // #208 휴가
 // ★ /api/tasks 체인 최상단 — 리터럴 `/priority/*` 가 뒤쪽 라우터의 파라미터 패턴에 먹히지 않게.
 //   (현재는 세그먼트 수가 달라 충돌 없지만, 미래 라우트 추가에 대한 방어선을 위치로 못박는다)

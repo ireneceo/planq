@@ -11,6 +11,7 @@ import { attendanceOn } from '../../utils/workspaceModules';
 import { useAttendance, formatHm, formatHours } from '../../hooks/useAttendance';
 import StandardModal from '../Common/StandardModal';
 import ActionButton from '../Common/ActionButton';
+import CorrectDayModal from '../../pages/Attendance/CorrectDayModal';
 
 // 확인한 자동 기록의 시각을 박제 — 새로고침해도 같은 건으로 다시 뜨지 않게(다음 건은 at 이 달라 다시 뜬다)
 const AUTO_SEEN_KEY = 'planq.attn.autoSeen';
@@ -42,6 +43,8 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
     try { return localStorage.getItem(AUTO_SEEN_KEY); } catch { return null; }
   });
   const showAutoModal = !!autoAt && seenAt !== autoAt;
+  // «09:12 부터 ✎» · 자동 출근 알림 «시각 고치기» 가 여는 정정 창(기존 CorrectDayModal 그대로)
+  const [correcting, setCorrecting] = React.useState<{ prefillIn?: string } | null>(null);
   const closeAutoNotice = () => {
     if (autoAt) {
       try { localStorage.setItem(AUTO_SEEN_KEY, autoAt); } catch { /* 사파리 프라이빗 등 */ }
@@ -71,6 +74,12 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
     size="sm"
     footer={(
       <AutoModalFooter>
+        {a.day && (
+          <ActionButton tone="secondary" size="sm" data-testid="attn-auto-edit"
+            onClick={() => { setCorrecting({ prefillIn: a.autoNotice?.first_seen_at }); closeAutoNotice(); }}>
+            {t('prompt.editTime')}
+          </ActionButton>
+        )}
         {a.autoNotice?.can_undo && (
           <ActionButton tone="secondary" size="sm" onClick={() => { void a.undoAuto(); closeAutoNotice(); }}>
             {t('widget.undoAuto')}
@@ -84,6 +93,9 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
   >
     <AutoModalBody>
       <div>{t('widget.autoClockedIn')}</div>
+      {a.autoNotice?.first_seen_at && (
+        <AutoModalHint>{t('widget.seenEarlier', { time: hhmm(a.autoNotice.first_seen_at) })}</AutoModalHint>
+      )}
       {a.autoNotice?.can_undo && (
         <AutoModalHint>{t('widget.autoUndoHint', { defaultValue: '잘못 기록됐다면 지금 되돌릴 수 있어요. 되돌리면 업무 시간 측정도 함께 멈춥니다.' }) as string}</AutoModalHint>
       )}
@@ -93,6 +105,16 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
 
   const state = a.state;
   const dark = variant === 'sidebar';
+  // 정정 창 — 접힘·펼침 어느 분기에서도 같은 자리(알림 창과 같은 이유)
+  const correctModal = correcting && a.day ? (
+    <CorrectDayModal
+      day={a.day}
+      prefillIn={correcting.prefillIn}
+      approval={a.fixApproval}
+      onClose={() => setCorrecting(null)}
+      onSaved={() => { void a.reload(); }}
+    />
+  ) : null;
 
   if (isCollapsed) {
     const key = state || 'none';
@@ -102,6 +124,7 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
           <DotInner $state={state} />
         </CollapsedDot>
         {autoModal}
+        {correctModal}
       </>
     );
   }
@@ -123,6 +146,22 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
           <Elapsed $dark={dark}>{t('widget.todayTotal', { hours: formatHours(a.live.work) })}</Elapsed>
         )}
       </Head>
+      {/* «몇 시부터» + 고치기 — 찍힌 시각이 늘 사실은 아니다(Irene 2026-11-20). 본인 수정이면 표시가 붙는다. */}
+      {a.day?.clock_in_at && (
+        <Since $dark={dark}>
+          <span>{t('widget.since', { time: hhmm(a.day.clock_in_at) })}</span>
+          {a.day.self_fix && a.day.self_fix.status !== 'rejected' && (
+            <SinceTag $dark={dark} title={t(`fix.status.${a.day.self_fix.status}`, { defaultValue: a.day.self_fix.status }) as string}>
+              {a.day.self_fix.status === 'pending' ? t('fix.pendingShort') : t('fix.selfFixed')}
+            </SinceTag>
+          )}
+          <SinceEdit $dark={dark} type="button" data-testid="attn-since-edit"
+            aria-label={t('widget.editSince') as string} title={t('widget.editSince') as string}
+            onClick={() => setCorrecting({})}>
+            <SvgPencil />
+          </SinceEdit>
+        </Since>
+      )}
       <Actions $card={variant === 'card'}>
         {!state && (
           <Primary $dark={dark} $card={variant === 'card'} type="button" data-testid="attn-clock-in"
@@ -162,6 +201,7 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
         )}
       </Actions>
       {autoModal}
+      {correctModal}
     </Wrap>
   );
 };
@@ -171,6 +211,12 @@ export default AttendanceWidget;
 // ─── icons ──────────────────────────────────────────────────────
 const SvgPlay = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20 6 4" /></svg>;
 const SvgPause = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></svg>;
+const SvgPencil = () => <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>;
+function hhmm(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 const SvgStop = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1.5" /></svg>;
 
 // ─── styled ─────────────────────────────────────────────────────
@@ -217,6 +263,22 @@ const Elapsed = styled.span<{ $dark: boolean }>`
   margin-left: auto; font-variant-numeric: tabular-nums;
   font-size: ${p => (p.$dark ? 11 : 13) / 16}rem; font-weight: 600;
   color: ${p => (p.$dark ? 'rgba(255,255,255,0.6)' : '#475569')};
+`;
+const Since = styled.div<{ $dark: boolean }>`
+  display: flex; align-items: center; gap: 6px; margin-top: -2px;
+  font-size: ${p => (p.$dark ? 11 : 12) / 16}rem; font-variant-numeric: tabular-nums;
+  color: ${p => (p.$dark ? 'rgba(255,255,255,0.6)' : '#64748B')};
+`;
+const SinceTag = styled.span<{ $dark: boolean }>`
+  font-size: 0.6875rem; font-weight: 600; padding: 1px 6px; border-radius: 6px;
+  ${p => p.$dark ? css`background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.8);` : css`background: #F1F5F9; color: #475569;`}
+`;
+const SinceEdit = styled.button<{ $dark: boolean }>`
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; margin: -6px 0; border-radius: 6px; border: none; cursor: pointer; background: transparent;
+  color: ${p => (p.$dark ? 'rgba(255,255,255,0.6)' : '#64748B')};
+  &:hover { background: ${p => (p.$dark ? 'rgba(255,255,255,0.1)' : '#F1F5F9')}; }
+  @media (max-width: 640px) { width: 36px; height: 36px; }
 `;
 const Actions = styled.div<{ $card: boolean }>`
   display: flex; gap: 6px;

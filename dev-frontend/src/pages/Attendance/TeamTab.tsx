@@ -10,6 +10,7 @@ import SingleDateField from '../../components/Common/SingleDateField';
 import { apiFetch } from '../../contexts/AuthContext';
 import { formatHours, type AttendanceDay } from '../../hooks/useAttendance';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
+import SelfFixBadge from './SelfFixBadge';
 import {
   type LeaveRequestRow, type PresenceRow, type StatRow, hhmm, unitKey, shiftMonth,
   Section, SectionTitle, Empty, TableWrap, Table, Th, Td, Muted, Badge,
@@ -177,8 +178,11 @@ export const TeamTab: React.FC<{
                     <Td>{formatHours(d.break_sec)}</Td>
                     <Td><strong>{formatHours(d.work_sec)}</strong></Td>
                     <Td>
-                      {d.auto_closed && <Badge $tone="warn">{t('my.autoClosed')}</Badge>}
+                      {d.auto_closed && (d.close_confirmed
+                        ? <Badge $tone="info">{t('my.autoClosedConfirmed')}</Badge>
+                        : <Badge $tone="warn">{t('my.autoClosed')}</Badge>)}
                       {d.admin_fixed && <Badge $tone="info">{t('my.adminFixed')}</Badge>}
+                      {d.self_fix && <SelfFixBadge fix={d.self_fix} />}
                       <ActionButton tone="secondary" size="sm" onClick={() => onFix(d)} data-testid="attn-fix-open">
                         {t('fix.open')}
                       </ActionButton>
@@ -207,7 +211,7 @@ export const TeamTab: React.FC<{
                   <Th>{t('team.member')}</Th><Th>{t('stats.workDays')}</Th><Th>{t('stats.workHours')}</Th>
                   <Th>{t('stats.breakHours')}</Th><Th>{t('stats.overtime')}</Th>
                   <Th>{t('stats.avgIn')}</Th><Th>{t('stats.avgOut')}</Th>
-                  <Th>{t('stats.leaveUsed')}</Th><Th>{t('stats.autoClosed')}</Th>
+                  <Th>{t('stats.leaveUsed')}</Th><Th title={t('stats.autoClosedHint') as string}>{t('stats.autoClosed')}</Th>
                 </tr>
               </thead>
               <tbody>

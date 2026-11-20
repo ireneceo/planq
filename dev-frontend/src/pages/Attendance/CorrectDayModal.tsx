@@ -1,5 +1,8 @@
 // 근태 정정 (운영 #392) — 본인이 자기 기록의 출퇴근 시각을 고친다.
 //
+// ★ 2026-11-20 — 워크스페이스가 설정 «본인 수정은 승인 후 반영» 을 켜면 승인 대기로 간다(기본은 아래 #392 그대로 바로 반영).
+//   서버 응답 pending 으로 판정한다 — 화면이 설정값을 다시 계산하지 않는다(docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §6).
+//
 // 왜 승인 단계가 없는가
 //   Irene: "승인이 필요할까? … 정정 단계없는 건 이상해."
 //   승인을 걸면 실무에서 매번 막히고, 승인자가 사실을 확인할 방법도 없다(그 시간에 무엇을
@@ -35,12 +38,17 @@ interface Props {
   day: AttendanceDay;
   onClose: () => void;
   onSaved: () => void;
+  /** 출근 칸을 미리 채울 시각(ISO) — 자동 출근보다 먼저 들어와 있었을 때 */
+  prefillIn?: string;
+  /** 승인 모드 여부(모르면 생략 — 안내 문구가 두 경우를 함께 말한다) */
+  approval?: boolean;
 }
 
-const CorrectDayModal: React.FC<Props> = ({ day, onClose, onSaved }) => {
+const CorrectDayModal: React.FC<Props> = ({ day, onClose, onSaved, prefillIn, approval }) => {
   const { t } = useTranslation('attendance');
   const { t: tErr } = useTranslation('errors');
-  const [inAt, setInAt] = useState(toLocalTime(day.clock_in_at));
+  const [inAt, setInAt] = useState(toLocalTime(prefillIn || day.clock_in_at));
+  const [sentPending, setSentPending] = useState(false);
   const [outAt, setOutAt] = useState(toLocalTime(day.clock_out_at));
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
@@ -57,11 +65,10 @@ const CorrectDayModal: React.FC<Props> = ({ day, onClose, onSaved }) => {
         body: JSON.stringify({ fix_reason: reason.trim(), events }),
       });
       // apiFetch 는 throw 하지 않는다 — res.ok 를 반드시 본다
-      if (!r.ok) {
-        const j = await r.json().catch(() => null);
-        throw new Error(j?.message || `HTTP ${r.status}`);
-      }
+      const j = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(j?.message || `HTTP ${r.status}`);
       onSaved();
+      if (j?.data?.pending) { setSentPending(true); return; }   // 승인 대기 — 무엇이 일어났는지 보여 주고 닫게 한다
       onClose();
     } catch (e) {
       setError(mapApiError(e, tErr));
@@ -74,7 +81,11 @@ const CorrectDayModal: React.FC<Props> = ({ day, onClose, onSaved }) => {
       onClose={onClose}
       title={t('correct.title', { defaultValue: '근태 정정' }) as string}
       size="sm"
-      footer={(
+      footer={sentPending ? (
+        <ActionButton tone="primary" onClick={onClose} data-testid="attendance-correct-done">
+          {t('correct.close', { defaultValue: '닫기' })}
+        </ActionButton>
+      ) : (
         <>
           <ActionButton tone="secondary" onClick={onClose} disabled={saving}>
             {t('correct.cancel', { defaultValue: '취소' })}
@@ -85,7 +96,14 @@ const CorrectDayModal: React.FC<Props> = ({ day, onClose, onSaved }) => {
         </>
       )}
     >
-      <Note>{t('correct.notice', { defaultValue: '바로 반영됩니다. 원래 기록은 지워지지 않고 이력으로 남고, 관리자에게 알림이 갑니다.' })}</Note>
+      {sentPending ? (
+        <Note data-testid="attendance-correct-pending">{t('correct.sentPending')}</Note>
+      ) : (
+        <Note>{approval === true ? t('correct.noticeApproval') : approval === false
+          ? t('correct.notice', { defaultValue: '바로 반영됩니다. 원래 기록은 지워지지 않고 이력으로 남고, 관리자에게 알림이 갑니다.' })
+          : t('correct.noticeEither')}</Note>
+      )}
+      {!sentPending && (<>
       <Field>
         <Label>{t('my.date')}</Label>
         <Fixed>{day.work_date}</Fixed>
@@ -107,6 +125,7 @@ const CorrectDayModal: React.FC<Props> = ({ day, onClose, onSaved }) => {
           onChange={(e) => setReason(e.target.value)} />
       </Field>
       {error && <ErrorText>{error}</ErrorText>}
+      </>)}
     </StandardModal>
   );
 };

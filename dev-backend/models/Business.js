@@ -356,6 +356,8 @@ Business.init({
   public_region: { type: DataTypes.STRING(32), allowNull: true },
   public_published_at: { type: DataTypes.DATE, allowNull: true },
   public_block_reason: { type: DataTypes.STRING(255), allowNull: true },
+  // 근태 — 본인 시각 수정을 관리자 승인 뒤에 반영할지(기본 끔 = 바로 반영 + «확인함» 체크만, #392). docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §6
+  attendance_fix_approval: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 }, {
   sequelize,
   tableName: 'businesses',

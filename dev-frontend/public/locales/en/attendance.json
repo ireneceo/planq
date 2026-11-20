@@ -27,7 +27,10 @@
     "dismiss": "Dismiss",
     "autoClockedInTitle": "Clocked you in",
     "autoUndoHint": "If this is wrong, you can undo it now. Undoing also stops the work timer.",
-    "autoOk": "OK"
+    "autoOk": "OK",
+    "since": "Since {{time}}",
+    "editSince": "Fix start time",
+    "seenEarlier": "You were here from {{time}} today. If that's when you started, fix the time."
   },
   "state": {
     "working": "Working",
@@ -48,7 +51,8 @@
     "autoClosed": "Auto-closed",
     "autoClosedHint": "Closed automatically because clock-out was never pressed. Ask an admin to correct it.",
     "adminFixed": "Corrected",
-    "inProgress": "In progress"
+    "inProgress": "In progress",
+    "autoClosedConfirmed": "Auto-closed · confirmed"
   },
   "leave": {
     "balanceTitle": "{{year}} paid leave",
@@ -149,7 +153,9 @@
   },
   "settings": {
     "autoClockIn": "Clock in when I start work",
-    "autoClockInHint": "If you start a task in Q Task and have no record today, you are clocked in automatically."
+    "autoClockInHint": "If you start a task in Q Task and have no record today, you are clocked in automatically.",
+    "promptOn": "Ask about clock-in / clock-out",
+    "promptOnHint": "When you first come in we ask «Have you started work?», and the day after a missed clock-out we ask once if the time is right."
   },
   "error": {
     "already_working": "You are already working.",
@@ -175,9 +181,10 @@
     "avgIn": "Avg in",
     "avgOut": "Avg out",
     "leaveUsed": "Leave used",
-    "autoClosed": "Auto-closed",
+    "autoClosed": "Unchecked auto-close",
     "empty": "No records this month.",
-    "overtimeHint": "‘Over baseline’ totals time past each person's daily baseline. With flexible hours some days run over and others under — this is not a legal overtime figure."
+    "overtimeHint": "‘Over baseline’ totals time past each person's daily baseline. With flexible hours some days run over and others under — this is not a legal overtime figure.",
+    "autoClosedHint": "Days auto-closed for a missed clock-out that the person hasn't confirmed or corrected yet"
   },
   "fix": {
     "open": "Correct",
@@ -202,7 +209,23 @@
     },
     "timeline": "Corrected record for this day",
     "timelineHint": "What you leave here becomes the record for this day. Fix or remove wrong times — the originals are kept as history.",
-    "superseded": "voided"
+    "superseded": "voided",
+    "selfFixed": "Edited by you",
+    "pendingShort": "Awaiting approval",
+    "rejectedShort": "Rejected",
+    "changeIn": "In {{from}} → {{to}}",
+    "changeOut": "Out {{from}} → {{to}}",
+    "reasonLine": "Reason: {{reason}}",
+    "decideNote": "Admin note: {{note}}",
+    "withdraw": "Withdraw request",
+    "status": {
+      "applied": "Applied · not yet checked",
+      "pending": "Awaiting approval",
+      "confirmed": "Checked by admin",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn"
+    }
   },
   "noWorkspace": "Choose a workspace first.",
   "admin": {
@@ -215,7 +238,11 @@
     "cancel": "Cancel",
     "reason": "Reason (required)",
     "reasonPh": "e.g. I left right after the meeting but auto clock-out closed later",
-    "notice": "Applied immediately. The original record is kept as history and managers are notified."
+    "notice": "Applied immediately. The original record is kept as history and managers are notified.",
+    "close": "Close",
+    "sentPending": "Sent for approval. It applies once your admin approves; until then the original record counts.",
+    "noticeApproval": "Applies once your admin approves. Until then the original record counts, and it stays in the history.",
+    "noticeEither": "Depending on workspace settings this applies right away or after admin approval. The original record stays in the history."
   },
   "presence": {
     "summary": "Team: {{count}} working",
@@ -235,5 +262,52 @@
     "offConfirmMsg": "For every member, the Attendance menu, sidebar clock-in widget, teammate status dots, leave approvals and leave notifications will disappear. Auto clock-in on task start stops and leave is no longer deducted from capacity. Records are not deleted and come back when you turn it on again.",
     "offConfirm": "Turn off",
     "saveError": "Could not save. Please try again shortly."
+  },
+  "prompt": {
+    "title": "Have you started work?",
+    "closeTitle": "Check your clock-out",
+    "body": "You first came in at {{time}} today.",
+    "bodyNow": "Clock in now ({{time}})?",
+    "okFrom": "Start from {{time}}",
+    "okNow": "Clock in now",
+    "editTime": "Change time",
+    "later": "Not yet",
+    "notToday": "Not today",
+    "startAt": "Start time",
+    "saveFrom": "Start from {{time}}",
+    "save": "Save",
+    "closeOk": "That's right",
+    "closeLine": "You didn't clock out on {{date}}, so we closed it at {{time}}. Is that right?",
+    "hintEdit": "A changed time is marked «edited by you» and your admin will see it.",
+    "hintApproval": "A changed time applies once your admin approves it. Until then the first-seen time is kept.",
+    "sentPending": "Sent for approval. It applies once approved.",
+    "err": {
+      "generic": "Couldn't save. Please try again shortly.",
+      "future_time_not_allowed": "You can't enter a time later than now.",
+      "not_today": "Only times within today can be entered.",
+      "already_working": "You're already working.",
+      "out_before_in": "Clock-out is earlier than clock-in.",
+      "self_fix_window_expired": "For records older than 14 days, ask your admin to correct them."
+    }
+  },
+  "fixAdmin": {
+    "approvalTitle": "Members' own edits need approval",
+    "approvalOffDesc": "Off — when members change a time it applies right away; admins just mark it «Checked» below.",
+    "approvalOnDesc": "On — times members change apply only after admin approval. Until then the originally recorded time counts.",
+    "listTitle": "Corrections to check",
+    "empty": "Nothing to check.",
+    "pendingGroup": "Awaiting approval ({{count}})",
+    "unconfirmedGroup": "Not checked ({{count}})",
+    "confirm": "Checked",
+    "confirmAll": "Mark all checked ({{count}})",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectPh": "Reason for rejecting (required — the member sees it)",
+    "err": {
+      "generic": "Couldn't process. Please try again shortly.",
+      "day_changed": "This day's record changed in the meantime. Ask the member to request again.",
+      "cannot_decide_own": "Another admin handles your own request.",
+      "not_pending": "This request was already handled."
+    }
   }
 }

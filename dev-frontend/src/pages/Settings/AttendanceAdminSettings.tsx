@@ -18,6 +18,7 @@ import { TeamTab } from '../Attendance/TeamTab';
 import HolidaySettingsSection from './HolidaySettingsSection';   // #424 휴일·근무일
 import LeaveTypeSettingsSection from './LeaveTypeSettingsSection';   // 휴가 종류 — 맨 위(docs/LEAVE_TYPES_DESIGN.md §6.1)
 import { AdminFixDrawer } from '../Attendance/AdminFixDrawer';
+import AttendanceFixSection from './AttendanceFixSection';   // 확인할 정정 · 본인 수정 승인 설정 (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §6.4)
 import type { LeaveRequestRow, PresenceRow, StatRow } from '../Attendance/shared';
 import { pickableMembers } from '../../utils/pickableMembers';
 
@@ -122,6 +123,7 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
       {!moduleOn && <HolidaySettingsSection businessId={businessId} />}
       {moduleOn && (<>
       <Desc>{t('admin.desc') as string}</Desc>
+      <AttendanceFixSection businessId={businessId} />
       <LeaveTypeSettingsSection businessId={businessId} />
       <HolidaySettingsSection businessId={businessId} />
       <TeamTab

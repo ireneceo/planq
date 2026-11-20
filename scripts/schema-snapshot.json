@@ -47,6 +47,19 @@
       "created_at",
       "updated_at"
     ],
+    "attendance_activity": [
+      "id",
+      "business_id",
+      "user_id",
+      "work_date",
+      "first_seen_at",
+      "last_act_at",
+      "prompt_answer",
+      "prompt_count",
+      "prompt_snooze_until",
+      "created_at",
+      "updated_at"
+    ],
     "attendance_days": [
       "id",
       "business_id",
@@ -62,7 +75,8 @@
       "admin_fixed",
       "note",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "close_confirmed_at"
     ],
     "attendance_events": [
       "id",
@@ -77,6 +91,23 @@
       "created_at",
       "updated_at",
       "superseded_at"
+    ],
+    "attendance_fix_requests": [
+      "id",
+      "business_id",
+      "user_id",
+      "attendance_day_id",
+      "work_date",
+      "origin",
+      "before",
+      "events",
+      "reason",
+      "status",
+      "decided_by",
+      "decided_at",
+      "decide_note",
+      "created_at",
+      "updated_at"
     ],
     "audit_logs": [
       "id",
@@ -344,7 +375,8 @@
       "public_category",
       "public_region",
       "public_published_at",
-      "public_block_reason"
+      "public_block_reason",
+      "attendance_fix_approval"
     ],
     "calendar_event_attachments": [
       "id",
@@ -3239,7 +3271,8 @@
       "date_format",
       "time_format",
       "week_start",
-      "signup_source"
+      "signup_source",
+      "attendance_prompt_on"
     ],
     "video_jobs": [
       "id",

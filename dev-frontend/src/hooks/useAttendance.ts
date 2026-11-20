@@ -21,12 +21,34 @@ export interface AttendanceDay {
   work_sec: number;
   break_sec: number;
   auto_closed: boolean;
+  /** 자동 마감 시각을 본인이 «맞아요» 했거나 고쳤다 */
+  close_confirmed?: boolean;
   admin_fixed: boolean;
   note: string | null;
+  /** 그날 가장 최근 «본인 수정» 요청(거둔 것 제외) — docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §5 */
+  self_fix?: SelfFix | null;
 }
 
+export type SelfFixStatus = 'applied' | 'pending' | 'confirmed' | 'approved' | 'rejected' | 'withdrawn';
+export interface SelfFix {
+  request_id: number;
+  status: SelfFixStatus | string;
+  origin: 'prompt_in' | 'prompt_out' | 'manual' | string;
+  before: { clock_in_at: string | null; clock_out_at: string | null; work_total_sec: number } | null;
+  events: { kind: string; at: string }[];
+  reason: string | null;
+  decided_by_name: string | null;
+  decided_at: string | null;
+  decide_note: string | null;
+}
+
+/** 서버가 판정한 «출근하셨어요?» — 화면은 조건을 다시 계산하지 않는다 */
+export interface CheckInPrompt { kind: 'check_in'; proposed_at: string; first_seen_at: string | null }
+/** 어제(가장 최근 근무일) 자동 마감 확인 */
+export interface CloseCheck { day_id: number; work_date: string; clock_out_at: string | null }
+
 /** 시스템이 대신 상태를 바꿨을 때 화면에 알릴 재료 (#208) */
-export interface AutoNotice { source: 'auto_focus'; at: string; can_undo: boolean }
+export interface AutoNotice { source: 'auto_focus'; at: string; can_undo: boolean; first_seen_at?: string }
 
 export const ATTENDANCE_REFRESH_EVENT = 'attendance:refresh';
 
@@ -35,6 +57,9 @@ export function useAttendance(businessId: number | null) {
   const [state, setState] = useState<AttendanceState>(null);
   const [autoNotice, setAutoNotice] = useState<AutoNotice | null>(null);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
+  const [prompt, setPrompt] = useState<CheckInPrompt | null>(null);
+  const [closeCheck, setCloseCheck] = useState<CloseCheck | null>(null);
+  const [fixApproval, setFixApproval] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   // 초 카운터의 기준점 — 서버에서 받은 값과 그 시각. 매초 state 를 갱신하지 않고
@@ -45,7 +70,9 @@ export function useAttendance(businessId: number | null) {
   const load = useCallback(async () => {
     if (!businessId) { setLoading(false); return; }
     try {
-      const r = await apiFetch(`/api/attendance/today?business_id=${businessId}`);
+      // 보이는 상태로 부를 때만 visible=1 — 서버가 «그날 첫 진입» 을 남긴다(숨은 탭의 소켓 재조회는 진입이 아니다).
+      const visible = typeof document !== 'undefined' && document.visibilityState === 'visible' ? '&visible=1' : '';
+      const r = await apiFetch(`/api/attendance/today?business_id=${businessId}${visible}`);
       // ★ apiFetch 는 실패해도 throw 하지 않는다 — res.ok 를 직접 본다.
       if (!r.ok) return;
       const j = await r.json();
@@ -53,6 +80,9 @@ export function useAttendance(businessId: number | null) {
       setDay(j.data?.day || null);
       setState(j.data?.state || null);
       setAutoNotice(j.data?.auto_notice || null);
+      setPrompt(j.data?.prompt || null);
+      setCloseCheck(j.data?.close_check || null);
+      setFixApproval(!!j.data?.fix_approval);
       baseRef.current = j.data?.day
         ? { work: j.data.day.work_sec, brk: j.data.day.break_sec, at: Date.now() }
         : null;
@@ -74,7 +104,9 @@ export function useAttendance(businessId: number | null) {
     const room = `business:${businessId}`;
     joinRoom(room);
     const off = onSocket('attendance:updated', () => { void load(); });
-    return () => { off(); leaveRoom(room); };
+    // 본인 수정 요청·묻기 답(내 다른 기기 포함) — 개인 방 신호. 묻는 창이 다른 기기에서 답하면 여기서도 닫힌다.
+    const offFix = onSocket('attendance:fix_updated', () => { void load(); });
+    return () => { off(); offFix(); leaveRoom(room); };
   }, [businessId, load]);
 
   // 같은 탭의 다른 표면(위젯 ↔ 카드 ↔ 페이지)
@@ -115,14 +147,14 @@ export function useAttendance(businessId: number | null) {
     return () => window.clearInterval(id);
   }, [state]);
 
-  const act = useCallback(async (path: string) => {
+  const act = useCallback(async (path: string, extra?: Record<string, unknown>) => {
     if (!businessId || submitting) return null;
     setSubmitting(true);
     try {
       const r = await apiFetch(`/api/attendance/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ business_id: businessId }),
+        body: JSON.stringify({ business_id: businessId, ...(extra || {}) }),
       });
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) return { error: j?.message || 'error' };
@@ -134,7 +166,8 @@ export function useAttendance(businessId: number | null) {
       //   30초 폴링이라 그때까지 옛 상태가 남는다 — 사용자에게는 "퇴근했는데 업무는 그대로" 다.
       //   같은 카드 안에 있으니 즉시 같이 움직여야 한다.
       window.dispatchEvent(new CustomEvent('focus:refresh'));
-      return { ok: true };
+      setPrompt(null);
+      return { ok: true, pending: !!j.data?.pending };
     } catch { return { error: 'network' }; }
     finally { setSubmitting(false); }
   }, [businessId, submitting]);
@@ -162,8 +195,35 @@ export function useAttendance(businessId: number | null) {
     window.dispatchEvent(new CustomEvent(ATTENDANCE_REFRESH_EVENT));
   }, [businessId, load]);
 
+  /** 묻는 창 «아직이에요»(later) · «오늘은 안 해요»(not_today) */
+  const answerPrompt = useCallback(async (answer: 'later' | 'not_today') => {
+    if (!businessId) return;
+    setPrompt(null); setCloseCheck(null);
+    await apiFetch('/api/attendance/prompt-answer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ business_id: businessId, answer }),
+    }).catch(() => null);
+  }, [businessId]);
+
+  /** 어제 자동 마감 «맞아요» / 시각 고치기(at = ISO) */
+  const answerClose = useCallback(async (dayId: number, at?: string) => {
+    const r = await apiFetch(`/api/attendance/days/${dayId}/${at ? 'fix-close' : 'confirm-close'}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(at ? { at } : {}),
+    });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j?.success) return { error: j?.message || 'error' };
+    setCloseCheck(null);
+    window.dispatchEvent(new CustomEvent(ATTENDANCE_REFRESH_EVENT));
+    return { ok: true, pending: !!j.data?.pending };
+  }, []);
+
   return {
     day, state, loading, submitting, live, reload: load,
+    prompt, closeCheck, fixApproval, answerPrompt, answerClose,
+    /** 묻는 창 «09:12 부터 출근»(observed) · «시각 고치기»(at) */
+    clockInObserved: () => act('clock-in', { observed: true }),
+    clockInAt: (at: string) => act('clock-in', { at }),
     autoNotice: noticeDismissed ? null : autoNotice,
     dismissNotice: () => setNoticeDismissed(true),
     undoAuto,

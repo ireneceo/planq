@@ -11,12 +11,11 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const { Op } = require('sequelize');
 
 const { authenticateToken } = require('../middleware/auth');
-const { getUserScope } = require('../middleware/access_scope');
 const { successResponse, errorResponse } = require('../utils/response');
 const { parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { AttendanceDay, AttendanceEvent, User, BusinessMember, LeaveRequest } = require('../models');
 const A = require('../services/attendanceTransition');
-const { moduleOnFor } = require('../services/modules');
+const F = require('../services/attendanceFix');
 const { ymd } = require('../utils/datetime');
 
 const clockLimiter = rateLimit({
@@ -26,35 +25,7 @@ const clockLimiter = rateLimit({
   message: { success: false, message: '출퇴근 기록을 너무 자주 호출했습니다. 잠시 후 다시 시도하세요.' },
 });
 
-/** 멤버십 확인. client·ai 는 근태 대상이 아니다 — 전부 403. */
-async function requireMember(req, res, businessId) {
-  if (!businessId) { errorResponse(res, 'business_id_required', 400); return null; }
-  const scope = await getUserScope(req.user.id, Number(businessId), req.user.role);
-  if (!(scope.isMember || scope.isOwner || scope.isAdmin || scope.isPlatformAdmin)) {
-    errorResponse(res, 'forbidden', 403); return null;
-  }
-  if (!(await moduleOnFor(businessId, 'attendance'))) { errorResponse(res, 'module_off', 404); return null; }   // 근태·휴가 꺼짐 = 없는 API(services/modules · 멤버십 확인 뒤라 남에게 켜짐 여부를 말하지 않는다)
-  return scope;
-}
-const isManager = (scope) => !!(scope.isOwner || scope.isAdmin || scope.isPlatformAdmin);
-
-// 본인·관리자용 — 시각과 누계를 포함한다.
-function serializeDay(day, live) {
-  return {
-    id: day.id,
-    user_id: day.user_id,
-    work_date: ymd(day.work_date),
-    state: day.state,
-    clock_in_at: day.clock_in_at,
-    clock_out_at: day.clock_out_at,
-    break_started_at: day.break_started_at,
-    work_sec: live ? live.work_sec : Number(day.work_total_sec || 0),
-    break_sec: live ? live.break_sec : Number(day.break_total_sec || 0),
-    auto_closed: !!day.auto_closed,
-    admin_fixed: !!day.admin_fixed,
-    note: day.note || null,
-  };
-}
+const { requireMember, isManager, serializeDay } = require('../services/attendanceAccess');
 // 동료용 — 상태 하나뿐. 여기에 필드를 더하려면 §6 을 먼저 고쳐야 한다.
 function serializePresence(userId, state, onLeave) {
   return { user_id: userId, state, on_leave_today: !!onLeave };
@@ -77,15 +48,29 @@ router.get('/today', authenticateToken, async (req, res, next) => {
         .catch((e) => { console.warn('[attendance today split]', e.message); return null; });
       if (split) day = split.today;
     }
-    if (!day) return successResponse(res, { work_date: workDate, state: null, day: null });
+    // 출근 묻기·어제 퇴근 확인 (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §3·§4) — 판정은 services/attendancePrompt 한 곳.
+    //   visible=1(화면이 보이는 상태로 부름)일 때만 «그날 첫 진입» 을 남긴다 — 숨은 탭이 소켓 신호로 다시 읽은 것은 진입이 아니다.
+    const P = require('../services/attendancePrompt');
+    if (req.query.visible === '1') await P.markSeen({ businessId, userId: req.user.id }).catch((e) => console.warn('[attendance seen]', e.message));
+    const asks = await P.promptFor({ businessId, userId: req.user.id, day })
+      .catch((e) => { console.warn('[attendance prompt]', e.message); return { prompt: null, close_check: null }; });
+    // 화면이 정정 창 안내 문구(«바로 반영» / «승인 뒤 반영»)를 고르는 값 — 설정 «본인 수정은 승인 후 반영».
+    const fixApproval = await require('../services/attendanceFix').approvalOn(businessId);
+    if (!day) return successResponse(res, { work_date: workDate, state: null, day: null, fix_approval: fixApproval, ...asks });
     const live = await A.liveTotals(day);
     // #208 — 자동으로 출근 처리된 경우 그 사실을 화면에 알린다.
     //   시스템이 사용자 대신 상태를 바꿨으면 **말없이 두지 않는다** — 나중에 기록을 보고
     //   "내가 언제 출근을 눌렀지?" 가 되면 그 기록 전체를 믿지 못하게 된다.
     //   되돌릴 수 있는 조건(아래 undo-auto)까지 같이 내려서, 화면이 버튼을 띄울지 스스로 정한다.
     const auto = await A.autoClockInNotice(day);
+    // 자동 출근보다 10분 넘게 먼저 들어와 있었으면 그 시각을 같이 준다 — 알림 창이 «09:05 부터 들어와 계셨어요» + 시각 고치기를 띄운다(설계 §3.4).
+    if (auto) {
+      const seen = await P.firstSeenToday({ businessId, userId: req.user.id }).catch(() => null);
+      if (seen && new Date(auto.at).getTime() - seen.getTime() > 10 * 60 * 1000) auto.first_seen_at = seen;
+    }
     return successResponse(res, {
-      work_date: workDate, state: day.state, day: serializeDay(day, live), auto_notice: auto,
+      work_date: workDate, state: day.state, day: { ...serializeDay(day, live), self_fix: (await F.selfFixOf([day.id])).get(day.id) || null },
+      auto_notice: auto, fix_approval: fixApproval, ...asks,
     });
   } catch (err) { next(err); }
 });
@@ -108,7 +93,58 @@ function clockHandler(fn) {
     }
   };
 }
-router.post('/clock-in', authenticateToken, clockLimiter, clockHandler(A.clockIn));
+// 출근 — 선택 인자(docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §3.5):
+//   {observed:true} → 서버가 기록한 오늘 첫 진입 시각으로(화면이 보낸 시각을 믿지 않는다) · 기계 값이라 수정 아님
+//   {at}            → 본인이 고친 시각(오늘 0시 ≤ at ≤ 지금+1분) = «본인 수정». 승인 모드면 기계 값으로 출근 + 승인 대기
+//   둘 다 없으면 종전대로 지금.
+router.post('/clock-in', authenticateToken, clockLimiter, async (req, res, next) => {
+  const { observed, at } = req.body || {};
+  if (!observed && !at) return clockHandler(A.clockIn)(req, res, next);
+  try {
+    const businessId = Number(req.body.business_id);
+    const scope = await requireMember(req, res, businessId);
+    if (!scope) return;
+    const P = require('../services/attendancePrompt');
+    const now = new Date();
+    // 묻는 창이 보여 준 값과 같은 함수 — 새벽 잠깐 진입은 제안에서 빠진다(services/attendancePrompt.observedStart).
+    const seen = await P.observedStart({ businessId, userId: req.user.id, now });
+    const machineAt = seen || now;
+    let wanted = machineAt;
+    if (at) {
+      wanted = new Date(at);
+      if (Number.isNaN(wanted.getTime())) return errorResponse(res, 'invalid_at', 400);
+      if (wanted.getTime() > now.getTime() + 60 * 1000) return errorResponse(res, 'future_time_not_allowed', 400);
+      if (wanted > now) wanted = now;
+      const today = await A.todayFor(businessId, now);
+      if ((await A.todayFor(businessId, wanted)) !== today) return errorResponse(res, 'not_today', 400);
+    }
+    const isFix = !!at && Math.abs(wanted.getTime() - machineAt.getTime()) >= 60 * 1000;
+    const F = require('../services/attendanceFix');
+    const pendingMode = isFix && (await F.approvalOn(businessId))
+      && req.user.id !== (await require('../models').Business.findByPk(businessId, { attributes: ['owner_id'] }))?.owner_id;
+    let day = await A.clockIn({
+      businessId, userId: req.user.id, actorUserId: req.user.id, source: 'user', at: pendingMode ? machineAt : wanted,
+    });
+    let pending = false;
+    if (isFix) {
+      const iso = (d) => new Date(d).toISOString();
+      const r = await F.submit({
+        day, userId: req.user.id, origin: 'prompt_in',
+        events: [{ kind: 'clock_in', at: iso(wanted) }],
+        reason: String(req.body.reason || '').trim() || '출근 확인 때 시각 고침',
+        before: { clock_in_at: iso(machineAt), clock_out_at: null, work_total_sec: 0 },
+        alreadyApplied: !pendingMode, ioApp: req.app,
+      });
+      day = r.day; pending = r.pending;
+    }
+    const live = await A.liveTotals(day);
+    return successResponse(res, { ...serializeDay(day, live), pending });
+  } catch (err) {
+    // AttendanceError · FixError 둘 다 {code, status} — 그 외(DB 등)는 공통 핸들러로.
+    if (err && typeof err.code === 'string' && Number.isInteger(err.status)) return errorResponse(res, err.code, err.status);
+    next(err);
+  }
+});
 router.post('/break-start', authenticateToken, clockLimiter, clockHandler(A.breakStart));
 router.post('/break-end', authenticateToken, clockLimiter, clockHandler(A.breakEnd));
 router.post('/clock-out', authenticateToken, clockLimiter, clockHandler(A.clockOut));
@@ -125,7 +161,8 @@ router.get('/my', authenticateToken, async (req, res, next) => {
     const { rows, count } = await AttendanceDay.findAndCountAll({
       where, order: [['work_date', 'DESC']], limit, offset,
     });
-    return paginatedResponse(res, rows.map((d) => serializeDay(d)), count, { limit, page, offset });
+    const fixes = await F.selfFixOf(rows.map((d) => d.id));   // «본인 수정» 표시(원래 → 고친 값 · 확인 상태)
+    return paginatedResponse(res, rows.map((d) => ({ ...serializeDay(d), self_fix: fixes.get(d.id) || null })), count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
@@ -143,7 +180,8 @@ router.get('/team', authenticateToken, async (req, res, next) => {
     const { rows, count } = await AttendanceDay.findAndCountAll({
       where, order: [['work_date', 'DESC'], ['user_id', 'ASC']], limit, offset,
     });
-    return paginatedResponse(res, rows.map((d) => serializeDay(d)), count, { limit, page, offset });
+    const fixes = await F.selfFixOf(rows.map((d) => d.id));
+    return paginatedResponse(res, rows.map((d) => ({ ...serializeDay(d), self_fix: fixes.get(d.id) || null })), count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
@@ -185,6 +223,12 @@ router.patch('/days/:id', authenticateToken, async (req, res, next) => {
     const scope = await requireMember(req, res, day.business_id);
     if (!scope) return;
     if (!isManager(scope)) return errorResponse(res, 'forbidden', 403);
+    // 승인 모드에서 관리자 자기 기록은 관리자 정정으로 고치지 못한다 — 자기 것은 자기가 못 정한다(대표만 예외).
+    //   본인 정정(PATCH /days/:id/correct)으로 요청하면 다른 관리자가 승인한다. docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §6.1
+    if (day.user_id === req.user.id && !scope.isOwner && !scope.isPlatformAdmin
+        && (await require('../services/attendanceFix').approvalOn(day.business_id))) {
+      return errorResponse(res, 'self_fix_needs_approval', 403);
+    }
     const updated = await A.applyAdminFix({
       dayId: day.id,
       events: req.body.events,
@@ -198,85 +242,7 @@ router.patch('/days/:id', authenticateToken, async (req, res, next) => {
   }
 });
 
-// ─── PATCH /days/:id/correct — **본인 정정** (운영 #392) ──────────────────
-//   Irene: "근태기록이 자동으로 된 다음 안맞으면 수정요청해야 하는데 승인이 필요할까?
-//           … 정정 단계없는 건 이상해."
-//   여태 정정은 **관리자 전용**(위 PATCH /days/:id)이라, 본인은 자기 기록이 틀려도
-//   메모밖에 못 남겼다. 자동 기록(업무 시작 → 자동 출근)이 주력인 제품에서 정정 경로가
-//   없는 것은 기능 결손이다.
-//
-//   설계 판단 — **승인 대기를 두지 않는다.**
-//     · 승인을 걸면 실무에서 매번 막히고, 승인자가 사실을 확인할 방법도 없다
-//       (그 시간에 무엇을 했는지는 본인만 안다).
-//     · 대신 **사유를 반드시 받고, 원장을 남기고, 관리자에게 알린다.**
-//       이력 없이 고치는 것이야말로 나중에 다툼이 된다.
-//   가드:
-//     · 본인 기록만
-//     · 사유 필수(applyAdminFix 가 강제)
-//     · **최근 14일 이내만** — 정산이 지난 기간을 본인이 되돌리지 못하게. 그 이전은 관리자에게.
-//     · 미래 시각 금지
-router.patch('/days/:id/correct', authenticateToken, clockLimiter, async (req, res, next) => {
-  try {
-    const day = await AttendanceDay.findByPk(Number(req.params.id));
-    if (!day) return errorResponse(res, 'not_found', 404);
-    const scope = await requireMember(req, res, day.business_id);
-    if (!scope) return;
-    if (day.user_id !== req.user.id) return errorResponse(res, 'forbidden', 403);
-
-    const SELF_FIX_WINDOW_DAYS = 14;
-    const workDate = new Date(`${ymd(day.work_date)}T00:00:00Z`);
-    const ageDays = Math.floor((Date.now() - workDate.getTime()) / 86400000);
-    if (ageDays > SELF_FIX_WINDOW_DAYS) {
-      return errorResponse(res, 'self_fix_window_expired', 400);
-    }
-    const events = Array.isArray(req.body.events) ? req.body.events : [];
-    const now = Date.now();
-    for (const e of events) {
-      const at = new Date(e?.at);
-      if (Number.isNaN(at.getTime())) return errorResponse(res, 'invalid_at', 400);
-      if (at.getTime() > now + 60 * 1000) return errorResponse(res, 'future_time_not_allowed', 400);
-    }
-
-    const updated = await A.applyAdminFix({
-      dayId: day.id,
-      events,
-      fixReason: req.body.fix_reason,
-      actorUserId: req.user.id,       // 원장에 "누가 고쳤는지" 가 남는다 — 본인 정정과 관리자 정정의 구분점
-    });
-
-    // 관리자에게 알린다 — 승인은 안 받지만 **모르게 두지도 않는다**.
-    //   실패해도 정정은 되돌리지 않는다(기록이 우선).
-    try {
-      const { notify } = require('./notifications');
-      const me = await User.findByPk(req.user.id, { attributes: ['id', 'name'] });
-      const managers = await BusinessMember.findAll({
-        where: { business_id: day.business_id, removed_at: null, role: { [Op.in]: ['owner', 'admin'] } },
-        attributes: ['user_id'],
-      });
-      for (const m of managers) {
-        if (!m.user_id || m.user_id === req.user.id) continue;
-        await notify({
-          userId: m.user_id, businessId: day.business_id, eventKind: 'system',
-          title: '근태 기록 정정',
-          body: `${me?.name || '멤버'} 님이 ${ymd(day.work_date)} 근태를 정정했습니다 — ${String(req.body.fix_reason).slice(0, 120)}`,
-          // #407 — 정정 사유는 **사람이 쓴 글**이다. 메일·푸시로 내보내지 않고 인앱에만 남긴다
-          //   (Fable 14차 잔여 A). 제목 «근태 기록 정정» 만으로 무슨 일인지는 전달된다.
-          previewPolicy: 'internal_only',
-          // ★ 2026-09-21 — 팀 현황·승인은 #208 에 설정 > 근태 관리로 옮겨졌다. 옛 `/attendance?tab=team` 은
-          //   그 탭이 없어 **흰 화면**이었다(Irene: "알림 받았는데 누르면 페이지가 흰페이지 나와").
-          link: `/business/settings/attendance?date=${ymd(day.work_date)}`,
-          actorUserId: req.user.id, entityType: 'attendance_day', entityId: day.id,
-          ioApp: req.app,
-        }).catch(() => null);
-      }
-    } catch (e) { console.warn('[attendance self-fix notify]', e.message); }
-
-    return successResponse(res, serializeDay(updated));
-  } catch (err) {
-    if (err instanceof A.AttendanceError) return errorResponse(res, err.code, err.status || 400);
-    next(err);
-  }
-});
+// PATCH /days/:id/correct (본인 정정 #392) 는 routes/attendance_fix.js 로 옮겼다 — 본인 수정 요청·승인 설정과 한 곳.
 
 // ─── PATCH /days/:id/note — 본인 메모 ───────────────────────────
 router.patch('/days/:id/note', authenticateToken, async (req, res, next) => {
@@ -335,7 +301,7 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
 
     const days = await AttendanceDay.findAll({
       where,
-      attributes: ['id', 'user_id', 'work_date', 'clock_in_at', 'clock_out_at', 'work_total_sec', 'break_total_sec', 'auto_closed'],
+      attributes: ['id', 'user_id', 'work_date', 'clock_in_at', 'clock_out_at', 'work_total_sec', 'break_total_sec', 'auto_closed', 'close_confirmed_at'],
     });
 
     // 근무 기준시간·부서는 멤버 설정에서 온다 — 초과 판정의 분모다.
@@ -402,7 +368,8 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
       if (!onlyMidIn) r.work_days += 1;
       r.work_sec += Number(d.work_total_sec || 0);
       r.break_sec += Number(d.break_total_sec || 0);
-      if (d.auto_closed) r.auto_closed_count += 1;
+      // «확인 안 된 자동 마감» 만 품질 신호로 센다 — 본인이 «맞아요» 했거나 고친 날은 문제가 아니다(설계 §4.3).
+      if (d.auto_closed && !d.close_confirmed_at) r.auto_closed_count += 1;
       const dailySec = (Number(byUser.get(d.user_id)?.daily_work_hours) || 8) * 3600;
       r.overtime_sec += Math.max(0, Number(d.work_total_sec || 0) - dailySec);
       // 평균 출근 — 자정 이어받기가 있는 날은 첫 «사람의» 출근, 없으면 표본에서 뺀다.
@@ -483,16 +450,26 @@ router.post('/undo-auto-clock-in', authenticateToken, clockLimiter, async (req, 
 // ─── GET/PUT /settings — 개인 설정 ─────────────────────────────
 router.get('/settings', authenticateToken, async (req, res, next) => {
   try {
-    const u = await User.findByPk(req.user.id, { attributes: ['auto_clock_in_on_focus'] });
-    return successResponse(res, { auto_clock_in_on_focus: u?.auto_clock_in_on_focus !== false });
+    const u = await User.findByPk(req.user.id, { attributes: ['auto_clock_in_on_focus', 'attendance_prompt_on'] });
+    return successResponse(res, {
+      auto_clock_in_on_focus: u?.auto_clock_in_on_focus !== false,
+      attendance_prompt_on: u?.attendance_prompt_on !== false,
+    });
   } catch (err) { next(err); }
 });
 router.put('/settings', authenticateToken, async (req, res, next) => {
   try {
     const u = await User.findByPk(req.user.id);
     if (!u) return errorResponse(res, 'not_found', 404);
-    await u.update({ auto_clock_in_on_focus: !!req.body.auto_clock_in_on_focus });
-    return successResponse(res, { auto_clock_in_on_focus: !!u.auto_clock_in_on_focus });
+    // 보낸 칸만 바꾼다 — 한 토글을 바꾸며 다른 토글을 꺼 버리지 않게.
+    const patch = {};
+    if (req.body.auto_clock_in_on_focus !== undefined) patch.auto_clock_in_on_focus = !!req.body.auto_clock_in_on_focus;
+    if (req.body.attendance_prompt_on !== undefined) patch.attendance_prompt_on = !!req.body.attendance_prompt_on;
+    if (Object.keys(patch).length) await u.update(patch);
+    return successResponse(res, {
+      auto_clock_in_on_focus: u.auto_clock_in_on_focus !== false,
+      attendance_prompt_on: u.attendance_prompt_on !== false,
+    });
   } catch (err) { next(err); }
 });
 

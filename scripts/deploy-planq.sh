@@ -652,6 +652,10 @@ sync_database() {
   # 2026-11-20 공개 페이지 P3 — businesses.public_* 5칸 + 색인 · platform_settings.public_pages_enabled · contact_inquiries.kind 'report' append. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 워크스페이스 조회 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-public-page.js 2>&1 | tail -12"
+  # 2026-11-20 근태 출근 묻기·본인 수정 요청 — attendance_fix_requests · attendance_activity 새 표 +
+  #   attendance_days.close_confirmed_at · businesses.attendance_fix_approval · users.attendance_prompt_on. 멱등(있으면 no-op), 기존 행 무변경.
+  #   ★ 순서: PM2 reload 보다 먼저 — 모델이 새 칸을 SELECT 하므로 없으면 로그인·워크스페이스·근태 조회 전체가 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-attendance-checkin.js 2>&1 | tail -8"
   # 2026-10-07 일정 ↔ 업무 연결 — calendar_events.task_id INT NULL + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-task-link.js 2>&1 | tail -6"

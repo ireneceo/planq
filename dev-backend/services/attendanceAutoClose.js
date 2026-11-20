@@ -43,6 +43,13 @@ async function guessCloseAt(day, tz) {
     attributes: ['last_activity_at'],
   });
   if (focus?.last_activity_at && new Date(focus.last_activity_at) > best) best = new Date(focus.last_activity_at);
+  // 그날 마지막으로 **사람이 직접 한 쓰기**(메시지·업무·댓글·문서·메일 — services/attendancePrompt.touch) 시각.
+  //   버튼으로 출근하고 업무 측정을 안 쓴 사람은 여태 퇴근 = 출근 시각이라 0시간이었다(docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §4.2).
+  //   노출하지 않는다 — 본인 행을 닫는 계산에만 쓴다(FocusSession 과 같은 선).
+  const act = await require('./attendancePrompt').lastActAt({
+    businessId: day.business_id, userId: day.user_id, workDate: ymd(day.work_date),
+  }).catch(() => null);
+  if (act && act > best) best = act;
   return best > nextMidnight ? nextMidnight : best;
 }
 
@@ -122,6 +129,8 @@ async function runAttendanceAutoClose() {
     }
     // 근태 닫기가 먼저다 — 열린 날의 세션은 clock_out 으로 닫혀야 한다(순서가 end_reason 을 정한다).
     const focusStopped = await closeStaleFocus(tzCache);
+    // 90일 지난 «첫 진입·마지막 활동» 행 정리 — 본인 전용 흔적을 오래 두지 않는다(§6.2).
+    await require('./attendancePrompt').purgeOldActivity().catch((e) => console.warn('[attendanceAutoClose] purge', e.message));
     if (closed || focusStopped || splitCount) console.log(`[attendanceAutoClose] closed=${closed} midnight_split=${splitCount} focus_day_end=${focusStopped}`);
     return { closed, split: splitCount, focusStopped };
   } catch (err) {
@@ -136,4 +145,4 @@ function initAttendanceAutoClose() {
   console.log('[attendanceAutoClose] initialized — hourly');
 }
 
-module.exports = { initAttendanceAutoClose, runAttendanceAutoClose };
+module.exports = { initAttendanceAutoClose, runAttendanceAutoClose, guessCloseAt };

@@ -29,6 +29,8 @@ AttendanceDay.init({
   break_total_sec: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   /** 미퇴근 자동마감 — 화면에 "자동 마감됨" 을 띄워 관리자 정정을 유도한다(조용히 닫지 않는다) */
   auto_closed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  /** 자동 마감 시각을 본인이 «맞아요» 했거나 고쳐서 대체된 시각 — 통계 «확인 안 된 자동 마감» 은 이것이 NULL 인 것만 (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §4) */
+  close_confirmed_at: { type: DataTypes.DATE, allowNull: true },
   admin_fixed: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   note: { type: DataTypes.STRING(500), allowNull: true },
 }, {

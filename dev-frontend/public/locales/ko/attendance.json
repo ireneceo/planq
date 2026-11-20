@@ -27,7 +27,10 @@
     "dismiss": "닫기",
     "autoClockedInTitle": "출근으로 기록했어요",
     "autoUndoHint": "잘못 기록됐다면 지금 되돌릴 수 있어요. 되돌리면 업무 시간 측정도 함께 멈춥니다.",
-    "autoOk": "확인"
+    "autoOk": "확인",
+    "since": "{{time}} 부터",
+    "editSince": "출근 시각 고치기",
+    "seenEarlier": "오늘 {{time}} 부터 들어와 계셨어요. 실제 출근 시각이면 고쳐 주세요."
   },
   "state": {
     "working": "근무중",
@@ -48,7 +51,8 @@
     "autoClosed": "자동 마감됨",
     "autoClosedHint": "퇴근을 누르지 않아 자동으로 마감된 기록입니다. 관리자에게 정정을 요청할 수 있습니다.",
     "adminFixed": "정정됨",
-    "inProgress": "진행 중"
+    "inProgress": "진행 중",
+    "autoClosedConfirmed": "자동 마감 · 확인됨"
   },
   "leave": {
     "balanceTitle": "{{year}} 유급 휴가",
@@ -149,7 +153,9 @@
   },
   "settings": {
     "autoClockIn": "업무를 시작하면 자동 출근",
-    "autoClockInHint": "Q Task 에서 업무를 시작할 때 오늘 출근 기록이 없으면 자동으로 출근 처리합니다."
+    "autoClockInHint": "Q Task 에서 업무를 시작할 때 오늘 출근 기록이 없으면 자동으로 출근 처리합니다.",
+    "promptOn": "출근·퇴근 확인 묻기",
+    "promptOnHint": "그날 처음 들어오면 «출근하셨어요?», 퇴근을 안 누른 다음 날엔 «퇴근 시각 맞나요?» 를 한 번 묻습니다."
   },
   "error": {
     "already_working": "이미 근무 중입니다.",
@@ -175,9 +181,10 @@
     "avgIn": "평균 출근",
     "avgOut": "평균 퇴근",
     "leaveUsed": "휴가 사용",
-    "autoClosed": "자동마감",
+    "autoClosed": "미확인 자동마감",
     "empty": "이 달에는 기록이 없습니다.",
-    "overtimeHint": "‘기준 초과’는 각자의 1일 기준시간을 넘긴 합계입니다. 유연근무라 어떤 날은 넘고 어떤 날은 모자란 것이 정상이며, 법정 연장근로 수치가 아닙니다."
+    "overtimeHint": "‘기준 초과’는 각자의 1일 기준시간을 넘긴 합계입니다. 유연근무라 어떤 날은 넘고 어떤 날은 모자란 것이 정상이며, 법정 연장근로 수치가 아닙니다.",
+    "autoClosedHint": "퇴근을 누르지 않아 자동 마감됐는데 본인이 아직 확인·정정하지 않은 날 수"
   },
   "fix": {
     "open": "정정",
@@ -202,7 +209,23 @@
     },
     "timeline": "이 날의 확정 기록",
     "timelineHint": "여기에 남긴 것이 이 날의 기록이 됩니다. 잘못 찍힌 시각은 고치거나 지우세요 — 원래 기록은 이력으로 남습니다.",
-    "superseded": "무효"
+    "superseded": "무효",
+    "selfFixed": "본인 수정",
+    "pendingShort": "승인 대기",
+    "rejectedShort": "반려됨",
+    "changeIn": "출근 {{from}} → {{to}}",
+    "changeOut": "퇴근 {{from}} → {{to}}",
+    "reasonLine": "사유: {{reason}}",
+    "decideNote": "관리자 메모: {{note}}",
+    "withdraw": "요청 거두기",
+    "status": {
+      "applied": "바로 반영 · 관리자 미확인",
+      "pending": "승인 대기",
+      "confirmed": "관리자 확인함",
+      "approved": "승인됨",
+      "rejected": "반려됨",
+      "withdrawn": "거둠"
+    }
   },
   "noWorkspace": "워크스페이스를 먼저 선택해 주세요.",
   "admin": {
@@ -215,7 +238,11 @@
     "cancel": "취소",
     "reason": "사유 (필수)",
     "reasonPh": "예: 회의 후 바로 퇴근했는데 자동 기록이 늦게 닫혔어요",
-    "notice": "바로 반영됩니다. 원래 기록은 지워지지 않고 이력으로 남고, 관리자에게 알림이 갑니다."
+    "notice": "바로 반영됩니다. 원래 기록은 지워지지 않고 이력으로 남고, 관리자에게 알림이 갑니다.",
+    "close": "닫기",
+    "sentPending": "승인 요청을 보냈어요. 관리자가 승인하면 반영되고, 그 전에는 원래 기록으로 계산돼요.",
+    "noticeApproval": "관리자가 승인하면 반영됩니다. 그 전에는 원래 기록으로 계산되고, 원래 기록은 이력으로 남습니다.",
+    "noticeEither": "워크스페이스 설정에 따라 바로 반영되거나 관리자 승인 뒤 반영됩니다. 원래 기록은 이력으로 남습니다."
   },
   "presence": {
     "summary": "팀 {{count}}명 근무 중",
@@ -235,5 +262,52 @@
     "offConfirmMsg": "모든 멤버에게서 근태·휴가 메뉴, 사이드바 출퇴근 위젯, 동료 근무 상태 점, 휴가 승인 할 일과 알림이 사라집니다. 업무 시작 때 자동 출근도 멈추고, 가용시간에서 휴가를 빼지 않습니다. 기록은 지워지지 않으며 다시 켜면 그대로 보입니다.",
     "offConfirm": "끄기",
     "saveError": "저장하지 못했습니다. 잠시 후 다시 시도하세요."
+  },
+  "prompt": {
+    "title": "출근하셨어요?",
+    "closeTitle": "퇴근 시각 확인",
+    "body": "오늘 {{time}} 에 처음 들어오셨어요.",
+    "bodyNow": "지금({{time}}) 출근으로 기록할까요?",
+    "okFrom": "{{time}} 부터 출근",
+    "okNow": "지금 출근",
+    "editTime": "시각 고치기",
+    "later": "아직이에요",
+    "notToday": "오늘은 안 해요",
+    "startAt": "출근 시각",
+    "saveFrom": "{{time}} 부터 출근",
+    "save": "저장",
+    "closeOk": "맞아요",
+    "closeLine": "{{date}} 퇴근을 안 누르셔서 {{time}} 에 닫아 두었어요. 맞나요?",
+    "hintEdit": "고친 시각은 «본인 수정» 으로 표시되고 관리자가 확인해요.",
+    "hintApproval": "고친 시각은 관리자가 승인하면 반영돼요. 그 전에는 처음 들어온 시각으로 기록돼요.",
+    "sentPending": "승인 요청을 보냈어요. 승인되면 반영돼요.",
+    "err": {
+      "generic": "저장하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      "future_time_not_allowed": "지금보다 늦은 시각은 넣을 수 없어요.",
+      "not_today": "오늘 날짜 안의 시각만 넣을 수 있어요.",
+      "already_working": "이미 근무 중이에요.",
+      "out_before_in": "퇴근 시각이 출근보다 빨라요.",
+      "self_fix_window_expired": "14일이 지난 기록은 관리자에게 정정을 요청하세요."
+    }
+  },
+  "fixAdmin": {
+    "approvalTitle": "본인 수정은 승인 후 반영",
+    "approvalOffDesc": "꺼짐 — 멤버가 시각을 고치면 바로 반영되고, 관리자는 아래에서 «확인함» 만 체크합니다.",
+    "approvalOnDesc": "켜짐 — 멤버가 고친 시각은 관리자가 승인해야 반영됩니다. 승인 전에는 원래 찍힌 시각으로 계산합니다.",
+    "listTitle": "확인할 정정",
+    "empty": "확인할 정정이 없습니다.",
+    "pendingGroup": "승인 대기 {{count}}건",
+    "unconfirmedGroup": "확인 안 함 {{count}}건",
+    "confirm": "확인함",
+    "confirmAll": "모두 확인함 ({{count}})",
+    "approve": "승인",
+    "reject": "반려",
+    "rejectPh": "반려 사유 (필수 — 멤버에게 보입니다)",
+    "err": {
+      "generic": "처리하지 못했어요. 잠시 후 다시 시도해 주세요.",
+      "day_changed": "그사이 이 날 기록이 바뀌었어요. 멤버에게 다시 요청하게 해 주세요.",
+      "cannot_decide_own": "본인 요청은 다른 관리자가 처리해요.",
+      "not_pending": "이미 처리된 요청이에요."
+    }
   }
 }
