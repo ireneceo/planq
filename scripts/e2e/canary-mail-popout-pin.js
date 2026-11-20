@@ -103,8 +103,15 @@ async function run() {
     const notice = await F.page.waitForSelector('[data-testid="other-workspace-switch"]', { timeout: 30000 }).catch(() => null);
     ok(!!notice, `ws7 고정 창에 ws6 메일(${t6.id}) → «다른 워크스페이스» 안내`);
     if (notice) {
-      const nav = F.page.waitForNavigation({ waitUntil: 'domcontentloaded' });
-      await F.page.click('[data-testid="other-workspace-switch"]'); await nav;
+      // 처음 열 때 주소를 ws 지웠다 다시 붙이며 두세 번 그린다 — 그 사이 잠깐 그려진 안내를 잡으면 누르기 전에 사라진다(11-20 실측).
+      // 자리 잡을 때까지 기다린 뒤 다시 찾는다.
+      await sleep(2000);
+      await F.page.waitForSelector('[data-testid="other-workspace-switch"]', { timeout: 15000 });
+      // 이동 기다림을 click 과 묶는다 — 따로 두면 이동 중 «frame detached» 거절이 처리 안 된 채 러너를 통째로 죽인다(2026-11-19 밤 실측)
+      await Promise.all([
+        F.page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => null),
+        F.page.click('[data-testid="other-workspace-switch"]'),
+      ]);
       await F.page.waitForSelector('[data-testid="mail-popout-workspace"]'); await sleep(2500);
       const u = F.page.url();
       ok(/ws=6/.test(u) && new RegExp(`thread=${t6.id}`).test(u), `전환해서 열기 → 이 창 ws6 · 보던 메일 유지 (${u.replace(BASE, '')})`);

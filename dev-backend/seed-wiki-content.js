@@ -195,6 +195,11 @@ const ARTICLES = [
       // 2026-11-17 — 근태·휴가 끄기 스위치
       note('근태·휴가를 쓰지 않는 팀이면 대표가 설정 > 근태 관리 맨 위 “근태·휴가 기능 사용”을 끄면 됩니다. 근태·휴가 메뉴와 출퇴근 카드가 사라지고 자동 출근·휴가 알림도 멈춥니다. 지난 기록은 지워지지 않아 다시 켜면 그대로 보입니다.',
         'If your team does not track attendance, the owner can turn off “Use attendance & leave” at the top of Settings > Attendance. The Attendance menu and the clock-in card disappear, and auto clock-in and leave notifications stop. Past records are kept and come back when you turn it on again.'),
+      // 2026-11-20 e3602efd — 출근 묻기·어제 퇴근 확인·본인 수정
+      s('그날 처음 PlanQ 에 들어오면 «출근하셨어요?» 를 한 번 묻습니다. 실제로 일을 시작한 시각이 다르면 «몇 시부터 ✎» 로 고쳐서 출근할 수 있습니다. 퇴근을 안 누른 다음 날에는 «퇴근 시각 맞나요?» 를 묻습니다.',
+        'The first time you open PlanQ each day, it asks «Did you start work?». If you actually started earlier, use «From what time ✎» to set the real time. The day after you forget to clock out, it asks «Is this clock-out time right?».'),
+      note('직접 고친 시각에는 «본인 수정» 표시가 붙고 관리자가 확인합니다. 대표가 설정 > 근태 관리에서 «본인 수정은 승인 후 반영» 을 켜면 승인된 뒤에만 반영됩니다. 묻는 창이 필요 없으면 근태 화면 아래 개인 설정에서 끌 수 있습니다.',
+        'Times you change yourself are marked «Self-edited» and an admin reviews them. If the owner turns on «Self-edits apply after approval» in Settings > Attendance, they apply only once approved. You can turn the prompts off in your personal setting at the bottom of the Attendance page.'),
     ] },
   { cat: 'attendance', slug: 'request-leave', visibility: 'public', linked_route: '/attendance', est: 2,
     title: t('휴가 신청하고 승인받기', 'Request and approve leave'),
@@ -281,6 +286,13 @@ const ARTICLES = [
         'Signed-in customers see the same intro, booking and requests on their «Home», with links to their projects and bills.'),
       note('한 사람만 막으려면 고객 창구 카드의 방문자 목록에서 [막기] 를 누릅니다. 막힌 사람은 이메일을 다시 확인해도 들어올 수 없고, 대화 기록은 남습니다.',
         'To block one person, click [Block] next to them in the visitor list on the entry card. They can\'t get back in by verifying again, and the conversation history is kept.'),
+      // 2026-11-20 3e2e08e1·8fb0ddf8·1397e649 — 워크스페이스 공개 페이지
+      s('설정 › **«공개 페이지»** 에서 창구에 보일 소개·서비스 카드·연락처를 꾸미고, 보이고 싶지 않은 정보는 가립니다. 미리 보기로 고객 화면을 바로 확인합니다. Q Sale 의 [우리 페이지] 로도 열 수 있습니다.',
+        'In Settings › «Public page», set the intro, service cards and contact details shown on your entry page, and hide anything you don\'t want shown. Use the preview to see the customer view. You can also open it from [Our page] in Q Sale.'),
+      s('창구 아래 **문의 폼**은 로그인 없이 쓸 수 있습니다. 들어온 문의는 Q Sale 상담 탭 맨 위 «신규 문의» 에 모이고, 한 번 눌러 고객으로 등록합니다.',
+        'The inquiry form at the bottom of the entry page works without signing in. New inquiries collect under «New inquiries» at the top of the Q Sale consultations tab, and you register them as a customer with one click.'),
+      note('공개를 신청하면 PlanQ 가 확인한 뒤 회사 소개가 **«회사 찾기»** 와 검색에 나옵니다. 끄면 바로 내려갑니다.',
+        'If you apply to go public, your company appears in «Find a company» and in search after PlanQ reviews it. Turning it off removes it right away.'),
     ] },
   // 2026-09-20 — Q sales 메뉴 소개. 다른 메뉴는 모두 «q<메뉴>» 소개 글이 있는데 여기만 없었다.
   { cat: 'qsale', slug: 'qsale', visibility: 'public', linked_route: '/sale', est: 3,
@@ -608,6 +620,9 @@ const ARTICLES = [
       // 2026-11-19 61e79c81 — 녹음 중 이탈 보호
       s('녹음 중에 다른 메뉴로 가도 녹음이 끊기지 않습니다 — 컴퓨터·태블릿에서는 녹음 탭을 그대로 두고 새 탭으로 열리며 녹음 탭에 빨간 점이 보입니다. 녹음 탭 닫기·로그아웃·워크스페이스 전환·새로고침·폰에서 다른 화면으로 가기는 먼저 [녹음 계속하기] 를 묻습니다.',
         'Going to another menu while recording does not stop it — on a computer or tablet the recording tab stays and the new page opens in a new tab, with a red dot on the recording tab. Closing the recording tab, signing out, switching workspace, reloading, or leaving the screen on a phone asks first, with [Keep recording].'),
+      // 2026-11-20 399ce934 — AI 추가 요청
+      s('요약 아래 **«AI 추가 요청»** 에 원하는 것을 적으면(예: 고객에게 보낼 메일로, 결정 사항만 표로) 회의 내용을 그대로 가공합니다. 결과가 있으면 다음 요청은 그 결과를 다듬고, 복사하거나 문서로 저장할 수 있습니다.',
+        'Under the summary, write what you need in «Ask AI for more» (e.g. turn it into an email to the client, or a table of decisions only) and it reworks the meeting content. Once there is a result, the next request refines it — copy it or save it as a document.'),
       note('Q Note 는 기본적으로 개인 공간입니다 — 명시적으로 공유하기 전까지 다른 사람이 볼 수 없습니다.',
         'Q Note is private by default — no one else sees it until you explicitly share.'),
     ] },

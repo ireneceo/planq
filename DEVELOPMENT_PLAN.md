@@ -1,5 +1,7 @@
 # PlanQ - 개발 진행 현황
 
+> **최종 업데이트:** 2026-11-21 ([Opus] Opus 5.5, 방 3f60bc2c · 정기 점검 11/21 00:15) — 개발완료: 11/20 작업 기록(ChatGPT 업무 그룹 배정 8081ac2c Fable PASS · 프로젝트 히스토리 메일·이슈 6b08bf6f Fable 설계+완료 PASS · 워크스페이스 공개 페이지 P1~P3 3e2e08e1·8fb0ddf8·1397e649·ccba7f49·29ecb62e Fable 1차 FAIL→2차 PASS · 약관·개인정보 조항 f4536aef · 근태 출근 묻기 e3602efd·02b6d40e Fable 설계+완료 1차 FAIL→PASS · Q note AI 추가 요청 399ce934 · Q note 받아쓰기 숫자 58faf91f · 배포.md 배포 전 검사 937a7511) + 밤 검사 mailpin 검사기 안정화. Q위키 3줄. 미커밋 0.
+> ── 이전 ──
 > **최종 업데이트:** 2026-11-20 ([Opus] Opus 5.5, 방 ffb5c980 · 정기 점검 11/20 00:15) — 개발완료: 11/19 오후 작업 기록(메일 서버 접속 허용 요청서 2dfc8e1f·e3388b18 Fable decision · AI 앱 업무·문서 파일 붙이기 df7ff2fe Fable 설계+완료 2차 PASS · Q mail 전체 탭 안 읽음만 8a4b824b) + 밤 순찰 앱 파일 [새 탭에서 열기] 빈 창 고침. Q위키 3줄. 미커밋 0.
 > ── 이전 ──
 > **최종 업데이트:** 2026-11-19 ([Opus] Opus 5.5, 방 2f81ec41 · 개발완료) — 11/19 작업 기록(워크스페이스 전환 보던 메뉴 착지 5af71bd8 · 전환 느림 refresh_tokens 색인 fefa3d0f · 지메이트 옛 요청 변환 aa3709eb Fable 완료 PASS · 업무 «산출물» 고르기 e95e781c·95a44ec4 Fable 설계+완료 2차 PASS · ChatGPT 업무그룹 도구 설명 5441e14b · 고객 링크 메일 보내기 744c4400·c78d19cf Fable 완료 PASS · Q note 녹음 중 이탈 보호 61e79c81 Fable 설계+완료 PASS · v1.70.17 15ae5a78).
@@ -107,6 +109,31 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-11-20 [Opus](+[Fable]) — 공개 페이지 · 근태 출근 묻기 · 프로젝트 히스토리 메일·이슈 · Q note AI 추가 요청 (기록 3f60bc2c · 정기 점검 11/21)
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| ChatGPT 업무 그룹 배정 (8081ac2c) | AI 앱 도구 set_task_workstream — update_task 의 workstream_id 를 못 보던 것 | ✅ 완료 (Fable PASS) |
+| 프로젝트 히스토리 메일·이슈 (6b08bf6f) | 연결된 메일(받은·보낸, 본문 없음)·대화/메일 주요 이슈를 히스토리에 · services/projectIssueActions | ✅ 완료 (Fable 설계+완료 PASS) |
+| 워크스페이스 공개 페이지 P1 (3e2e08e1) | 설정 «공개 페이지» 탭 — 가리기·추가 항목·서비스 카드·미리 보기 · services/workspacePage | ✅ 완료 (자체 검증) |
+| 공개 페이지 P2 문의 폼 (8fb0ddf8) | 무인증 문의 폼 → Q sale «신규 문의» · workspace_inquiries · 접수 확인 메일 · 스팸 보류 | ✅ 완료 (Fable 1차 FAIL → 2차 PASS) |
+| 공개 페이지 P3 (1397e649·ccba7f49·29ecb62e) | 공개 주소 /w/ · «회사 찾기» · 관리자 첫 공개 승인 · 검색·AI 검색용 HTML·사이트맵 | ✅ 완료 (Fable 1차 FAIL → 2차 PASS) |
+| 약관·개인정보 조항 (f4536aef) | 문의 폼 개인정보·«회사 찾기» 공개 한 줄씩(ko/en) · 버전 그대로 (Irene «권고대로») | ✅ 완료 (문구 — 자체 검증) |
+| 근태 출근 묻기 (e3602efd·02b6d40e) | «출근하셨어요?» · 어제 퇴근 확인 · 본인 수정 표시 · 관리자 확인/승인 설정 · attendance_fix_requests | ✅ 완료 (Fable 설계 + 완료 1차 FAIL → PASS) |
+| Q note AI 추가 요청 (399ce934) | 요약 아래 요청 문장으로 가공·다듬기 · /api/llm/custom | ✅ 완료 (자체 검증) |
+| Q note 받아쓰기 숫자 (58faf91f) | ko·multi smart_format 끔 + 한자어 수+단위만 숫자로 | ✅ 완료 (자체 검증) |
+| 배포.md 배포 전 검사 (937a7511) | 준비 방이 게이트 미리보기 먼저 | ✅ 완료 |
+| 밤 검사 mailpin 검사기 | 이동 기다림 거절이 러너를 죽이던 것 · 주소 정리 중 잠깐 그려진 안내를 잡던 것 — 2회 연속 0 실패 | ✅ 완료 (검사기) |
+| Q위키 3줄 | 출퇴근 기록(출근 묻기·본인 수정) · 고객 창구(공개 페이지·문의 폼·회사 찾기) · 회의 녹음과 요약(AI 추가 요청) | ✅ 완료 |
+
+Fable 0-F: 마커 02b6d40e(by fable) 뒤 소스 커밋 1(f4536aef — 약관 문구, Fable 대상 아님 · 자체 검증) + 검사기 1개(대상 아님). 마커 안 씀.
+운영 반영: 위 전부 다음 배포 때 — 마이그레이션 migrate-workspace-inquiries · migrate-public-page · migrate-attendance-checkin 배포 슬롯 등록됨 · q-note 재시작 필요.
+
+### 수정된 파일
+- `git log 5c82fd31..HEAD` (141 파일) + `scripts/e2e/canary-mail-popout-pin.js` · `dev-backend/seed-wiki-content.js`
 
 ---
 
