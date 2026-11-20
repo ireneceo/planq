@@ -709,6 +709,13 @@ async function updateTask(p, a, actor) {
     estimated_hours: fresh.estimated_hours != null ? Number(fresh.estimated_hours) : null, workstream_id: fresh.workstream_id ?? null, tags: await tagNamesOf(p, t.id), outputs: await outputNamesOf(p, t.id) } };
 }
 
+// ── set_task_workstream (LOW, 2026-11-20) — 업무 그룹 배정 전용. update_task 의 workstream_id 와 같은 길(0 = 빼기).
+async function setTaskWorkstream(p, a, actor) {
+  const ws = Number(a.workstream_id) === 0 ? null : a.workstream_id;
+  const r = await updateTask(p, { task_id: a.task_id, workstream_id: ws }, actor);
+  return { task: r.task, workstream_id: r.task.workstream_id ?? null, removed_from_group: ws === null };
+}
+
 /** update_task 미리보기 — 실행과 같은 권한 판정(FIELD_RULES)·형식·교체 가능 판정을 먼저 본다. 거절될 칸이면 카드 대신 이유. */
 async function previewUpdateTask(p, a) {
   await assertMenu(p, 'qtask', 'read');
@@ -900,6 +907,6 @@ module.exports = {
   loadTaskForSource,
   dateOnly, getContext, searchTasks, getTask, createTask, getTaskNotes, addTaskNote, validDate,
   previewReschedule, rescheduleTask, previewComplete, completeTask, previewCancel, cancelTask,
-  previewAssign, assignTask, updateTask, previewUpdateTask, appendToTask, previewSubmitReview, submitReviewTool, memberName, previewMoveTask, moveTask,
+  previewAssign, assignTask, updateTask, setTaskWorkstream, previewUpdateTask, appendToTask, previewSubmitReview, submitReviewTool, memberName, previewMoveTask, moveTask,
   previewAddReviewers, addReviewers, previewCreateTask,
 };

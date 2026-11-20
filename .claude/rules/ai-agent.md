@@ -41,6 +41,7 @@ paths:
   **`services/actions/kb_actions` 한 곳**(화면 라우트도 — 입력 정규화 헬퍼는 `services/kbFields`). MEDIUM 의 멱등 키는 확인 토큰 **+ 인자 지문**이다
   (쓴 토큰을 다른 인자로 보내면 앞 결과를 «replayed» 로 돌려주던 구멍을 막았다).
 - **추진과제(그룹)(2026-10-27, Fable 설계 PASS — `docs/AGENT_WORKSTREAM_DESIGN.md`)** — `create_workstream`(LOW · `projects:write` · 같은 이름이면 있는 그룹 반환) · `create_task`/`update_task` 의 `workstream_id`(같은 프로젝트만, null=빼기) · `get_project.workstreams`(업무 수는 `taskListWhere`). 만들기는 **`services/actions/workstream_actions` 한 곳**(화면 POST 도) — `loadProjectOrForbidden` 은 findByPk 라 **토큰 워크스페이스 묶음(`businessId`)을 꼭 준다**(같은 사람이 두 워크스페이스 멤버일 때 실측). 이름 키는 `normalizeWorkstreamTitle` 한 벌(AI 업무추가·루틴 확정도).
+  ★ 2026-11-20 — 있는 업무 배정 전용 `set_task_workstream`(LOW · `tasks:write` · 정수 하나, 0=빼기 · 실행은 update_task 와 같은 `updateFields`). Irene «챗지피티가 workstream_id 가 없다고 해» — update_task 의 칸은 «숫자|null» 두 모양(anyOf)이라 ChatGPT 가 인자 목록에서 못 본 것으로 보인다(운영 화면 실측 없음 — 우리 서버 목록에는 있었다). **ChatGPT 에 보일 칸은 한 모양으로 둔다**(nullable 은 피한다).
 - **새 메일 초안 `create_mail_draft`(2026-11-08, Irene «AI 가 써서 보내고 서명 붙고» · Fable decision C 중 A)** — LOW · scope 는 답장 초안과 같은 `mail:read`+`mail_drafts:write`(재연결 없음) ·
   본인 compose 초안 칸(`email_drafts` thread_id null) 하나 · 받는 사람은 «받는 사람» 칸만(작성 폼에 참조 칸이 없어 숨은 수신자가 된다) · 계정은 `mailGate` 집합 안 ·
   이미 쓰던 새 메일 초안이 있으면 CONFLICT(덮지 않음) · 링크 `/mail?compose=1` · 서명은 보낼 때 `emailSend` 가 그 주소대로. **실제 발송(B)은 Irene 정책 승인 + Fable 설계 1회 뒤에만** —

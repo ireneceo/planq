@@ -67,7 +67,7 @@ const TOOLS = [
   },
   {
     name: 'create_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
-    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members — by default it becomes their plain assigned task (they are notified and can finish it themselves). Pass as_request: true only when the user explicitly asks to REQUEST it from that colleague: then the user automatically becomes a reviewer and the colleague must get the user\'s sign-off before it is complete. The result says is_request. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none). Project groups: if the task belongs to a project that has groups (workstreams — 추진과제 / 업무그룹, listed by get_project), put it in the right one with workstream_id. If the user names a group that does not exist yet, create it first with create_workstream, then pass its workstream_id. To move an existing task into a group use update_task.'
+    description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members — by default it becomes their plain assigned task (they are notified and can finish it themselves). Pass as_request: true only when the user explicitly asks to REQUEST it from that colleague: then the user automatically becomes a reviewer and the colleague must get the user\'s sign-off before it is complete. The result says is_request. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none). Project groups: if the task belongs to a project that has groups (workstreams — 추진과제 / 업무그룹, listed by get_project), put it in the right one with workstream_id. If the user names a group that does not exist yet, create it first with create_workstream, then pass its workstream_id. To move an existing task into a group use set_task_workstream.'
       + " Files: to attach files already in PlanQ (file_id from list_files or a mail attachment) pass file_ids — then confirmation is required (the first call returns a preview). A file the user attached in this ChatGPT conversation: create first, then upload_file with attach_to. If you cannot pass a file (Claude, or a file you generated), give the user upload_url from the result to add it in PlanQ. Never say a file is attached unless the result lists it in attached_files.",
     input: {
       title: z.string().trim().min(1).max(300),
@@ -200,7 +200,7 @@ const TOOLS = [
   },
   {
     name: 'get_project', risk: 'LOW', write: false, scopes: ['projects:read'],
-    description: 'Get one project by project_id: full description, linked clients, deal stages (no amounts), counts, open tasks, its groups (workstreams — 추진과제 / 업무그룹: workstream_id, title, task_count; use workstream_id in create_task / update_task), the latest notes and upcoming events. For more notes use list_project_notes. Read-only.',
+    description: 'Get one project by project_id: full description, linked clients, deal stages (no amounts), counts, open tasks, its groups (workstreams — 추진과제 / 업무그룹: workstream_id, title, task_count; use workstream_id in create_task / set_task_workstream), the latest notes and upcoming events. For more notes use list_project_notes. Read-only.',
     input: { project_id: z.number().int().positive() },
     handler: (p, a) => dir.getProject(p, a),
   },
@@ -653,7 +653,7 @@ const TOOLS = [
   //   만드는 것은 프로젝트 구조라 scope 는 projects:write(업무에 그룹 지정은 tasks:write 그대로). 삭제·이름 바꾸기는 두지 않는다.
   {
     name: 'create_workstream', risk: 'LOW', write: true, scopes: ['projects:write'],
-    description: 'Create a group (workstream, 추진과제 / 그룹) inside a project, to organize its tasks. If the project already has a group with the same name (spaces and case ignored), that group is returned instead of a duplicate (matched_existing). Only adds — never renames, deletes or moves anything, and notifies no one. Then put tasks in it with create_task or update_task (workstream_id). Existing groups are listed by get_project.',
+    description: 'Create a group (workstream, 추진과제 / 그룹) inside a project, to organize its tasks. If the project already has a group with the same name (spaces and case ignored), that group is returned instead of a duplicate (matched_existing). Only adds — never renames, deletes or moves anything, and notifies no one. Then put tasks in it with create_task (workstream_id) or, for existing tasks, set_task_workstream. Existing groups are listed by get_project.',
     input: {
       project_id: z.number().int().positive(),
       title: z.string().trim().min(1).max(200),
@@ -758,13 +758,26 @@ const TOOLS = [
       tag_names: z.array(z.string().trim().min(1).max(30)).max(10).optional().describe('The full new tag list (existing tag names only)'),
       output_names: z.array(z.string().trim().min(1).max(40)).max(10).optional().describe('The full new list of expected outputs (preset labels or existing names only — replaces the task\'s outputs)'),
       workstream_id: z.number().int().positive().nullable().optional()
-        .describe('Put the task in a group (workstream, 추진과제) of its own project (ids from get_project), or null to take it out of its group. Same project only — to change project use move_task_to_project.'),
+        .describe('Put the task in a group (workstream, 추진과제) of its own project (ids from get_project), or null to take it out of its group (set_task_workstream does the same). Same project only — to change project use move_task_to_project.'),
       confirmation_token: confirm, idempotency_key: idem,
     },
     // 설명·결과물은 늘 교체라 MEDIUM(2026-10-27 Fable — 업무엔 버전 이력이 없다, 옛 원문은 감사에 남긴다). 칸이 비었는지는 riskOf 가 모른다(인자만 본다, 동기).
     riskOf: (a) => (a.description !== undefined || a.body !== undefined ? 'MEDIUM' : 'LOW'),
     preview: (p, a) => t.previewUpdateTask(p, a),
     handler: (p, a, actor) => t.updateTask(p, a, actor),
+  },
+  // 업무 그룹 배정 전용 — 2026-11-20 Irene «챗지피티가 workstream_id 가 없다고 해». update_task 에는 칸이 있지만(10-27)
+  //   그 칸만 «숫자|null» 두 모양(anyOf)이라 ChatGPT 가 인자 목록에서 못 봤다. 이름으로 찾히는 도구 + 한 모양(정수, 0=빼기).
+  //   실행은 update_task 와 같은 길(updateTask → task_actions.updateFields — 같은 프로젝트만·FIELD_RULES.workstream_id).
+  {
+    name: 'set_task_workstream', risk: 'LOW', write: true, scopes: ['tasks:write'],
+    description: 'Put an existing task into a group (workstream — 추진과제 / 업무그룹) of its own project, or take it out of its group (workstream_id 0). Get group ids from get_project (workstreams); if the group does not exist yet, create it with create_workstream first. Same project only — to change the project use move_task_to_project. Changes nothing else and notifies no one. One task per call.',
+    input: {
+      task_id: z.number().int().positive(),
+      workstream_id: z.number().int().min(0).describe('Group id from get_project (workstreams) or create_workstream. 0 = take the task out of its group.'),
+      idempotency_key: idem,
+    },
+    handler: (p, a, actor) => t.setTaskWorkstream(p, a, actor),
   },
   // 덧붙이기 — update_task 에서 뗐다(2026-10-27 Fable, Q docs append_to_document 와 같은 모양). 지우는 것이 없어 LOW.
   {
