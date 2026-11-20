@@ -384,6 +384,8 @@ Business.addHook('afterUpdate', (inst, opts) => {
     if (!publicFieldsTouched(opts && opts.fields)) return;
     const prevStatus = inst.previous ? inst.previous('public_page_status') : null;
     if (inst.public_page_status !== 'public' && prevStatus !== 'public') return;
+    // 요금제가 바뀌었으면 자격 캐시(30초)를 먼저 비운다 — 아니면 2초 뒤 재생성이 옛 자격으로 HTML 을 다시 만든다(Fable 재검증 N5)
+    try { require('../services/plan').invalidateBusinessCache(inst.id); } catch { /* 캐시만 */ }
     const seo = require('../services/seoWorkspacePages');
     seo.removeWorkspacePageFiles(inst.slug);
     const prevSlug = inst.previous ? inst.previous('slug') : null;

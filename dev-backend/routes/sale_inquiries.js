@@ -23,7 +23,8 @@ const serialize = (r) => ({
   message: r.message, service_id: r.service_id, service_name: r.service_name,
   locale: r.locale, held_reason: r.held_reason,
   client_id: r.client_id, handled_by: r.handled_by, handled_at: r.handled_at,
-  created_at: r.created_at,
+  // underscored 모델의 시각은 인스턴스 속성 createdAt 이다(r.created_at 은 undefined — Fable 재검증 비차단)
+  created_at: r.createdAt || r.get('created_at'),
 });
 
 async function countsOf(businessId) {

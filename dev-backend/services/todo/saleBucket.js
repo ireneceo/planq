@@ -252,7 +252,7 @@ async function collectSale(businessId, userId, userRole) {
         subject: q.name,
         context: q.service_name || null,
         dueAt: null,
-        createdAt: safeToIso(q.created_at),
+        createdAt: safeToIso(q.createdAt || q.get('created_at')),
         link: `/sale?tab=inbox&inquiry=${q.id}`,
       });
     }
