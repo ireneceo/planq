@@ -655,5 +655,30 @@
   "memoAi": {
     "summary": "AI summary",
     "tasksHint": "Extract tasks with AI · add a task via Cue"
+  },
+  "aiRequest": {
+    "title": "Ask AI",
+    "label": "Ask AI",
+    "newPh": "Need something other than the summary? Ask AI (e.g. turn it into an email to the client) · Enter",
+    "refinePh": "How should AI change the result? (e.g. shorter · more polite · stress the price) · Enter",
+    "send": "Create with AI",
+    "refine": "Refine with AI",
+    "ex1": "Write a follow-up email to the client",
+    "ex2": "Summarize for my manager in 5 lines",
+    "ex3": "Decisions and action items as a table",
+    "ex4": "Translate into Korean",
+    "working": "AI is writing…",
+    "refining": "AI is refining the result…",
+    "copy": "Copy",
+    "copied": "Copied",
+    "reset": "New request",
+    "lastRequest": "Last request",
+    "docTitle": "AI request result",
+    "errUnavailable": "The AI service is temporarily unavailable. Please try again shortly.",
+    "errEmpty": "AI couldn't produce a result this time. Try a more specific request.",
+    "errEmptySource": "There's nothing to work with yet.",
+    "errEmptyMemo": "This memo is empty. Write something first.",
+    "errForbidden": "Only the note's creator can clear this.",
+    "errFailed": "Couldn't process the AI request. Please try again."
   }
 }

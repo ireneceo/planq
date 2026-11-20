@@ -143,6 +143,10 @@ export interface QNoteSession {
   summarized_at?: string | null;
   summary_key_points?: string[] | null;  // N+88 — 영속 요약 핵심 포인트
   summary_full?: string | null;          // N+88 — 영속 요약 전문
+  // 2026-11-20 — AI 추가 요청(기본 요약과 따로 남는 가공 결과 1건)
+  ai_request_text?: string | null;
+  ai_request_result?: string | null;
+  ai_request_at?: string | null;
   // 운영 #54 — 분류/태그 (메모·음성 공통)
   category?: string | null;
   tags?: string[] | null;
@@ -228,6 +232,37 @@ export async function generateSessionSummary(
   const j = await res.json();
   if (!j.success) throw new Error(j.message || j.detail || 'summary_failed');
   return j.data;
+}
+
+// 2026-11-20 — AI 추가 요청. 기본 요약은 그대로 두고, 사용자가 문장으로 시킨 모양으로 녹취를 가공한다.
+//   currentResult 가 있으면 그 결과를 요청대로 다듬는다(메일 답장 AI 요청과 같은 흐름). 본인 노트면 서버가 노트에 남긴다.
+export interface NoteAiRequestResult { request: string; result: string; at: string; saved: boolean }
+export async function generateNoteAiRequest(opts: {
+  sessionId: number; transcript: string; instruction: string; currentResult?: string | null; summary?: string | null;
+}): Promise<NoteAiRequestResult> {
+  const res = await fetch(`${BASE}/llm/custom`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken()}` },
+    body: JSON.stringify({
+      session_id: opts.sessionId,
+      transcript: opts.transcript,
+      instruction: opts.instruction,
+      current_result: opts.currentResult || undefined,
+      summary: opts.summary || undefined,
+    }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!j.success) throw new Error(j.message || j.detail || 'ai_request_failed');
+  return j.data;
+}
+export async function clearNoteAiRequest(sessionId: number): Promise<void> {
+  const res = await fetch(`${BASE}/llm/custom/clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getAccessToken()}` },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!j.success) throw new Error(j.message || j.detail || 'ai_request_clear_failed');
 }
 
 // ─── N+88 Q Note ↔ Q Task 브릿지 (Node API — /api/businesses) ───

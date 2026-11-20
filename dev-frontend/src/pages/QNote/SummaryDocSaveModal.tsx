@@ -14,9 +14,11 @@ interface Props {
   onSaved: () => void;
   onError: (msg: string) => void;
   onClose: () => void;
+  /** 2026-11-20 — 요약 대신 다른 내용(AI 추가 요청 결과)을 저장할 때. 없으면 기본 요약. */
+  content?: { titleSuffix: string; keyPoints: string[]; full: string; fullLabel: string };
 }
 
-const SummaryDocSaveModal: React.FC<Props> = ({ open, businessId, session, projects, onSaved, onError, onClose }) => {
+const SummaryDocSaveModal: React.FC<Props> = ({ open, businessId, session, projects, onSaved, onError, onClose, content }) => {
   const { t } = useTranslation('qnote');
   const cur = ['L1', 'L2', 'L3'].includes(session.visibility || '') ? session.visibility as 'L1' | 'L2' | 'L3' : 'L1';
   return (
@@ -34,10 +36,10 @@ const SummaryDocSaveModal: React.FC<Props> = ({ open, businessId, session, proje
         try {
           await saveSummaryAsDoc({
             businessId,
-            title: `${session.title || 'Q Note'} — ${t('page.summary.title')}`,
-            keyPoints: session.summary_key_points || [],
-            full: session.summary_full || '',
-            labels: { keyPoints: t('page.summary.keyPointsLabel') as string, full: t('page.summary.fullLabel') as string },
+            title: `${session.title || 'Q Note'} — ${content ? content.titleSuffix : t('page.summary.title')}`,
+            keyPoints: content ? content.keyPoints : (session.summary_key_points || []),
+            full: content ? content.full : (session.summary_full || ''),
+            labels: { keyPoints: t('page.summary.keyPointsLabel') as string, full: content ? content.fullLabel : t('page.summary.fullLabel') as string },
             vlevel: level === 'L4' ? 'L1' : level,
             projectId: projectId ?? null,
           });

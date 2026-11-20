@@ -242,6 +242,10 @@ async def _run_migrations(db):
     ('body', 'TEXT'),                                  # text 메모 본문 (TipTap JSON 또는 plain)
     ('summary_key_points', 'TEXT'),                    # 영속 요약 — 핵심 포인트 (JSON 배열). N+88
     ('summary_full', 'TEXT'),                          # 영속 요약 — 전문 (plain text). N+88
+    # 2026-11-20 — AI 추가 요청(기본 요약은 그대로, 사용자가 문장으로 시킨 가공 결과 1건 — 메일 답장 AI 요청과 같은 흐름)
+    ('ai_request_text', 'TEXT'),                       # 마지막으로 반영된 요청 문장
+    ('ai_request_result', 'TEXT'),                     # 결과 (plain text)
+    ('ai_request_at', 'TEXT'),                         # 결과 만든 시각
   ]
   for col, typ in session_memo_cols:
     if not await _column_exists(db, 'sessions', col):

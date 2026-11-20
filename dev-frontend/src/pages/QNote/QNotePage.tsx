@@ -99,6 +99,7 @@ import { isEnterAction } from '../../utils/imeKey';
 import { formatDayTime } from '../../utils/dateFormat';
 import { orderProjectsForMe } from '../../utils/projectOrder';
 import { useLiveReload } from '../../hooks/useLiveReload';
+import NoteAiRequest from '../../components/QNote/NoteAiRequest';
 
 const QNOTE_EVENTS = ['qnote:changed'] as const;
 
@@ -456,6 +457,9 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
   }, []);
   const [reSummarizeInput, setReSummarizeInput] = useState('');
   const [docSaved, setDocSaved] = useState(false);
+  // 2026-11-20 — 문서 저장 창을 요약/AI 추가 요청 결과가 같이 쓴다. AI 결과 저장 여부는 «어느 노트의 어느 결과» 로 기억한다.
+  const [docVisMode, setDocVisMode] = useState<'summary' | 'ai'>('summary');
+  const [aiDocSavedKey, setAiDocSavedKey] = useState<string | null>(null);
   const [questionsModal, setQuestionsModal] = useState(false);
   const [settingsViewOpen, setSettingsViewOpen] = useState(false);
   // 녹음 중 [상담 저장] — 먼저 «종료하고 저장할까요?» 를 묻는다(종료는 되돌릴 수 없다)
@@ -1589,20 +1593,23 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
   // N+88 — 요약 생성/재요약 (영속). textOverride 없으면 음성 transcript 사용 (메모는 body 전달).
   // 결과는 backend 가 sessions 에 영속 + activeSession.summary_* 즉시 갱신 → 인라인 섹션 반영.
+  // 2026-11-16 — 줄 앞에 화자 이름을 붙여 보낸다. 요약이 «할 일 — 담당: 누구» 를 잡을 재료(전엔 말만 이어 붙여 담당을 알 수 없었다).
+  //   요약과 AI 추가 요청(2026-11-20)이 같은 원문을 쓴다.
+  const speakerTranscript = () => renderBlocks
+    .filter((b) => b.kind === 'speech' || b.kind === 'question')
+    .map((b) => {
+      const said = b.segments.map((s) => s.original).join(' ');
+      return b.speakerLabel ? `${b.speakerLabel}: ${said}` : said;
+    })
+    .join('\n');
+
   const runSummary = async (textOverride?: string, instruction?: string) => {
     if (!activeSession) return;
     const sid = activeSession.id;
     setSummaryError(null);
     setSummarizing(true);
     try {
-      // 2026-11-16 — 줄 앞에 화자 이름을 붙여 보낸다. 요약이 «할 일 — 담당: 누구» 를 잡을 재료(전엔 말만 이어 붙여 담당을 알 수 없었다).
-      const text = (textOverride ?? renderBlocks
-        .filter((b) => b.kind === 'speech' || b.kind === 'question')
-        .map((b) => {
-          const said = b.segments.map((s) => s.original).join(' ');
-          return b.speakerLabel ? `${b.speakerLabel}: ${said}` : said;
-        })
-        .join('\n')).trim();
+      const text = (textOverride ?? speakerTranscript()).trim();
       if (!text) {
         setSummaryError(t('page.reviewBar.emptyTranscript') as string);
         return;
@@ -3371,7 +3378,7 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                         <SummaryLink type="button" onClick={() => navigate('/docs')}>{t('page.summary.viewDoc', '보기')}</SummaryLink>
                       </SummarySavedRow>
                     ) : (
-                      <SummaryDocBtn type="button" data-testid="qnote-save-doc" onClick={() => { setSummaryError(null); setDocVisOpen(true); }}>
+                      <SummaryDocBtn type="button" data-testid="qnote-save-doc" onClick={() => { setSummaryError(null); setDocVisMode('summary'); setDocVisOpen(true); }}>
                         {t('page.summary.saveDoc', '문서로 저장')}
                       </SummaryDocBtn>
                     )}
@@ -3419,6 +3426,25 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
                     {summarizing ? t('page.summary.generating', '생성 중...') : t('page.summary.generate', 'AI 요약 생성')}
                   </SummaryGenerateBtn>
                 </SummaryEmpty>
+              )}
+              {/* 2026-11-20 — 기본 요약은 그대로, 그 아래 «AI 추가 요청»(메일 답장 AI 요청과 같은 흐름). 요약을 접으면 같이 접힌다. */}
+              {!summaryCollapsed && (
+                <NoteAiRequest
+                  key={activeSession.id}
+                  sessionId={activeSession.id}
+                  value={activeSession}
+                  getText={speakerTranscript}
+                  summary={activeSession.summary_full}
+                  emptyTextMsg={t('page.reviewBar.emptyTranscript') as string}
+                  canRequest={String(activeSession.user_id) === String(user?.id)}
+                  onChange={(next) => {
+                    const sid = activeSession.id;
+                    setActiveSession((prev) => (prev && prev.id === sid ? { ...prev, ...next } : prev));
+                  }}
+                  onSaveDoc={businessId ? () => { setSummaryError(null); setDocVisMode('ai'); setDocVisOpen(true); } : undefined}
+                  docSaved={aiDocSavedKey === `${activeSession.id}:${activeSession.ai_request_at || ''}`}
+                  onViewDoc={() => navigate('/docs')}
+                />
               )}
             </SummarySection>
 
@@ -3655,7 +3681,17 @@ const QNotePage = ({ scope, onRecordingChange }: QNotePageProps = {}) => {
 
       {activeSession && businessId && (
         <SummaryDocSaveModal open={docVisOpen} businessId={Number(businessId)} session={activeSession} projects={visProjects}
-          onSaved={() => setDocSaved(true)} onError={setSummaryError} onClose={() => setDocVisOpen(false)} />
+          content={docVisMode === 'ai' ? {
+            titleSuffix: t('aiRequest.docTitle', 'AI 요청 결과') as string,
+            keyPoints: [],
+            full: activeSession.ai_request_result || '',
+            fullLabel: (activeSession.ai_request_text || t('aiRequest.docTitle', 'AI 요청 결과')) as string,
+          } : undefined}
+          onSaved={() => {
+            if (docVisMode === 'ai') setAiDocSavedKey(`${activeSession.id}:${activeSession.ai_request_at || ''}`);
+            else setDocSaved(true);
+          }}
+          onError={setSummaryError} onClose={() => setDocVisOpen(false)} />
       )}
       {/* N+42 — 정리하기 분기 모달 (4 액션) */}
       {/* 사이클 N+25 — Q Note 공유 모달 (visibility + share_token 통합) */}

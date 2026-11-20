@@ -1253,6 +1253,59 @@ async def generate_summary(transcript: str, meeting_context: Optional[dict] = No
 
 
 # ─────────────────────────────────────────────────────────
+# AI 추가 요청 (2026-11-20 Irene «요약할 때 AI로 가공해서 만들어 낼 수 있게 — 메일에 답변 작성하는 것처럼.
+#   기본 요약기능 두고, 추가로 ai 추가요청 기능»)
+#   기본 요약(SUMMARY_SYSTEM)은 그대로 두고, 사용자가 문장으로 시킨 모양(고객에게 보낼 메일·보고서·표·번역 등)으로
+#   녹취를 가공한다. 결과가 있으면 그 결과 + 새 요청으로 다듬는다(메일 답장 ai-suggest 의 current_draft 와 같은 흐름).
+# ─────────────────────────────────────────────────────────
+
+CUSTOM_REQUEST_SYSTEM = """You turn a meeting transcript (or a memo) into whatever the user asks for —
+e.g. a follow-up email to the client, a report for the boss, a table of decisions, a checklist, a translation, a short brief.
+
+## Rules
+1. Use ONLY what the source says. Never invent facts, numbers, dates, names, prices or commitments.
+   If the request needs something the source does not contain, leave a clear placeholder like "[확인 필요: …]" / "[TBD: …]".
+2. Keep concrete facts exactly as spoken: numbers, amounts, dates, deadlines, names. Do not round or convert.
+3. Follow the requested format, tone and length. If no language is requested, write in the source's dominant language.
+4. Output plain text only (line breaks and "- " / "1." bullets are fine; no markdown headings like "#", no code fences,
+   no "**bold**"). For a table write one row per line with cells separated by " | " — no "---" divider lines, no padding spaces.
+5. Output ONLY the finished text — no preface such as "Here is…", no closing remarks about what you did.
+"""
+
+
+async def generate_custom_request(
+  transcript: str,
+  instruction: str,
+  current_result: Optional[str] = None,
+  summary: Optional[str] = None,
+  meeting_context: Optional[dict] = None,
+) -> str:
+  """사용자 요청대로 녹취를 가공한 평문 1건. current_result 가 있으면 그것을 요청대로 고친다."""
+  instruction = (instruction or '').strip()[:1000]
+  if not transcript.strip() or not instruction:
+    return ''
+  client = get_client()
+  system_content = _build_context_prefix(meeting_context) + CUSTOM_REQUEST_SYSTEM
+  parts = [f'## Source (transcript / memo)\n{transcript}']
+  if summary and summary.strip():
+    parts.append(f'## Existing summary (for reference — the source wins if they differ)\n{summary.strip()[:20000]}')
+  if current_result and current_result.strip():
+    parts.append(f'## Current result (revise THIS according to the request — keep what the request does not ask to change)\n{current_result.strip()[:20000]}')
+  parts.append(f'## Request\n{instruction}')
+  response = await client.chat.completions.create(
+    model=LLM_MODEL_ANSWER,
+    messages=[{'role': 'system', 'content': system_content}, {'role': 'user', 'content': '\n\n'.join(parts)}],
+    max_completion_tokens=8000,
+    timeout=120.0,   # 요약과 같은 이유 — 긴 회의는 출력이 길다
+  )
+  text = (response.choices[0].message.content or '').strip()
+  # 모델이 지시를 어기고 코드 펜스로 감싸 오는 경우만 벗긴다
+  if text.startswith('```') and text.endswith('```'):
+    text = text.strip('`').split('\n', 1)[-1].strip()
+  return text
+
+
+# ─────────────────────────────────────────────────────────
 # Answer generation (RAG, B-5)
 # ─────────────────────────────────────────────────────────
 

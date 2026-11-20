@@ -16,6 +16,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { createSession, updateSession, generateSessionSummary } from '../../services/qnote';
 import type { QNoteSession } from '../../services/qnote';
+import { useAuth } from '../../contexts/AuthContext';
+import NoteAiRequest from '../../components/QNote/NoteAiRequest';
 import { saveSummaryAsDoc } from '../../utils/qnoteSummaryDoc';
 import { useNoteTaskExtraction } from '../../hooks/useNoteTaskExtraction';
 import TaskCandidateCard, { type CandidateData } from '../../components/Common/TaskCandidateCard';
@@ -87,6 +89,7 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   //   섞으면 저장된 메모를 열었을 때 옛 공유 텍스트가 본문을 덮어쓴다.
   const [doc, setDoc] = useState<unknown>(() => parseBodyToDoc(session ? session.body : (prefillText || null)));
   const [sessionId, setSessionId] = useState<number | null>(session?.id ?? null);
+  const { user } = useAuth();
   const [saveState, setSaveState] = useState<SaveState>(session ? 'saved' : 'idle');
   const [savedAt, setSavedAt] = useState<number | null>(session ? Date.now() : null);
   const [tick, setTick] = useState(0);
@@ -111,6 +114,8 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
   const [reSummarizeInput, setReSummarizeInput] = useState('');
   const [savingDoc, setSavingDoc] = useState(false);
   const [docSaved, setDocSaved] = useState(false);
+  const [aiDocSavedKey, setAiDocSavedKey] = useState<string | null>(null);  // 2026-11-20 AI 추가 요청 결과 → 문서
+  const [savingAiDoc, setSavingAiDoc] = useState(false);
   // ★ 2026-10-16 (Irene: *"메모쓰기 가면 모바일에서 커서가 안보여 … AI 요약 생성, 업무추출 … 너무 길게 내용을 잡아먹어.
   //   버튼들로 모아서"*) — 요약·업무 두 밴드가 에디터 위에 늘 펼쳐져(스크롤 밖 고정) 폰에서 키보드가 뜨면
   //   본문 자리가 남지 않았다. 이제 밴드2 오른쪽 버튼 두 개가 «하나의 칸» 을 연다. 칸은 본문 스크롤 안이라
@@ -146,6 +151,28 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
       setSummaryError((e as Error).message || (t('page.summary.saveDocFailed') as string));
     } finally {
       setSavingDoc(false);
+    }
+  };
+
+  // 2026-11-20 — AI 추가 요청 결과 → 문서(요약 저장과 같은 사적 기본)
+  const saveMemoAiAsDoc = async () => {
+    if (!session?.ai_request_result || !businessId || !sessionId) return;
+    setSavingAiDoc(true);
+    setSummaryError(null);
+    try {
+      const docTitle = t('aiRequest.docTitle', 'AI 요청 결과') as string;
+      await saveSummaryAsDoc({
+        businessId,
+        title: `${session.title || 'Q Note'} — ${docTitle}`,
+        keyPoints: [],
+        full: session.ai_request_result || '',
+        labels: { keyPoints: t('page.summary.keyPointsLabel') as string, full: session.ai_request_text || docTitle },
+      });
+      setAiDocSavedKey(`${sessionId}:${session.ai_request_at || ''}`);
+    } catch (e) {
+      setSummaryError((e as Error).message || (t('page.summary.saveDocFailed') as string));
+    } finally {
+      setSavingAiDoc(false);
     }
   };
 
@@ -434,6 +461,23 @@ const MemoView: React.FC<Props> = ({ session, businessId, prefillProjectId, pref
                     {t('page.summary.generate', 'AI 요약 생성')}
                   </MemoSummaryDocBtn>
                 </MemoSummaryRetry>
+              )}
+              {/* 2026-11-20 — 기본 요약 아래 «AI 추가 요청»(음성 노트와 같은 컴포넌트) */}
+              {sessionId && session && (
+                <NoteAiRequest
+                  key={sessionId}
+                  sessionId={sessionId}
+                  value={session}
+                  getText={() => docToPlainText(doc)}
+                  summary={session.summary_full}
+                  emptyTextMsg={t('aiRequest.errEmptyMemo', '메모에 내용이 없어요. 먼저 내용을 적어 주세요.') as string}
+                  canRequest={String(session.user_id) === String(user?.id)}
+                  onChange={(next) => onUpdated({ ...session, ...next })}
+                  onSaveDoc={businessId ? saveMemoAiAsDoc : undefined}
+                  docSaved={aiDocSavedKey === `${sessionId}:${session.ai_request_at || ''}`}
+                  savingDoc={savingAiDoc}
+                  onViewDoc={() => navigate('/docs')}
+                />
               )}
             </AiPanelSection>
           )}

@@ -655,5 +655,30 @@
   "memoAi": {
     "summary": "AI 요약",
     "tasksHint": "AI 업무 추출 · Cue 에게 업무 추가"
+  },
+  "aiRequest": {
+    "title": "AI 추가 요청",
+    "label": "AI 추가 요청",
+    "newPh": "요약 말고 다른 모양이 필요하면 AI 에게 요청하세요 (예: 고객에게 보낼 메일로) · Enter",
+    "refinePh": "결과를 어떻게 고칠까요? (예: 더 짧게 · 더 정중하게 · 가격 강조) · Enter",
+    "send": "AI 로 만들기",
+    "refine": "AI 로 다듬기",
+    "ex1": "고객에게 보낼 회의 정리 메일로 써 줘",
+    "ex2": "상사 보고용으로 5줄 안에 정리",
+    "ex3": "결정 사항과 할 일만 표로",
+    "ex4": "영어로 번역해 줘",
+    "working": "AI 가 만드는 중이에요…",
+    "refining": "AI 가 결과를 다듬는 중이에요…",
+    "copy": "복사",
+    "copied": "복사됨",
+    "reset": "새로 요청",
+    "lastRequest": "마지막 요청",
+    "docTitle": "AI 요청 결과",
+    "errUnavailable": "AI 서비스를 잠시 사용할 수 없어요. 잠시 후 다시 시도해 주세요.",
+    "errEmpty": "AI 가 이번엔 결과를 만들지 못했어요. 요청을 조금 더 구체적으로 적어 주세요.",
+    "errEmptySource": "가공할 내용이 없어요.",
+    "errEmptyMemo": "메모에 내용이 없어요. 먼저 내용을 적어 주세요.",
+    "errForbidden": "이 노트를 만든 사람만 지울 수 있어요.",
+    "errFailed": "AI 요청을 처리하지 못했어요. 다시 시도해 주세요."
   }
 }
