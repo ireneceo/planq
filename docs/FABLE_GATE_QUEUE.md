@@ -2,6 +2,13 @@
 
 
 
+### 2026-11-20 방 b6a57761 — 근태 출근 묻기·본인 수정 표시·관리자 확인/승인 — 설계 **DESIGN-READY** · 완료 검증 1차 **FAIL** → 재판정 **PASS** (e3602efd · 02b6d40e)
+- Irene «그 날 솔루션에서 소통하거나 뭔가 하면 너 출근했냐고 물어보면 안돼? … 몇 시부터인지 표시하고 수정도 … 수정한 거 확인하는 걸 관리자가 체크 … 설정에서 승인할지 말지» · 설계 docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md · Irene «권고대로»
+- 1차 FAIL: B1 승인 대기 값 무검사(승인 불가 요청·40일 전 시각) · B2 fix-close 가 정상 마감 날·다음 날 시각 받음(30.4h) · B3 관리자 자기 «확인함» · 비차단 동시 대기 2건·퇴근 뒤 observed/at
+- 고침 02b6d40e: validateTimeline 접수·승인 같은 함수 · fix-close auto_closed 만 · confirm 본인 건너뜀(대표 예외) · 하루 행 잠금·조건부 승인/반려 · 오늘 행 있으면 409
+- 재판정: Fable 반증 30/30(소켓 3개) · 작업 방 실호출 80/80 · 화면 3폭 28/28 · build EXIT 0 · guard 85/86 · health 101/101 · e2e tenant 0
+- 비차단 남음: ①메뉴 숫자 배지(켬 모드 승인 대기) 미구현 ②승인이 한 트랜잭션 아님(반영 직후 프로세스 죽으면 approved 인데 값 그대로 가능 — 드묾) ③자정 넘긴 근무는 본인 정정으로 못 넣음(자정 분할 정책과 맞음) ④운영 DB 실측 못 함
+
 ### 2026-11-20 방 fec4b3e3 — 프로젝트 히스토리에 메일·주요 이슈 연결 — 설계 **DESIGN-READY** · 완료 검증 **PASS** (6b08bf6f)
 - Irene «프로젝트 히스토리에 고객이 보낸 메일도 연결하자. 채팅으로 소통하는 주요이슈도 추가되는 거 맞아? fable 검토» · 설계 docs/PROJECT_HISTORY_MAIL_ISSUE_DESIGN.md
 - 결정: mail = project_id 걸린 스레드 메시지(받은·보낸)·Q mail read + 접근 메일함만(못 보면 줄 없음)·본문 안 실음 / issue = project_issues(project_id) kind chat·mail·project / 메일 이슈는 스레드 프로젝트 따라감 / history:refresh 신호(멤버 방)
