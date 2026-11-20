@@ -7,7 +7,9 @@
 - 고침 8081ac2c: 전용 도구 set_task_workstream(task_id · workstream_id 정수, 0=빼기) · create_task/get_project/create_workstream 설명이 이 도구를 가리킴
 - 실측(dev 실호출): 배정·옮김·0 빼기·다른 프로젝트 그룹 거절·없는 그룹 거절·권한 없는 멤버 PERMISSION_DENIED·get_project 업무 수 반영 9/9 · MCP 목록 스키마 {"type":"integer","minimum":0} · guard 85/86(전과 같음) · agentsurface 통과
 - 발견(고치지 않음): 멱등 «파라미터 지문 10분» 때문에 같은 연결이 A→B→A 를 10분 안에 하면 마지막 A 가 replayed(실행 안 됨, 옛 결과 반환) — update_task 도 같음. execute.js 는 Fable 영역이라 손대지 않음
-- 확인 못 함: 운영 ChatGPT 화면에서 실제로 보이는지(배포 뒤 앱 [새로고침] 필요 — 할 일 todomwn6jg0o 와 같은 행동)
+- Fable 완료 검증 PASS(라이브 MCP :3005 실호출 16항목 · health 101/101 · guard 85/86) — 마커 0d97c236
+- ★ Fable 비차단 1(가장 중요): ChatGPT 가 말한 «update_task = 제목·설명·우선순위» 는 **10-02 스키마와 똑같다**(10-11 부터 단순형 category·tags 등도 있었는데 그것도 안 말함) → anyOf 보다 **ChatGPT 가 10월 초 도구 목록을 들고 있는 것**이 더 유력. 해결 판정은 ChatGPT 앱 [새로고침] 뒤 set_task_workstream 이 보이는지로. 할 일 todomwn6jg0o 를 순서 고쳐 다시 올림
+- Fable 비차단 2: 멱등 재생(A→B→A 10분 안 마지막 A 가 실행 안 되고 옛 결과로 «성공») 재현함 — 계약 변경이라 Fable 설계 건으로 따로(다음 할 일)
 - 확인용(ws6): 프로젝트 1720 «[확인용] 관리자 멤버관리» · 업무 9883 → 그룹 «[확인용] 그룹 배정 A1»
 - 운영 반영: 다음 배포 때
 
@@ -43,6 +45,7 @@
 - 운영 반영: Q note 녹음 이탈 보호(61e79c81)는 다음 배포 때
 
 ### 다음 할 일
+- AI 도구 멱등 «파라미터 지문 10분» 이 상태 지정 도구(set_task_workstream·update_task)에서 A→B→A 를 삼킴 — Fable 설계로 규칙 정하기(임시 완화안: 도구 설명에 «되돌릴 땐 새 idempotency_key»)
 - Irene 할 일 todomwn6jg0o «ChatGPT 에서 PlanQ 앱 [새로고침] (그룹 만들기 거절되면 다시 연결)» — 고침 5441e14b 는 11-19 10:21 UTC 운영 배포됨 → 지금 할 수 있음 (11-19 점검)
 - Q note 녹음 이탈 보호 확인 못 한 것: 데스크탑 대화창 실기기 · 워크스페이스/계정 전환 · 프로젝트 탭 노트 녹음
 - secrets 워크스페이스 백업 검사 120초 시간초과가 또 나면 그 검사의 느린 지점 보기
