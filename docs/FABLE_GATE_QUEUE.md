@@ -1,6 +1,13 @@
 # Fable 게이트 대기열 → **판정 기록 보관소** (2026-10-08 부터)
 
 
+
+### 2026-11-20 방 fec4b3e3 — 프로젝트 히스토리에 메일·주요 이슈 연결 — 설계 **DESIGN-READY** · 완료 검증 **PASS** (6b08bf6f)
+- Irene «프로젝트 히스토리에 고객이 보낸 메일도 연결하자. 채팅으로 소통하는 주요이슈도 추가되는 거 맞아? fable 검토» · 설계 docs/PROJECT_HISTORY_MAIL_ISSUE_DESIGN.md
+- 결정: mail = project_id 걸린 스레드 메시지(받은·보낸)·Q mail read + 접근 메일함만(못 보면 줄 없음)·본문 안 실음 / issue = project_issues(project_id) kind chat·mail·project / 메일 이슈는 스레드 프로젝트 따라감 / history:refresh 신호(멤버 방)
+- 완료 검증: Fable 독립 실호출 42/42 · 소켓 PASS · 화면 3폭×2역할 6/6 · health 101/101 · guard 85/86 · e2e tenant 0
+- 비차단: ①IMAP 수집·실발송 뒤 신호는 dev 에서 미실행(코드 확인만) — 운영 첫 수신 때 히스토리 갱신 보기 ②개인 메일함 메일 도착 신호가 프로젝트 직원 방 전체로 감(내용 없음, 주인 user 방으로 좁힐 수 있음) ③qmail write 멤버가 자기가 못 보는 프로젝트로도 스레드를 걸 수 있음(기존 동작 — 이제 그 히스토리에 따라 들어감, PUT 프로젝트 접근 검사 별건) ④dev 발송은 suppressed 라 «메일 보냄» 줄 없음(의도)
+
 ### 2026-11-19 방 2a574c2f — AI 앱 업무·문서에 파일 붙이기 — 설계 **DESIGN-READY**(조건부) · 완료 검증 1차 **FAIL** → 재확인 **PASS**
 - Irene «클로드랑 챗지피티가 업무 추가나 문서 등 추가할 때 파일 업로드 같이 되는지 확인해. 제대로 안되었어. 기능 없으면 추가하고 있으면 보완해.»
 - 설계 결정: attach_files_to_task / attach_files_to_document 두 도구(scope 정적이라 나눔, +projects:read) · MEDIUM(고른 기존 파일의 청중 확대 · 업무 첨부 사본은 원본 등급을 잃음) · create_task/create_document file_ids(만들기 전 전부 판정) · 공개 공유 문서 거절 · 고객 업무 + 보안등급 파일 거절 · strict·dedupe(AI 만) · upload_url(?attach=1) · base64 없음
