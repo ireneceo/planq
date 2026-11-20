@@ -1282,6 +1282,11 @@
     "open": "Open",
     "decorate": "Edit page →",
     "noLink": "No page link yet. The owner can create one in «Public page».",
-    "makePage": "Create page →"
+    "makePage": "Create page →",
+    "formTitle": "Inquiry form",
+    "formDesc": "A no-sign-in inquiry form appears at the bottom of your customer page. Inquiries land in Q sale «New inquiries» and notify owners and admins. The sender gets one automatic «received» email.",
+    "formEnabled": "Inquiry form",
+    "formPhone": "Ask for phone",
+    "formCompany": "Ask for company"
   }
 }

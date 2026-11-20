@@ -14,6 +14,12 @@
 - 다음: P2 문의 폼(Fable 검증) → P3 공개 주소·회사 찾기·SEO(Fable 검증 + UX 점검)
 - 운영 반영: 다음 배포 때
 
+### 🔄 워크스페이스 공개 페이지 P2 — 문의 폼 → Q sale «신규 문의» (방 81169704 · 2026-11-20 · [Opus]) — 커밋됨 · **Fable 검증 전(P3 와 묶어 한 번)** · 운영 배포 전 Fable 통과 필요
+- 새 표 workspace_inquiries(멱등 `migrate-workspace-inquiries.js` · deploy-planq.sh 배포 슬롯 등록) · 접수 한 함수 services/workspaceInquiry.submit(스팸 기준 §5.2 계약) · 창구 문 POST /api/guest/:token/inquiries · 팀 GET/POST /api/sale/:biz/inquiries* · 고객 등록 = save-as-client from:'inquiry' · 확인필요 ⑥ 신규 문의(Q sale 배지 안) · 접수 확인 메일(고정 문구·하루 1통) · 보존 정리 cron
+- 화면: 창구 안내 맨 아래 문의 폼 · [이 서비스 문의] → 폼 · 설정 «문의 받기» 카드 · Q sale 상담 탭 맨 위 «신규 문의» + 상세 패널
+- 실측: 실호출 37(1건은 시험 가정 오류 — 동작은 맞음) · canary wspage 61/0 · build EXIT 0 · guard 85/86
+- ★ 운영 배포 전 남은 것: Fable 검증(P2+P3 묶음) · **약관·개인정보처리방침 문구**(문의자 개인정보 전달·보존 1년 / 공개 디렉터리 게시) Irene 확인
+
 ### (이전) 답 기다림: 워크스페이스 공개 페이지 — 페이지 구성 컨펌 + 결정 4건 (방 81169704 · 2026-11-20 · [Opus] · Fable 설계 NEEDS-IRENE)
 - → Irene 답 2026-11-20 «권고대로 진행해 줘» (①예 ②가 ③가 ④가 ⑤가) — 설계 문서 머리에 기록함
 - 무엇을: 설계 `docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md` 와이어 ①공개 페이지 ②설정 «공개 페이지» 탭 ③planq.kr/directory + 업종 16개 컨펌 · ②접수 확인 메일 보낼지 ③문의 저장(신규 문의함 → 한 번 눌러 고객 등록 vs 즉시 고객) ④디렉터리 첫 공개 관리자 승인 ⑤노출 자격(유료+체험)

@@ -489,11 +489,46 @@
     "mail_inquiry": "Email inquiry",
     "guest_inquiry": "Guest inquiry",
     "manual_add": "Added manually",
-    "client_added": "Registered as client"
+    "client_added": "Registered as client",
+    "web_inquiry": "Public page inquiry"
   },
   "clientStatus": {
     "label": "Archive",
     "active": "Active",
     "archived": "Archived"
+  },
+  "inquiryBox": {
+    "title": "New inquiries",
+    "hint": "Sent through the inquiry form on your public page.",
+    "status": {
+      "new": "New",
+      "held": "Held",
+      "handled": "Handled",
+      "spam": "Spam"
+    },
+    "held": {
+      "links": "Held — many links",
+      "duplicate": "Held — same message sent to several companies",
+      "flood": "Held — unusual daily volume"
+    },
+    "empty": "No inquiries here.",
+    "detail": "Inquiry detail",
+    "contact": "Contact",
+    "email": "Email",
+    "phone": "Phone",
+    "company": "Company",
+    "service": "Service",
+    "message": "Message",
+    "openClient": "Open client →",
+    "readOnly": "Only people with Q sale write access can handle this.",
+    "spam": "Spam",
+    "handled": "Mark handled",
+    "reply": "Reply by email",
+    "register": "Add as client",
+    "restore": "Move back to new",
+    "err": {
+      "generic": "Couldn't complete. Please try again.",
+      "quota": "Prospect limit reached. Please check your plan."
+    }
   }
 }

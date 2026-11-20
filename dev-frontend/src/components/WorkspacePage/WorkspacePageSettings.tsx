@@ -30,7 +30,8 @@ type Service = {
   price_text: string; price_text_en: string; image_url: string;
 };
 type Extra = { label: string; label_en: string; value: string; value_en: string };
-type Entry = { intro: string; intro_en: string; hidden: string[]; services: Service[]; extras: Extra[] };
+type Form = { enabled: boolean; ask_phone: boolean; ask_company: boolean };
+type Entry = { intro: string; intro_en: string; hidden: string[]; services: Service[]; extras: Extra[]; form: Form };
 type Auto = Record<string, string | WorkHours | null>;
 
 const SERVICE_MAX = 12;
@@ -43,7 +44,7 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState<string | null>(null);
-  const [entry, setEntry] = useState<Entry>({ intro: '', intro_en: '', hidden: [], services: [], extras: [] });
+  const [entry, setEntry] = useState<Entry>({ intro: '', intro_en: '', hidden: [], services: [], extras: [], form: { enabled: true, ask_phone: false, ask_company: false } });
   const [auto, setAuto] = useState<Auto>({});
   const [autoKeys, setAutoKeys] = useState<string[]>([]);
   const [preview, setPreview] = useState<EntryInfo | null>(null);
@@ -69,6 +70,7 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
         hidden: Array.isArray(ce.hidden) ? ce.hidden : [],
         services: Array.isArray(ce.services) ? ce.services : [],
         extras: Array.isArray(ce.extras) ? ce.extras : [],
+        form: { enabled: ce.form?.enabled !== false, ask_phone: !!ce.form?.ask_phone, ask_company: !!ce.form?.ask_company },
       });
       setAuto(j.data.auto || {});
       setAutoKeys(Array.isArray(j.data.auto_keys) ? j.data.auto_keys : []);
@@ -91,6 +93,8 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
   }, [businessId]);
 
   const saveHidden = useCallback(async () => { await save({ hidden: entryRef.current.hidden }); }, [save]);
+  const saveForm = useCallback(async () => { await save({ form: entryRef.current.form }); }, [save]);
+  const flipForm = (k: keyof Form) => setEntry((p) => ({ ...p, form: { ...p.form, [k]: !p.form[k] } }));
   const saveIntro = useCallback(async () => {
     await save({ intro: entryRef.current.intro, intro_en: entryRef.current.intro_en });
   }, [save]);
@@ -334,6 +338,29 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
             <AddBtn type="button" onClick={addExtra} data-testid="wspage-extra-add">+ {t('wspage.addExtra', '항목 추가')}</AddBtn>
           )}
         </Card>
+        <Card data-testid="wspage-form">
+          <CardHeader>
+            <Title>{t('wspage.formTitle', '문의 받기')}</Title>
+            <Desc>{t('wspage.formDesc', '고객 페이지 맨 아래에 로그인 없이 쓰는 문의 폼이 생깁니다. 문의가 오면 Q sale «신규 문의» 에 쌓이고 대표·관리자에게 알림이 갑니다. 문의한 분에게는 «접수되었습니다» 안내 메일이 한 번 갑니다.')}</Desc>
+          </CardHeader>
+          {([
+            ['enabled', t('wspage.formEnabled', '문의 폼')],
+            ['ask_phone', t('wspage.formPhone', '전화번호도 받기')],
+            ['ask_company', t('wspage.formCompany', '회사명도 받기')],
+          ] as [keyof Form, string][]).map(([k, label]) => (
+            <AutoRow key={k} data-testid={`wspage-form-${k}`}>
+              <AutoKey>{label}</AutoKey>
+              <AutoVal />
+              <AutoSaveField type="toggle" key={`wspage-form-${businessId}-${k}`} onSave={saveForm}>
+                <Switch type="button" role="switch" aria-checked={entry.form[k]} $on={entry.form[k]} aria-label={label}
+                  disabled={!isOwner || (k !== 'enabled' && !entry.form.enabled)}
+                  data-testid={`wspage-form-toggle-${k}`} onClick={() => flipForm(k)}>
+                  <SwitchKnob $on={entry.form[k]} />
+                </Switch>
+              </AutoSaveField>
+            </AutoRow>
+          ))}
+        </Card>
       </EditCol>
 
       <PreviewCol>
@@ -350,7 +377,8 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
             </div>
           </PreviewHead>
           <PreviewBody>
-            <EntryInfoView entry={preview} bookingOn={!!preview?.booking?.enabled} onAsk={() => {}} onBook={() => {}} preview />
+            <EntryInfoView entry={preview} bookingOn={!!preview?.booking?.enabled} onAsk={() => {}} onBook={() => {}} preview
+              workspaceName={(auto.name as string) || ''} />
           </PreviewBody>
         </PreviewCard>
       </PreviewCol>

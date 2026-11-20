@@ -52,6 +52,7 @@ const overflowX = (page) => page.evaluate(() => document.documentElement.scrollW
 
 async function run() {
   results = [];
+  let inquiryEmail = null;
   const ce = await api(`/api/businesses/${BIZ}/customer-entry`);
   const url = ce.body?.data?.link?.url;
   const email = ce.body?.data?.auto?.email;
@@ -82,10 +83,36 @@ async function run() {
       push(`[${vp.name}] 창구 안내: 가린 이메일 화면 0`, !bodyText.includes(email));
       push(`[${vp.name}] 창구 안내: 가로 넘침 0`, (await overflowX(page)) <= 0);
 
+      // ⑦ (P2) 문의 폼 — 3폭 모두 그려지는가 · 데스크탑에서만 실제로 보낸다(IP 시간당 3 한도)
+      const form = await visibleText(page, '[data-testid="entry-inquiry-form"]');
+      push(`[${vp.name}] 창구 안내: 문의 폼 그려짐`, form.ok, form.why);
+      if (vp.name === 'desktop') {
+        // [이 서비스 문의] → 폼으로 내려가고 서비스가 미리 골라진다
+        await page.click('[data-testid^="entry-service-ask-"]');
+        await sleep(700);
+        const picked = await page.$eval('[data-testid="entry-inquiry-service"]', (e) => e.value).catch(() => '');
+        push('[desktop] [이 서비스 문의] → 서비스 미리 선택', !!picked, picked);
+        const sendDisabled = await page.$eval('[data-testid="entry-inquiry-send"]', (e) => e.disabled);
+        push('[desktop] 빈 폼은 보내기 비활성(+이유)', sendDisabled === true);
+        await sleep(2500);   // 3초 봇 판정을 넘긴다(사람처럼)
+        await page.type('[data-testid="entry-inquiry-name"]', '[확인용] 카나리 손님');
+        inquiryEmail = `canary-${Date.now()}@example.com`;
+        await page.type('[data-testid="entry-inquiry-email"]', inquiryEmail);
+        await page.type('[data-testid="entry-inquiry-message"]', '카나리 문의입니다. 견적이 궁금합니다.');
+        await page.click('[data-testid="entry-inquiry-consent"]');
+        await page.click('[data-testid="entry-inquiry-send"]');
+        await page.waitForSelector('[data-testid="entry-inquiry-done"], [data-testid="entry-inquiry-error"]', { timeout: 15000 }).catch(() => null);
+        const done = await page.$('[data-testid="entry-inquiry-done"]');
+        const errTxt = await page.$eval('[data-testid="entry-inquiry-error"]', (e) => e.textContent).catch(() => '');
+        push('[desktop] 문의 보내기 → «보냈어요»', !!done, errTxt);
+      }
+
       // 로그인 → ① 설정 탭
       await login(page, OWNER);
       await page.goto(`${BASE}/business/settings/public-page`, { waitUntil: 'networkidle2' });
       await page.waitForSelector('[data-testid="wspage-settings"]', { timeout: 20000 }).catch(() => null);
+      // 주소 카드는 자기 자료를 따로 읽는다(불러오는 중엔 손잡이가 없다) — 그려질 때까지 기다린다
+      await page.waitForSelector('[data-testid="settings-customer-entry"]', { timeout: 20000 }).catch(() => null);
       for (const k of ['settings-customer-entry', 'wspage-auto', 'wspage-intro', 'wspage-services', 'wspage-extras', 'wspage-preview']) {
         const v = await visibleText(page, `[data-testid="${k}"]`);
         push(`[${vp.name}] 설정: ${k} 그려짐`, v.ok, v.why);
@@ -94,6 +121,29 @@ async function run() {
       push(`[${vp.name}] 미리 보기에 서비스 이름`, pv.includes(svc));
       push(`[${vp.name}] 미리 보기에 가린 이메일 0`, !pv.includes(email));
       push(`[${vp.name}] 설정: 가로 넘침 0`, (await overflowX(page)) <= 0);
+
+      // ⑧ (P2) Q sale «신규 문의» — 방금 보낸 건이 맨 위 묶음에 있고, 열어서 [처리함] 하면 신규에서 빠진다
+      if (vp.name === 'desktop' && inquiryEmail) {
+        const list = await api(`/api/sale/${BIZ}/inquiries?status=new`);
+        const mine = (list.body?.data || []).find((x) => x.email === inquiryEmail);
+        push('[desktop] 보낸 문의가 서버 신규함에', !!mine);
+        await page.goto(`${BASE}/sale?tab=inbox`, { waitUntil: 'networkidle2' });
+        await page.waitForSelector('[data-testid="sale-inquiries"]', { timeout: 20000 }).catch(() => null);
+        const sec = await visibleText(page, '[data-testid="sale-inquiries"]');
+        push('[desktop] Q sale 상담 탭 «신규 문의» 묶음 보임', sec.ok && (sec.text || '').includes('[확인용] 카나리 손님'), sec.why);
+        if (mine) {
+          await page.click(`[data-testid="sale-inquiry-${mine.id}"]`);
+          await page.waitForSelector('[data-testid="inquiry-drawer-message"]', { timeout: 10000 }).catch(() => null);
+          const msg = await page.$eval('[data-testid="inquiry-drawer-message"]', (e) => e.textContent).catch(() => '');
+          push('[desktop] 상세 패널에 문의 내용', msg.includes('카나리 문의'), msg);
+          const btns = await page.$$eval('[data-testid="inquiry-register"], [data-testid="inquiry-reply"], [data-testid="inquiry-handled"], [data-testid="inquiry-spam"]', (b) => b.length);
+          push('[desktop] 버튼 4개(등록·답장·처리·스팸)', btns === 4, String(btns));
+          await page.click('[data-testid="inquiry-handled"]');
+          await sleep(1200);
+          const after = await api(`/api/sale/${BIZ}/inquiries/${mine.id}`);
+          push('[desktop] [처리함] → 서버 handled', after.body?.data?.status === 'handled', after.body?.data?.status);
+        }
+      }
 
       // ④ Q sale [우리 페이지]
       await page.goto(`${BASE}/sale`, { waitUntil: 'networkidle2' });

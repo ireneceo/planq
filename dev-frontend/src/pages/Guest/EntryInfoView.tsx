@@ -10,6 +10,8 @@ import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { Empty } from './guestShell';
 import type { EntryInfo } from './GuestWorkspacePage';
+import { useRef, useState } from 'react';
+import InquiryForm from './InquiryForm';
 import { formatWorkHours } from '../../utils/workHoursText';
 
 type Props = {
@@ -23,6 +25,11 @@ type Props = {
   emptyText?: string;
   /** 미리 보기 — 버튼을 눌러도 아무 데도 가지 않는다(설정 화면) */
   preview?: boolean;
+  /** 문의 폼 POST 주소 — 있으면(그리고 워크스페이스가 폼을 켰으면) 본문 맨 아래에 «문의 남기기» 폼(설계 §7 ①).
+   *  없으면(로그인 고객 홈) 폼 없이 종전처럼 [문의하기] = 채팅. */
+  inquiryUrl?: string | null;
+  /** 폼 문구의 회사 이름 */
+  workspaceName?: string;
 };
 
 type Svc = { id: string; name: string; summary: string | null; price_text: string | null; image_url: string | null };
@@ -33,7 +40,11 @@ const servicesOf = (e: EntryInfo | null): Svc[] => (e?.services || []).map((s: u
     : (s as Svc)
 )).filter((s) => s && s.name);
 
-export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskService, emptyText, preview }: Props) {
+export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskService, emptyText, preview, inquiryUrl, workspaceName }: Props) {
+  // 폼이 있으면 [문의하기]·[이 서비스 문의] 는 폼으로 내려간다(서비스를 미리 골라서) — 인증 없이 바로 남기는 문
+  const formOn = !!entry?.form?.enabled && (!!inquiryUrl || !!preview);
+  const formRef = useRef<HTMLDivElement>(null);
+  const [presetSvc, setPresetSvc] = useState<string | null>(null);
   const { t } = useTranslation('guest');
   const services = servicesOf(entry);
   const c = entry?.contact;
@@ -58,6 +69,11 @@ export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskSe
 
   const ask = (s?: Svc) => {
     if (preview) return;
+    if (formOn) {
+      if (s) setPresetSvc(s.id);
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
     if (s && onAskService) onAskService(s.id, s.name); else onAsk();
   };
 
@@ -111,6 +127,13 @@ export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskSe
             <CRow key={r.key} data-testid={`entry-info-${r.key}`}><CKey>{r.label}</CKey><CVal>{r.node}</CVal></CRow>
           ))}
         </Section>
+      )}
+      {formOn && (
+        <InquiryForm ref={formRef} submitUrl={preview ? null : (inquiryUrl || null)} preview={preview}
+          workspaceName={workspaceName || ''}
+          services={services.map((x) => ({ id: x.id, name: x.name }))}
+          askPhone={!!entry?.form?.ask_phone} askCompany={!!entry?.form?.ask_company}
+          presetServiceId={presetSvc} />
       )}
     </>
   );

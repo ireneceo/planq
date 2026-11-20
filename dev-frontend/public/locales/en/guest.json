@@ -354,5 +354,33 @@
       "rate": "Please try again in a moment.",
       "storage": "Files can’t be received right now. Please let your contact know."
     }
+  },
+  "inquiry": {
+    "title": "Send an inquiry",
+    "done": "Your inquiry was sent. {{name}} will reply by email.",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "company": "Company",
+    "service": "Service of interest",
+    "serviceNone": "Not selected",
+    "message": "Message",
+    "messagePh": "What would you like to ask? (at least 10 characters)",
+    "consent": "I agree that {{name}} may collect and use my name, email and message to reply to this inquiry. (Kept for 1 year)",
+    "sending": "Sending…",
+    "send": "Send inquiry",
+    "needAll": "Fill in your name, email and message (10+ characters) and tick the consent box to send.",
+    "noLogin": "No sign-in needed.",
+    "err": {
+      "generic": "Couldn't send. Please try again shortly.",
+      "too_many_requests": "Too many inquiries. Please try again later.",
+      "too_many_inquiries": "You've reached today's inquiry limit for this email. Please try again tomorrow.",
+      "invalid_email": "Please check your email address.",
+      "message_too_short": "Please write at least 10 characters.",
+      "name_required": "Please enter your name.",
+      "consent_required": "Please tick the consent box.",
+      "form_disabled": "This form is not accepting inquiries right now.",
+      "network": "Connection problem. Please try again."
+    }
   }
 }

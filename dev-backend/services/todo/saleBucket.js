@@ -3,7 +3,7 @@
 // routes/dashboard.js 에서 그대로 옮겨왔다(임계 1350줄에 닿아 수집기를 꺼내는 첫 걸음).
 // 상한·시각 변환은 services/todo/common.js 한 곳을 쓴다 — 복사하면 버킷마다 숫자가 갈라진다.
 //
-// 버킷 다섯: ①답 안 한 문의 ②미확인 자동 기록 ③다음 할 일 없음 ④계정 요청
+// 버킷 여섯: ①답 안 한 문의 ②미확인 자동 기록 ③다음 할 일 없음 ④계정 요청 ⑥공개 페이지 신규 문의
 //   ⑤**아직 고객이 아닌 게스트 문의**(2026-09-12 신설 — 아무 배지도 닿지 않던 자리)
 const { Op } = require('sequelize');
 const { COLLECT_LIMIT, safeToIso } = require('./common');
@@ -228,6 +228,32 @@ async function collectSale(businessId, userId, userRole) {
         dueAt: null,
         createdAt: safeToIso(l.account_requested_at),
         link: saleConsultLink(c.display_name || c.company_name, 'clients'),
+      });
+    }
+  }
+
+  // ⑥ 공개 페이지·창구 문의 폼의 신규 문의(2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §5.4) —
+  //   한 건 = 한 줄. 받는 사람은 팀 알림과 같은 오너·관리자(services/workspaceInquiry.teamRecipients 와 같은 축).
+  //   고객으로 등록되거나 처리함·스팸이 되면 status 가 바뀌어 빠진다(같은 건을 두 줄로 세지 않는다).
+  if (isManager) {
+    const { WorkspaceInquiry } = require('../../models');
+    const inqs = await WorkspaceInquiry.findAll({
+      where: { business_id: businessId, status: 'new' },
+      attributes: ['id', 'name', 'service_name', 'created_at'],
+      order: [['created_at', 'DESC']],
+      limit: COLLECT_LIMIT,
+    });
+    for (const q of inqs) {
+      out.push({
+        id: `sale-inquiry-${q.id}`,
+        type: 'sale',
+        priority: 'today',
+        verb: 'sale_new_inquiry',
+        subject: q.name,
+        context: q.service_name || null,
+        dueAt: null,
+        createdAt: safeToIso(q.created_at),
+        link: `/sale?tab=inbox&inquiry=${q.id}`,
       });
     }
   }

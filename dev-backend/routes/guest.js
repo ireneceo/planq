@@ -60,6 +60,8 @@ router.use(require('./guest_project'));
 router.use(require('./guest_auth'));
 // 상담 예약(창구 P2) — `/:token/booking/*` 만 가져간다. 판정은 services/booking.js 한 곳.
 router.use(require('./guest_booking'));
+// 문의 폼(공개 페이지 P2) — `/:token/inquiries` 만 가져간다. 판정은 services/workspaceInquiry.js 한 곳.
+router.use(require('./guest_inquiry'));
 
 const SYMBOL_PATH = /^\/api\/businesses\/symbol\/[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)$/i;
 const workspaceOf = (b) => (b ? {

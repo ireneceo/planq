@@ -573,6 +573,8 @@ app.use('/api/sale', require('./routes/sale_save'));
 app.use('/api/sale', require('./routes/sale_summary'));
 // 고객 담당자 · 받은 명함 → 고객 (docs/NAME_CARD_V3_STRATEGY.md 9절)
 app.use('/api/sale', require('./routes/sale_contacts'));
+// 공개 페이지·창구 문의 폼의 «신규 문의» (2026-11-20) — `/:businessId/inquiries*` 꼬리만 가진다(다른 sale 라우터와 겹치지 않음)
+app.use('/api/sale', require('./routes/sale_inquiries'));
 app.use('/api/invites', require('./routes/invites'));
 app.use('/api/me/invites', require('./routes/me_invites'));   // 나에게 온 초대 — «시작하기»(/welcome), 이메일 인증 뒤에만
 app.use('/api/join', require('./routes/join'));   // 워크스페이스 참여 신청(신청자 쪽) — 로그인+이메일 인증, 이름 검색 없음
@@ -818,6 +820,11 @@ function scheduleNextMidnight() {
       const r = await require('./services/guestContactCleanup').runGuestContactCleanup();
       if (r.unverified || r.expired) console.log('[guest-contact-cleanup]', r);
     } catch (e) { console.warn('[guest-contact-cleanup] failed', e.message); }
+    try {
+      // 공개 페이지·창구 문의 보존기간 — 보류·스팸 30일 · 고객 아닌 신규·처리 1년 (docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §5.3)
+      const r = await require('./services/workspaceInquiry').purgeOld();
+      if (r.held_spam || r.stale) console.log('[workspace-inquiry-purge]', r);
+    } catch (e) { console.warn('[workspace-inquiry-purge] failed', e.message); }
     try {
       const shareCleanup = require('./services/shareTokenCleanup');
       const r = await shareCleanup.runShareTokenCleanup();

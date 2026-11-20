@@ -36,6 +36,7 @@ import SaleInboxList from '../../components/QSale/SaleInboxList';
 import SaleCueBar from '../../components/QSale/SaleCueBar';
 import AddInquiryModal from '../../components/QSale/AddInquiryModal';
 import PageLinkDialog from '../../components/WorkspacePage/PageLinkDialog';
+import InquirySection from '../../components/QSale/InquirySection';
 // 응대 내역 입력칸은 **공용 한 벌** — RecordModal 과 같은 것을 쓴다
 // 이메일·전화는 **공용 입력**을 쓴다 — 형식을 입력 중에 맞춰 주고 틀리면 그 자리에서 말한다
 import {
@@ -453,12 +454,16 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
 
       {tab === 'inbox' ? (
         businessId ? (
+          <>
+          {/* 공개 페이지·창구 문의 폼의 «신규 문의» — 상담 탭 맨 위(docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §5.4) */}
+          <InquirySection businessId={businessId} onRegistered={() => { setInboxRefresh((n) => n + 1); load({ silent: true, page: 1 }); }} />
           <SaleInboxList businessId={businessId} q={q} refreshKey={inboxRefresh}
             stage={stage} access={access} assignee={assignee}
             replyOnly={replyOnly} hideClosed={hideClosed}
             onCounts={setInboxCounts}
             onRegistered={() => { setInboxRefresh((n) => n + 1); load({ silent: true, page: 1 }); }}
             />
+          </>
         ) : null
       ) : (
       <>

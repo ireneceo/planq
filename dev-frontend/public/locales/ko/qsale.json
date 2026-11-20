@@ -489,11 +489,46 @@
     "mail_inquiry": "메일 문의",
     "guest_inquiry": "게스트 문의",
     "manual_add": "직접 등록",
-    "client_added": "고객으로 등록"
+    "client_added": "고객으로 등록",
+    "web_inquiry": "공개 페이지 문의"
   },
   "clientStatus": {
     "label": "보관",
     "active": "활성",
     "archived": "보관됨"
+  },
+  "inquiryBox": {
+    "title": "신규 문의",
+    "hint": "공개 페이지·고객 창구의 문의 폼으로 들어온 건이에요.",
+    "status": {
+      "new": "신규",
+      "held": "보류",
+      "handled": "처리함",
+      "spam": "스팸"
+    },
+    "held": {
+      "links": "링크가 많아 보류됐어요",
+      "duplicate": "같은 글이 여러 회사에 와서 보류됐어요",
+      "flood": "하루 문의가 몰려 보류됐어요"
+    },
+    "empty": "이 칸에는 문의가 없어요.",
+    "detail": "문의 상세",
+    "contact": "연락처",
+    "email": "이메일",
+    "phone": "전화",
+    "company": "회사",
+    "service": "관심 서비스",
+    "message": "내용",
+    "openClient": "등록된 고객 보기 →",
+    "readOnly": "Q sale 쓰기 권한이 있는 사람만 처리할 수 있어요.",
+    "spam": "스팸",
+    "handled": "처리함",
+    "reply": "메일로 답장",
+    "register": "고객으로 등록",
+    "restore": "신규로 되돌리기",
+    "err": {
+      "generic": "처리하지 못했어요. 다시 시도해 주세요.",
+      "quota": "문의 고객 한도에 닿았어요. 요금제를 확인해 주세요."
+    }
   }
 }

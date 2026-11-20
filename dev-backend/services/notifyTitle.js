@@ -127,6 +127,9 @@ const ACTIONS = {
   // Q sales
   sale_account_request: { ko: '계정 요청', en: 'Account requested' },
   sale_unanswered: { ko: '답 안 한 문의', en: 'Unanswered inquiry' },
+  // 공개 페이지·창구 문의 폼(2026-11-20)
+  sale_new_inquiry: { ko: '신규 문의', en: 'New inquiry' },
+  sale_inquiry_flood: { ko: '문의가 몰려 보류함에 넣었어요', en: 'Inquiries held — unusual volume' },
 };
 
 function pickLang(lang) {

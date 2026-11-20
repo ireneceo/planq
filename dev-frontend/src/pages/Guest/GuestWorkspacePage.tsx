@@ -167,7 +167,8 @@ export default function GuestWorkspacePage({
       {tab === 'info' && (
         <GuestTabPane data-testid="guest-tab-body-info">
           <EntryInfoView entry={entry} bookingOn={bookingOn}
-            onAsk={() => go('chat')} onBook={() => { setReschedule(null); go('book'); }} />
+            onAsk={() => go('chat')} onBook={() => { setReschedule(null); go('book'); }}
+            inquiryUrl={`/api/guest/${token}/inquiries`} workspaceName={workspace?.name || ''} />
         </GuestTabPane>
       )}
 

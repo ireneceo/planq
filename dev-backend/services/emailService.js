@@ -912,6 +912,55 @@ async function sendGuestBookingEmail(p) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// 공개 페이지·창구 문의 접수 확인 (2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §5.5 · Irene 결정 ② 가)
+//   ★ **고정 문구뿐이다** — 문의자가 쓴 이름·글은 한 글자도 싣지 않는다(남의 주소를 넣어 우리 서버로 임의 글을
+//     보내는 통로가 되지 않게). 워크스페이스 이름은 우리가 가진 값이다. 같은 주소 하루 1통은 부르는 쪽
+//     (services/workspaceInquiry.js)이 EmailLog 로 판정한다.
+// ═══════════════════════════════════════════════════════════════
+const INQUIRY_ACK_TEXT = {
+  ko: {
+    subject: (ws) => `${ws}에 문의가 접수되었습니다`,
+    lead: (ws) => `${ws}에 보내 주신 문의가 접수되었습니다.`,
+    body: '담당자가 확인한 뒤 이 이메일 주소로 답변드립니다.',
+    entry: '채팅으로 이어서 묻거나 상담을 예약하려면 아래 창구를 열어 주세요.',
+    cta: '창구 열기',
+    note: '이 메일은 문의 접수 시 자동으로 보내지는 안내입니다. 문의하신 적이 없다면 무시하셔도 됩니다.',
+  },
+  en: {
+    subject: (ws) => `Your inquiry to ${ws} has been received`,
+    lead: (ws) => `Your inquiry to ${ws} has been received.`,
+    body: 'They will review it and reply to this email address.',
+    entry: 'To continue by chat or book a consultation, open their page below.',
+    cta: 'Open page',
+    note: 'This is an automated message sent when an inquiry is submitted. If you did not send one, you can ignore it.',
+  },
+};
+async function sendWorkspaceInquiryAckEmail(p) {
+  if (!p || !p.to || !p.workspaceName) return { status: 'skipped', error: 'missing' };
+  const T = INQUIRY_ACK_TEXT[p.locale === 'en' ? 'en' : 'ko'];
+  const ws = String(p.workspaceName).slice(0, 100);
+  let entryUrl = null;
+  try { if (p.entryUrl && new URL(p.entryUrl).protocol === 'https:') entryUrl = p.entryUrl; } catch { entryUrl = null; }
+  const body = `
+    <div style="font-size:15px;color:#0F172A;line-height:1.6;font-weight:600;">${escapeHtml(T.lead(ws))}</div>
+    <div style="margin-top:8px;font-size:14px;color:#334155;line-height:1.6;">${escapeHtml(T.body)}</div>
+    ${entryUrl ? `<div style="margin-top:14px;font-size:13px;color:#475569;line-height:1.6;">${escapeHtml(T.entry)}</div>
+    <div style="margin-top:16px;text-align:center;">${ctaButton(entryUrl, T.cta)}</div>
+    ${fallbackLink(entryUrl)}` : ''}
+    <div style="margin-top:18px;font-size:12px;color:#94A3B8;line-height:1.6;">${escapeHtml(T.note)}</div>`;
+  return deliverEmail({
+    to: p.to,
+    subject: T.subject(ws),
+    html: emailWrap({ title: T.subject(ws), body, preheader: T.body, footerOptions: { workspaceName: ws, workspaceContact: contactOf(p.replyTo) } }),
+    fromName: p.fromName, replyTo: p.replyTo,
+    template: 'workspace_inquiry_ack',
+    businessId: p.businessId || null,
+    relatedEntityType: 'workspace_inquiry',
+    relatedEntityId: p.inquiryId || null,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
 // 설문 요청 (survey v2 — docs/SURVEY_V2_DESIGN.md §5.1) — 받는 사람마다 개인 링크(응답 1회)
 // ═══════════════════════════════════════════════════════════════
 function surveyInviteEmailHtml({ surveyTitle, workspaceName, recipientName, message, respondUrl, closesAt, workspaceContact }) {
@@ -1707,6 +1756,7 @@ module.exports = {
   sendInvoiceEmail, sendPaymentReminderEmail, sendReceiptIssuedEmail, sendReceiptCorrectionEmail, sendVerificationCodeEmail,
   sendUnreadNotificationEmail,
   sendGuestVerifyCodeEmail, sendGuestReplyNotifyEmail, sendGuestBookingEmail, sendGuestLinkEmail,
+  sendWorkspaceInquiryAckEmail,
   sendBillingInstructionEmail,
   sendInquiryReceivedEmail,
   sendInquiryReplyEmail,

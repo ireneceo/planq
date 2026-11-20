@@ -4,7 +4,7 @@
 const express = require('express');
 const router = express.Router();
 const { Op } = require('sequelize');
-const { Client, User, GuestLink, Conversation, EmailThread, EmailMessage, Message } = require('../models');
+const { Client, User, GuestLink, Conversation, EmailThread, EmailMessage, Message, WorkspaceInquiry } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { perUserDaily } = require('../middleware/costGuard');
 // 첫 상담 기록은 **상담 원장과 같은 문**으로 만든다(감사·실시간·last_touch 가 한 곳)
@@ -293,6 +293,7 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
     let seed;          // { display_name, company_name, phone, email, sales_source, touchAt }
     let link = null;
     let thread = null;
+    let inquiry = null;
 
     if (from === 'guest_link') {
       link = await GuestLink.findOne({ where: { id: Number(body.guest_link_id), business_id: businessId } });
@@ -343,6 +344,22 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
         sales_source: 'email',
         touchAt: thread.last_message_at,
       };
+    } else if (from === 'inquiry') {
+      // 공개 페이지·창구 문의 폼(2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §5.4) — 한 번 눌러 문의 고객으로
+      inquiry = await WorkspaceInquiry.findOne({ where: { id: Number(body.inquiry_id) || 0, business_id: businessId } });
+      if (!inquiry) return errorResponse(res, 'inquiry_not_found', 404);
+      if (inquiry.client_id) {
+        const done = await respondExisting(res, businessId, inquiry.client_id);
+        if (done) return done;
+      }
+      seed = {
+        display_name: trimOrNull(inquiry.name, 100),
+        company_name: trimOrNull(inquiry.company, 200),
+        phone: trimOrNull(inquiry.phone, 40),
+        email: normEmail(inquiry.email),
+        sales_source: 'web',
+        touchAt: inquiry.created_at,
+      };
     } else if (from === 'manual') {
       // #449 D5 — 웹폼 문의를 본문으로 등록할 때 **그 스레드를 새 고객에 붙인다**(손으로 쓴 등록과 같은 문, 연결만 더한다).
       if (body.email_thread_id) {
@@ -392,7 +409,7 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
       //   (뜻은 잃지 않는다 — 출처 구분이 필요하면 origin/sourceRef 로 남기지 reason 에 코드를 쓰지 않는다.)
       // ★ 2026-10-08 0-I — reason 은 **코드**로 남기고 화면이 번역한다(qsale `stageReason.<code>`).
       //   옛: 한국어 문장을 박제해 영어 사용자 타임라인에 한국어가 그대로 나갔다. (과거 행의 한국어는 화면이 그대로 그린다.)
-      const FROM_REASON = { email_thread: 'mail_inquiry', guest_link: 'guest_inquiry', manual: 'manual_add' };
+      const FROM_REASON = { email_thread: 'mail_inquiry', guest_link: 'guest_inquiry', manual: 'manual_add', inquiry: 'web_inquiry' };
       await setStage(client, 'inquiry', {
         origin: 'manual', by: req.user.id,
         reason: FROM_REASON[from] || 'client_added',
@@ -416,6 +433,18 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
     //   여기서 안 받으면 사용자는 저장 후 상세로 들어가 한 번 더 쓴다(그리고 대개 안 쓴다).
     //   ★ 실패를 삼키지 않는다 — 응답에 담아 화면이 말하게 한다(기록만 실패하고 고객은 생긴 상태).
     let interactionError = null;
+    // 문의 폼에서 왔으면 그 내용이 고객 타임라인 첫 줄이다(같은 기록 문 — createInteraction) · 문의 행은 처리함으로
+    if (inquiry) {
+      if (!inquiry.client_id) {
+        const made = await createInteraction({
+          businessId, client, userId: req.user.id, req,
+          body: { kind: 'memo', title: inquiry.service_name || null, body: inquiry.message, occurred_at: inquiry.created_at },
+        });
+        if (made.error) interactionError = made.error;
+      }
+      await inquiry.update({ client_id: client.id, status: 'handled', handled_by: req.user.id, handled_at: new Date() });
+      require('../services/workspaceInquiry').emitSignal(req.app, businessId, inquiry.id);
+    }
     if (body.interaction && (body.interaction.body || body.interaction.title)) {
       const made = await createInteraction({
         businessId, client, body: body.interaction, userId: req.user.id, req,
@@ -427,7 +456,7 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
       userId: req.user.id, businessId,
       action: linkedExisting ? 'client.link_from_sale' : 'client.save_from_guest',
       targetType: 'client', targetId: client.id,
-      newValue: { from, guest_link_id: link?.id || null, email_thread_id: thread?.id || null, linked_existing: linkedExisting },
+      newValue: { from, guest_link_id: link?.id || null, email_thread_id: thread?.id || null, inquiry_id: inquiry?.id || null, linked_existing: linkedExisting },
     });
     broadcast(req, businessId, linkedExisting ? 'client:updated' : 'client:new', { id: client.id, business_id: businessId });
 

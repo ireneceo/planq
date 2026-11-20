@@ -646,6 +646,9 @@ sync_database() {
   # 2026-09-25 상담 예약(CLIENT_ENTRY P2) — calendar_events.booking_status ENUM NULL + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-booking-status.js 2>&1 | tail -10"
+  # 2026-11-20 공개 페이지 P2 — workspace_inquiries 새 표(문의 건). 멱등(있으면 no-op). 새 표만, 기존 행 무변경.
+  #   ★ 순서: PM2 reload 보다 먼저 — 표가 없으면 문의 접수·Q sale 신규 문의·확인필요가 500.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-workspace-inquiries.js 2>&1 | tail -6"
   # 2026-10-07 일정 ↔ 업무 연결 — calendar_events.task_id INT NULL + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-task-link.js 2>&1 | tail -6"
