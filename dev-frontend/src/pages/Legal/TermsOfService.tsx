@@ -1,6 +1,6 @@
 import React from 'react';
 import LegalPage from './LegalPage';
 
-const TermsOfService: React.FC = () => <LegalPage doc="terms" effectiveDate="2026-09-14" />;
+const TermsOfService: React.FC = () => <LegalPage doc="terms" effectiveDate="2026-09-14" lastUpdated="2026-11-20" />;
 
 export default TermsOfService;

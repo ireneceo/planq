@@ -17,7 +17,8 @@
         "Payment: card payments are handled directly by our payment processor (Stripe); the Company stores only the transaction ID and amount. For bank-transfer payments, the Company checks the depositor name and amount solely to confirm the deposit, and does not separately collect or store bank account details.",
         "Guest (non-member) reply notifications: name and email address — used to send reply alerts and to let the assigned staff see who they are talking to. Collected only when the guest opts in, and shown to the staff on that conversation",
         "Sensitive data (biometric) — only with your separate consent: a numeric signature of your voice for Q Note (256 values). Purpose: showing your name next to your own speech in Q Note meetings of workspaces you belong to (for clients: meetings you are connected to). No raw audio is kept and it is not sent outside PlanQ. You can delete it or turn off recognition at any time in your profile (clients: Home)",
-        "When you ask Cue or Q helper: (1) question log (question text and whether a help article was found) — to improve help content, kept 90 days; (2) question topic statistics (topic, intent, whether it was answered, language, plan) — who asked and from which workspace are not stored, so no individual can be identified; a workspace can turn this off in its settings; (3) only if a workspace turns on \"keep unclassified questions\": the text of product how-to questions whose topic couldn't be identified, kept for 30 days after names, emails, phone numbers, amounts and links are masked (pseudonymized). Questions about workspace data are never kept as text"
+        "When you ask Cue or Q helper: (1) question log (question text and whether a help article was found) — to improve help content, kept 90 days; (2) question topic statistics (topic, intent, whether it was answered, language, plan) — who asked and from which workspace are not stored, so no individual can be identified; a workspace can turn this off in its settings; (3) only if a workspace turns on \"keep unclassified questions\": the text of product how-to questions whose topic couldn't be identified, kept for 30 days after names, emails, phone numbers, amounts and links are masked (pseudonymized). Questions about workspace data are never kept as text",
+        "When using the inquiry form on a workspace's public page or customer link: name, email address, message, and (if the workspace asks) phone number and company name — so that workspace can reply. The workspace receiving the inquiry is the controller; the Company stores it as a processor. To prevent spam, the visitor's IP address is recorded only as a hash that changes daily"
       ]
     },
     "s2": {
@@ -29,7 +30,8 @@
         "Statistical analysis for service improvement (anonymized)",
         "Fraud prevention and security",
         "Sending reply notifications a guest has asked for, and letting staff see who they are talking to",
-        "Improving help content and features by analyzing the topics of questions asked to Cue and Q helper (non-identifiable statistics and pseudonymized questions)"
+        "Improving help content and features by analyzing the topics of questions asked to Cue and Q helper (non-identifiable statistics and pseudonymized questions)",
+        "Delivering inquiries from a workspace's public-page form to that workspace and sending one acknowledgement email"
       ]
     },
     "s3": {
@@ -62,7 +64,8 @@
         "Complete deletion within 60 days of user request after contract termination (excluding legally required retention)",
         "Guest notification data (name, email): deleted within 24 hours if the email is never verified; otherwise within 30 days after the chat link expires or is revoked (the recipient address in delivery logs is masked at the same time). The guest can delete it immediately from the page",
         "Q Note voice signature: deleted automatically after 24 months without use (with notice 30 days before), or immediately when you delete it · per-speaker signatures created to tell speakers apart in a meeting are deleted once the meeting has had no activity for 7 days (ended or paused)",
-        "Cue and Q helper question logs: deleted automatically after 90 days. Pseudonymized question text: deleted automatically after 30 days (immediately once an administrator classifies its topic). Question topic statistics are kept for 400 days in a form that cannot identify any individual"
+        "Cue and Q helper question logs: deleted automatically after 90 days. Pseudonymized question text: deleted automatically after 30 days (immediately once an administrator classifies its topic). Question topic statistics are kept for 400 days in a form that cannot identify any individual",
+        "Public-page inquiries: deleted 1 year after receipt if not added as a client, and 30 days after being marked spam or held. If added as a client, kept as that workspace's client data"
       ]
     },
     "s5": {
@@ -179,7 +182,8 @@
         "Users must comply with applicable laws, these Terms, and Company policies.",
         "Prohibited: actions disrupting service operation, violating other users' rights, infringing intellectual property.",
         "Prohibited: posting/transmitting illegal content, spam, malware, or content harmful to minors.",
-        "Prohibited: automated bulk access via bots/crawlers (except via official API)."
+        "Prohibited: automated bulk access via bots/crawlers (except via official API).",
+        "When a workspace publishes its public page (after the Company's review), its name, introduction, services and the contact details it chooses to show appear in PlanQ «Find a company» and in search engines and AI search. The workspace turns publishing on and off itself and is responsible for the accuracy and lawfulness of what it publishes."
       ]
     },
     "s7": {
@@ -215,7 +219,8 @@
         "Users may terminate their account anytime. Paid Services end immediately upon termination.",
         "The Company may restrict or terminate service for Terms violations or fraudulent use, with notice.",
         "Upon termination, all data is deleted within 60 days (excluding legally required retention).",
-        "If you are removed from a workspace (for example, when you leave the team), your unfinished tasks in that workspace — including tasks set to “Only me” — may be handed over to a successor chosen by the workspace owner. Other materials such as documents, files and memos are not handed over. (Effective 2026-11-25)"
+        "If you are removed from a workspace (for example, when you leave the team), your unfinished tasks in that workspace — including tasks set to “Only me” — may be handed over to a successor chosen by the workspace owner. Other materials such as documents, files and memos are not handed over. (Effective 2026-11-25)",
+        "The Company may stop publishing (take down) a public page upon a report or if it determines the content violates these Terms or applicable law, and will notify the workspace owner of the reason."
       ]
     },
     "s11": {
