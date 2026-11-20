@@ -1104,6 +1104,9 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
     } catch (e) { console.warn('[mailReplyTask imap]', e.message); }
   }
 
+  // 프로젝트에 걸린 스레드면 그 프로젝트 히스토리 탭에 «다시 읽어» 신호(내용 없음 · 멤버 방만 — 보는 사람 판정은 읽을 때)
+  if (thread.project_id && !spammy) require('./mailLink').signalProjectHistory(io, thread.project_id);
+
   // socket emit
   if (io) {
     // 신호만(보낸 사람·제목 없이) · 개인 메일함은 주인에게만 — 워크스페이스 방에는 남의 개인 메일을

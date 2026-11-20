@@ -27,7 +27,8 @@ interface HistoryEvent extends HistoryNoteFields {
   id: string;
   // ★ 'note' 는 프로젝트 메모, 'qnote' 는 Q Note 회의록이다 — 다른 원장이다.
   //   같은 이름에 담으면 어느 쪽이 빠졌는지 알 수 없다(회의록이 여태 통째로 빠져 있었다).
-  source: 'project' | 'task' | 'post' | 'file' | 'note' | 'qnote' | 'invoice' | 'manual' | 'interaction';
+  //   'mail' = 프로젝트에 걸린 메일(받은·보낸) · 'issue' = 채팅·메일·개요에서 적은 주요 이슈(project_issues) — 2026-11-20
+  source: 'project' | 'task' | 'post' | 'file' | 'note' | 'qnote' | 'invoice' | 'manual' | 'interaction' | 'mail' | 'issue';
   kind: string;
   at: string;
   actor_user_id: number | null;
@@ -45,8 +46,10 @@ interface HistoryEvent extends HistoryNoteFields {
   groupable?: boolean;
   /** 사람이 적은 주요 이슈(manual)만 — 고객 프로젝트 링크에 보이는가(GUEST_PROJECT_VIEW_DECISIONS §I-2) */
   client_visible?: boolean;
-  /** 사람이 적은 주요 이슈(manual) 본문 앞 120자 */
+  /** 사람이 적은 주요 이슈(manual) 본문 앞 120자 · 채팅/메일 이슈(issue) 는 80자 넘을 때 앞 240자 */
   preview?: string | null;
+  /** 받은 메일(mail.received) — 보낸 사람 이름·주소. 받은 메일은 우리 쪽 작성자가 없다 */
+  counterpart_name?: string | null;
 }
 
 /** 화면 한 줄 — 낱개 사건이거나, 접힌 업무 추가 묶음 */
@@ -67,6 +70,8 @@ const SOURCE_ICON: Record<string, string> = {
   project: '◈', task: '✓', post: '📄', file: '📎', note: '✎', invoice: '₩',
   // 사람이 직접 적은 주요 이슈 · 연결된 고객의 상담 기록 (2026-09-13)
   manual: '★', interaction: '☎', qnote: '🎙',
+  // 프로젝트 메일 · 채팅/메일/개요 이슈 (2026-11-20)
+  mail: '✉', issue: '!',
 };
 
 export default function HistoryTab({ projectId }: Props) {
@@ -148,6 +153,9 @@ export default function HistoryTab({ projectId }: Props) {
     const offs = [
       onSocket('task:new', debounced), onSocket('task:updated', debounced),
       onSocket('task:deleted', debounced), onSocket('project:updated', debounced),
+      // 주요 이슈 생성·수정·삭제 · 메일 연결/새 메일(history:refresh — 신호만, 보는 사람 판정은 다시 읽을 때 서버가)
+      onSocket('issue:new', debounced), onSocket('issue:updated', debounced),
+      onSocket('issue:deleted', debounced), onSocket('history:refresh', debounced),
     ];
     return () => {
       if (reloadTimer.current) window.clearTimeout(reloadTimer.current);
@@ -183,6 +191,8 @@ export default function HistoryTab({ projectId }: Props) {
       case 'qnote': return e.entity_id ? `/notes?session=${e.entity_id}` : '/notes';   // 회의록은 Q Note 로
       case 'invoice': return e.entity_id ? `/bills?invoice=${e.entity_id}` : null;
       case 'project': return `/projects/p/${projectId}?tab=details`;    // 상태 변경 → 상세정보(상태 이력 카드)
+      case 'email_thread': return e.entity_id ? `/mail?thread=${e.entity_id}` : null;   // 메일 줄은 볼 수 있는 사람에게만 온다
+      case 'issue': return `/projects/p/${projectId}?tab=overview`;     // 이슈는 개요 탭 이슈 카드에 모인다
       default: return null;
     }
   };
@@ -392,7 +402,7 @@ export default function HistoryTab({ projectId }: Props) {
                   {e.source !== 'manual' && (
                     <HistoryNote row={e} projectId={projectId} onChanged={() => load(true)} onEditingChange={onEditing(e.id)} editing={editingId === e.id} />
                   )}
-                  {e.source === 'manual' && e.preview && manualEdit?.eventId !== e.id && <ManualPreview>{e.preview}</ManualPreview>}
+                  {(e.source === 'manual' || e.source === 'issue') && e.preview && manualEdit?.eventId !== e.id && <ManualPreview>{e.preview}</ManualPreview>}
                   {manualEdit?.eventId === e.id && (
                     <ManualEditForm projectId={projectId} target={manualEdit}
                       onCancel={() => setManualEdit(null)}
@@ -401,6 +411,7 @@ export default function HistoryTab({ projectId }: Props) {
                   <Row2>
                     <span>{formatDayTime(e.at, { year: 'always' })}</span>
                     {e.actor_name && <><Sep>·</Sep><span>{e.actor_name}{e.actor_is_ai ? ' (AI)' : ''}</span></>}
+                    {!e.actor_name && e.counterpart_name && <><Sep>·</Sep><span>{e.counterpart_name}</span></>}
                     {e.source === 'manual' && e.entity_id && canEditManual(e) && manualEdit?.eventId !== e.id && (
                       <ManualEditBtn type="button" data-testid={`history-manual-edit-open-${e.entity_id}`}
                         onClick={(ev) => openManualEdit(ev, e)}>

@@ -3768,7 +3768,7 @@ router.post('/:id/issues', authenticateToken, async (req, res, next) => {
 // ============================================
 // PUT /api/projects/issues/:id — 이슈 수정
 // ============================================
-router.put('/issues/:id', authenticateToken, async (req, res, next) => {
+router.put('/issues/:id', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 services/projectIssueActions.updateIssueBody 가 남긴다
   try {
     const issue = await ProjectIssue.findByPk(req.params.id);
     if (!issue) return errorResponse(res, 'issue_not_found', 404);
@@ -3777,25 +3777,22 @@ router.put('/issues/:id', authenticateToken, async (req, res, next) => {
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
     const { body } = req.body || {};
     if (!body || !String(body).trim()) return errorResponse(res, 'body is required', 400);
-    const prevIssueBody = issue.body;
-    await issue.update({ body: String(body).trim() });
-    if (prevIssueBody !== issue.body) logAudit(req, { action: 'project_issue.update', targetType: 'project_issue', targetId: issue.id, businessId: ip.business_id, newValue: { project_id: issue.project_id, changed: ['body'] } });
-    return successResponse(res, issue.toJSON());
+    // 본체(저장·감사·신호)는 services/projectIssueActions — 이 파일은 god-file 래칫
+    return successResponse(res, await require('../services/projectIssueActions').updateIssueBody(req, issue, ip, body));
   } catch (err) { next(err); }
 });
 
 // ============================================
 // DELETE /api/projects/issues/:id — 이슈 삭제
 // ============================================
-router.delete('/issues/:id', authenticateToken, async (req, res, next) => {
+router.delete('/issues/:id', authenticateToken, async (req, res, next) => { // audit-exempt: 감사는 services/projectIssueActions.deleteIssue 가 남긴다
   try {
     const issue = await ProjectIssue.findByPk(req.params.id);
     if (!issue) return errorResponse(res, 'issue_not_found', 404);
     const { project: ip, role, error } = await loadProjectOrForbidden(issue.project_id, req.user.id);
     if (error) return errorResponse(res, error.message, error.code);
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
-    await issue.destroy();
-    logAudit(req, { action: 'project_issue.delete', targetType: 'project_issue', targetId: issue.id, businessId: ip.business_id, oldValue: { project_id: issue.project_id, conversation_id: issue.conversation_id } });
+    await require('../services/projectIssueActions').deleteIssue(req, issue, ip);
     return successResponse(res, { id: Number(req.params.id), deleted: true });
   } catch (err) { next(err); }
 });

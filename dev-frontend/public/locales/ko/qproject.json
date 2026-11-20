@@ -953,7 +953,12 @@
       "interaction.meeting": "고객 미팅",
       "interaction.visit": "고객 방문",
       "interaction.memo": "고객 메모",
-      "interaction.other": "고객 응대"
+      "interaction.other": "고객 응대",
+      "mail.received": "메일 받음",
+      "mail.sent": "메일 보냄",
+      "issue.chat": "대화 이슈",
+      "issue.mail": "메일 이슈",
+      "issue.project": "프로젝트 이슈"
     },
     "status": {
       "not_started": "시작 전",

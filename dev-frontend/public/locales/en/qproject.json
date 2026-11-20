@@ -953,7 +953,12 @@
       "interaction.meeting": "Client meeting",
       "interaction.visit": "Client visit",
       "interaction.memo": "Client note",
-      "interaction.other": "Client contact"
+      "interaction.other": "Client contact",
+      "mail.received": "Email received",
+      "mail.sent": "Email sent",
+      "issue.chat": "Chat issue",
+      "issue.mail": "Mail issue",
+      "issue.project": "Project issue"
     },
     "status": {
       "not_started": "Not started",

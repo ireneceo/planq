@@ -1351,6 +1351,7 @@ router.post('/:businessId/email-threads/:id/messages',
         await require('../services/mailReplyTask').onReplySent({ thread, senderUserId: req.user.id, sentAt: now, keepReplyNeeded });
       } catch (e) { console.warn('[mailReplyTask reply]', e.message); }
 
+      if (thread.project_id) require('../services/mailLink').signalProjectHistory(req.app.get('io'), thread.project_id);
       broadcastMail(req, businessId, 'mail:updated', {
         thread_id: threadId,
         reply_needed: keepReplyNeeded,
@@ -1494,6 +1495,7 @@ router.post('/:businessId/email-compose',
         await EmailAttachment.create({ message_id: outMsg.id, file_id: f.id, filename: f.file_name, mime_type: f.mime_type || null, size_bytes: f.file_size || null });
       }
       broadcastMail(req, businessId, 'mail:new', { thread_id: thread.id });
+      if (thread.project_id) require('../services/mailLink').signalProjectHistory(req.app.get('io'), thread.project_id);
       return successResponse(res, {
         id: thread.id, thread_id: thread.id, rejected: sendResult.rejected,
         delivery_status: outMsg.delivery_status, suppressed: !!sendResult.suppressed,
@@ -1651,6 +1653,7 @@ router.post('/:businessId/email-threads/:id/forward',
         await EmailAttachment.create({ message_id: outMsg.id, file_id: f.id, filename: f.file_name, mime_type: f.mime_type || null, size_bytes: f.file_size || null });
       }
       broadcastMail(req, businessId, 'mail:new', { thread_id: thread.id });
+      if (thread.project_id) require('../services/mailLink').signalProjectHistory(req.app.get('io'), thread.project_id);
       return successResponse(res, {
         id: thread.id, thread_id: thread.id, rejected: sendResult.rejected,
         delivery_status: outMsg.delivery_status, suppressed: !!sendResult.suppressed,
@@ -1946,6 +1949,12 @@ router.put('/:businessId/email-threads/:id',
       if (!Object.keys(patch).length) return errorResponse(res, 'no_fields', 400);
       const thBefore = thread.get({ plain: true, clone: true });
       await thread.update(patch);
+      // 메일 이슈는 스레드 프로젝트를 따라간다 · 옛·새 프로젝트 히스토리 둘 다 다시 읽게(docs/PROJECT_HISTORY_MAIL_ISSUE_DESIGN.md)
+      if ('project_id' in patch && (thBefore.project_id || null) !== (patch.project_id || null)) {
+        const mailLink = require('../services/mailLink');
+        await mailLink.syncThreadIssuesProject(thread.id, patch.project_id);
+        mailLink.signalProjectHistory(req.app.get('io'), [thBefore.project_id, patch.project_id]);
+      }
       const thDiff = auditDiff(thBefore, thread.get({ plain: true }), Object.keys(patch).filter((k) => k !== 'is_starred'));   // 별표는 개인 표시라 뺀다
       if (thDiff) logAudit(req, { action: 'mail.thread_update', targetType: 'email_thread', targetId: thread.id, businessId, ...thDiff });
       broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, ...patch });
@@ -2363,6 +2372,7 @@ router.post('/:businessId/email-threads/:id/issues',
       });
       logAudit(req, { action: 'project_issue.create', targetType: 'project_issue', targetId: issue.id, businessId, newValue: { email_thread_id: thread.id, project_id: issue.project_id } }); // 본문은 싣지 않는다
       broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, issue_added: true });
+      if (issue.project_id) require('../services/mailLink').signalProjectHistory(req.app.get('io'), issue.project_id);
       const nameMap = await authorNameMap(businessId, [req.user.id]);
       return successResponse(res, { ...issue.toJSON(), author_name: nameMap[req.user.id] || null }, 'created', 201);
     } catch (err) { next(err); }
@@ -2378,6 +2388,7 @@ router.delete('/:businessId/email-threads/:id/issues/:issueId',
       if (!issue) return errorResponse(res, 'not_found', 404);
       await issue.destroy();
       logAudit(req, { action: 'project_issue.delete', targetType: 'project_issue', targetId: issue.id, businessId: thread.business_id, oldValue: { email_thread_id: thread.id, project_id: issue.project_id } });
+      if (issue.project_id) require('../services/mailLink').signalProjectHistory(req.app.get('io'), issue.project_id);
       return successResponse(res, { id: issue.id, deleted: true });
     } catch (err) { next(err); }
   }

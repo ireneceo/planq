@@ -207,7 +207,10 @@ function looksLikeRawIdNote(eventType, note) {
 // ★ 2026-09-13 — 'manual'(사람이 적은 주요 이슈)과 'interaction'(연결된 고객의 상담 기록) 추가.
 //   Irene: *"고객 상담내용에 추가되는 메모들이 생겨도 프로젝트가 연결되어 있으면 가져와서 연결하는 거 맞지?"*
 //   → 여태 **아니었다.** 히스토리 소스에 상담 기록이 아예 없었다.
-const PROJECT_SOURCES = ['project', 'task', 'post', 'file', 'note', 'qnote', 'invoice', 'manual', 'interaction'];
+// ★ 2026-11-20 — 'mail'(프로젝트에 걸린 메일 스레드의 메시지)과 'issue'(채팅·메일·개요에서 적은 project_issues) 추가.
+//   Irene: *"프로젝트 히스토리에 고객이 보낸 메일도 연결하자. 그리고 채팅으로 소통하는 주요이슈도 추가되는 거 맞아?"*
+//   → 둘 다 **아니었다.** 설계 docs/PROJECT_HISTORY_MAIL_ISSUE_DESIGN.md (Fable 설계 판정).
+const PROJECT_SOURCES = ['project', 'task', 'post', 'file', 'note', 'qnote', 'invoice', 'manual', 'interaction', 'mail', 'issue'];
 
 // 이벤트 id 는 `<접두어>:<원장 id>` — 커서 비교를 위해 둘로 나눈다.
 function parseEventId(id) {
@@ -529,6 +532,78 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
         title: r.title || (r.body ? String(r.body).replace(/\s+/g, ' ').trim().slice(0, 80) : null),
       }));
     })().catch(() => []));
+  }
+
+  // ── 메일 (이 프로젝트에 걸린 스레드의 메시지 — 받은 것·보낸 것) — 2026-11-20 ──
+  //   ★ 범위 = `email_threads.project_id` 가 이 프로젝트인 것만(mailLink.js «프로젝트 메일 = project_id 걸린 것만»).
+  //   ★ 보는 사람 기준: Q mail 메뉴 read 이상 + 접근 가능한 메일함(accessibleAccountIds — 개인 메일함은 주인만).
+  //     못 보는 사람에게는 **줄 자체를 안 보낸다**(«비공개 메일 1건» 도 왕래 사실·시각을 알린다).
+  //   ★ 본문·요약·수신 주소는 싣지 않는다 — 아래 칸이 전부다(화이트리스트).
+  if (want('mail')) {
+    jobs.push((async () => {
+      const { EmailThread, EmailMessage } = require('../models');
+      const viewerUser = viewer ? await User.findByPk(viewer, { attributes: ['id', 'platform_role'], raw: true }) : null;
+      if (!(await require('../middleware/menu_permission').menuAllows(bizId, viewerUser, 'qmail', 'read'))) return [];
+      const acctIds = await require('./mailIdentity').accessibleAccountIds(bizId, viewer);
+      if (!acctIds.length) return [];
+      const threads = await EmailThread.findAll({
+        where: {
+          business_id: bizId, project_id: projectId,
+          account_id: { [Op.in]: acctIds }, status: { [Op.in]: ['open', 'archived'] },
+        },
+        attributes: ['id', 'subject'], raw: true,
+      });
+      if (!threads.length) return [];
+      const subjectOf = new Map(threads.map((t) => [t.id, t.subject]));
+      const rows = await EmailMessage.findAll({
+        where: {
+          business_id: bizId, thread_id: { [Op.in]: threads.map((t) => t.id) }, internal_only: false,
+          [Op.or]: [
+            { direction: 'inbound' },
+            { direction: 'outbound', delivery_status: { [Op.in]: ['sent', 'delivered'] } },
+          ],
+          [Op.and]: [timeWhereOn('mail', 'sent_at')],
+        },
+        attributes: ['id', 'thread_id', 'direction', 'from_name', 'from_email', 'subject', 'sent_by_user_id', 'sent_at'],
+        order: [['sent_at', 'DESC'], ['id', 'ASC']], limit: perSource, raw: true,
+      });
+      return rows.map((r) => {
+        const inbound = r.direction === 'inbound';
+        return {
+          id: `mail:${r.id}`, source: 'mail', kind: inbound ? 'mail.received' : 'mail.sent',
+          at: iso(r.sent_at), actor_user_id: inbound ? null : (r.sent_by_user_id || null),
+          entity_type: 'email_thread', entity_id: r.thread_id,
+          from_status: null, to_status: null,
+          title: r.subject || subjectOf.get(r.thread_id) || null,
+          counterpart_name: inbound ? (r.from_name || r.from_email || null) : null,
+        };
+      });
+    })().catch((e) => { console.warn('[event_stream] project mail', e.message); return []; }));
+  }
+
+  // ── 주요 이슈 (project_issues — 채팅·메일·개요에서 적은 것) — 2026-11-20 ──
+  //   ★ 술어는 `GET /api/projects/:id/issues` 와 같다(project_id 하나). 독립 대화 이슈(project_id NULL)는 안 들어온다.
+  //   ★ 히스토리 탭의 직접 입력(manual «주요 이슈»)과 구별되게 kind 를 출처별로 나눈다.
+  if (want('issue')) {
+    const { ProjectIssue } = require('../models');
+    jobs.push(
+      ProjectIssue.findAll({
+        where: { project_id: projectId, [Op.and]: [timeWhereFor('issue')] },
+        attributes: ['id', 'body', 'author_user_id', 'conversation_id', 'email_thread_id', 'created_at'],
+        order: [['created_at', 'DESC'], ['id', 'ASC']], limit: perSource, raw: true,
+      }).then((rows) => rows.map((r) => {
+        const text = String(r.body || '').replace(/\s+/g, ' ').trim();
+        return {
+          id: `issue:${r.id}`, source: 'issue',
+          kind: r.email_thread_id ? 'issue.mail' : (r.conversation_id ? 'issue.chat' : 'issue.project'),
+          at: iso(r.created_at), actor_user_id: r.author_user_id,
+          entity_type: 'issue', entity_id: r.id,
+          from_status: null, to_status: null,
+          title: text.slice(0, 80) || null,
+          preview: text.length > 80 ? text.slice(0, 240) : null,
+        };
+      })).catch((e) => { console.warn('[event_stream] project issue', e.message); return []; })
+    );
   }
 
   // ── Q Note 회의록 ──

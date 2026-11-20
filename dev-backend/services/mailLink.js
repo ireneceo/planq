@@ -178,6 +178,10 @@ async function linkThread(thread, { addresses, transaction = null } = {}) {
 
   if (!Object.keys(patch).length) return { changed: false, ...have, via: null };
   if (typeof thread.update === 'function') await thread.update(patch, transaction ? { transaction } : undefined);
+  if (patch.project_id) {
+    // 히스토리 신호는 메시지가 저장된 뒤 호출부가 쏜다(여기서 쏘면 새 메시지 전에 다시 읽는다).
+    await syncThreadIssuesProject(thread.id, patch.project_id, { transaction });
+  }
   return { changed: true, client_id: patch.client_id ?? have.client_id, project_id: patch.project_id ?? have.project_id, via };
 }
 
@@ -223,7 +227,34 @@ async function findClientsByAddresses(businessId, addresses) {
   return out;
 }
 
+/**
+ * 메일 이슈(project_issues.email_thread_id)는 **스레드의 프로젝트를 따라간다** (2026-11-20 · docs/PROJECT_HISTORY_MAIL_ISSUE_DESIGN.md).
+ *   만들 때 thread.project_id 를 복사해 두므로, 스레드 프로젝트가 바뀌면 같이 옮긴다 — 읽을 때 따로 계산하면
+ *   개요의 이슈 목록(/issues)과 히스토리의 술어가 갈린다. 부르는 곳: linkThread(채울 때) · PUT 스레드(project_id 변경).
+ */
+async function syncThreadIssuesProject(threadId, projectId, { transaction = null } = {}) {
+  if (!threadId) return 0;
+  const { ProjectIssue } = require('../models');
+  const [n] = await ProjectIssue.update(
+    { project_id: projectId || null },
+    { where: { email_thread_id: Number(threadId) }, ...(transaction ? { transaction } : {}) },
+  );
+  return n;
+}
+
+/**
+ * 프로젝트 히스토리 탭 «다시 읽어» 신호 — 내용 없이 {project_id} 만, 멤버 방에만(CLIENT_VIEW 미등록 → 고객 방 안 감).
+ *   메일이 프로젝트에 걸리거나 풀리거나, 걸린 스레드에 메시지·이슈가 생길 때 부른다.
+ */
+function signalProjectHistory(io, projectIds) {
+  const sock = io || global.__planqIo;
+  if (!sock) return;
+  const ids = [...new Set((Array.isArray(projectIds) ? projectIds : [projectIds]).filter(Boolean).map(Number))];
+  for (const pid of ids) require('./projectRoom').emitProject(sock, pid, 'history:refresh', { project_id: pid });
+}
+
 module.exports = {
+  syncThreadIssuesProject, signalProjectHistory,
   normalizeAddresses,
   matchByProjectInvite,
   matchClientByAddresses,

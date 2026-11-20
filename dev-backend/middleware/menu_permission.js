@@ -178,9 +178,22 @@ async function getMemberMenuLevels(businessId, userId, opts = {}) {
   return { role: 'member', menus: r.menus, explicit: r.explicit };
 }
 
+// 라우트 밖(합쳐 보여 주는 화면 — 프로젝트 히스토리의 메일 줄 등)에서 «requireMenu(menu, level) 를 통과했을까» 를 묻는다.
+//   requireMenu 와 같은 축: platform_admin 통과 · owner/admin 전권 · ai 차단 · member 는 resolveMemberLevels. 비멤버는 false.
+async function menuAllows(businessId, user, menuKey, requiredLevel = 'read') {
+  if (!user) return false;
+  if (user.platform_role === 'platform_admin') return true;
+  const lv = await getMemberMenuLevels(Number(businessId), Number(user.id));
+  if (!lv || lv.role === 'ai') return false;
+  const level = lv.menus[menuKey];
+  if (!level || level === 'none') return false;
+  return requiredLevel === 'read' ? true : level === 'write';
+}
+
 module.exports = {
   requireMenu,
   getMemberMenuLevels,
+  menuAllows,
   VALID_MENUS: Array.from(VALID_MENUS),
   VALID_LEVELS: Array.from(VALID_LEVELS),
   READ_ONLY_MENUS: Array.from(READ_ONLY_MENUS),
