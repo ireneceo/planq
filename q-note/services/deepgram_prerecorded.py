@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+from services.deepgram_service import format_params, postprocess_transcript
+
 logger = logging.getLogger(__name__)
 
 DEEPGRAM_API_KEY = os.getenv('DEEPGRAM_API_KEY', '')
@@ -52,8 +54,7 @@ async def transcribe_file(path: str, language: str = 'multi',
   params = {
     'model': _resolve_model(language),
     'language': language,
-    'punctuate': 'true',
-    'smart_format': 'true',
+    **format_params(language),  # 한국어는 smart_format 끔 — 실시간과 같은 함수
     'diarize': 'true',        # 화자 분리 — 회의 녹음의 핵심
     'utterances': 'true',     # 발화 단위 분할 (start/end/confidence 포함)
     'paragraphs': 'true',
@@ -83,10 +84,10 @@ async def transcribe_file(path: str, language: str = 'multi',
   except Exception as e:
     raise PrerecordedError(f'bad_json: {e}') from e
 
-  return _parse(data)
+  return _parse(data, language)
 
 
-def _parse(data: Dict[str, Any]) -> Dict[str, Any]:
+def _parse(data: Dict[str, Any], language: str = 'multi') -> Dict[str, Any]:
   meta = data.get('metadata') or {}
   duration = float(meta.get('duration') or 0)
 
@@ -97,7 +98,7 @@ def _parse(data: Dict[str, Any]) -> Dict[str, Any]:
 
   out: List[Dict[str, Any]] = []
   for u in (results.get('utterances') or []):
-    text = (u.get('transcript') or '').strip()
+    text = postprocess_transcript((u.get('transcript') or '').strip(), language)
     if not text:
       continue
     spk = u.get('speaker')
@@ -112,7 +113,7 @@ def _parse(data: Dict[str, Any]) -> Dict[str, Any]:
   # utterances 가 비었는데 전사 본문은 있는 경우 — 통째로 한 발화로 담아 **빈 노트를 만들지 않는다**.
   #   (짧은 파일·단일 화자에서 Deepgram 이 utterances 를 안 주는 경우가 있다)
   if not out:
-    whole = (alt0.get('transcript') or '').strip()
+    whole = postprocess_transcript((alt0.get('transcript') or '').strip(), language)
     if whole:
       out.append({'speaker': 'Speaker 1', 'text': whole, 'start': 0.0,
                   'end': duration, 'confidence': float(alt0.get('confidence') or 0)})

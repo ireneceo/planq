@@ -5,6 +5,7 @@ import logging
 from urllib.parse import quote
 from websockets.client import connect as ws_connect
 from websockets.exceptions import ConnectionClosed
+from services.ko_numbers import normalize_ko_numbers
 
 logger = logging.getLogger('q-note.deepgram')
 
@@ -17,6 +18,24 @@ DEEPGRAM_WS_URL = 'wss://api.deepgram.com/v1/listen'
 #     예: DEEPGRAM_MODEL_KO=nova-2-general
 #   - 언어별 오버라이드 패턴: DEEPGRAM_MODEL_<LANG>
 DEFAULT_MODEL = os.getenv('DEEPGRAM_MODEL', 'nova-3')
+
+
+# 한국어(ko·multi)는 smart_format 을 끈다 — 숫자 낱말 변환이 «한 번»→«1 번», «두 시스템»→«2 시스템» 을 만든다
+#   (2026-11-20 실측 · Irene «하나로 연결하냐 … 1로 라고 떠» · `numerals=false` 로는 안 꺼짐). 진짜 수량
+#   («삼만 이천 원»·«삼십 분»)은 `ko_numbers.normalize_ko_numbers` 가 숫자로 되돌린다. 다른 언어는 그대로.
+_KO_LIKE = ('ko', 'multi')
+
+
+def format_params(language: str) -> dict:
+  if (language or 'multi') in _KO_LIKE:
+    return {'punctuate': 'true'}
+  return {'punctuate': 'true', 'smart_format': 'true'}
+
+
+def postprocess_transcript(text: str, language: str) -> str:
+  if (language or 'multi') in _KO_LIKE:
+    return normalize_ko_numbers(text)
+  return text
 
 
 def _resolve_model_for_language(language: str) -> str:
@@ -48,8 +67,7 @@ class DeepgramSession:
     params_list = [
       f'model={model}',
       f'language={self.language}',
-      'punctuate=true',
-      'smart_format=true',
+      *[f'{k}={v}' for k, v in format_params(self.language).items()],
       'interim_results=true',
       'utterance_end_ms=2000',
       'endpointing=500',
@@ -172,7 +190,7 @@ class DeepgramSession:
         return
 
       best = alternatives[0]
-      transcript = best.get('transcript', '').strip()
+      transcript = postprocess_transcript(best.get('transcript', '').strip(), self.language)
       if not transcript:
         return
 
