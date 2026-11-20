@@ -99,6 +99,8 @@ export const WORKSPACE_MENUS: NavMenuEntry[] = [
   { key: 'ws-activity', to: '/business/settings/activity', labelKey: 'nav.activityLog', section: 'settings', roles: ['owner', 'admin'] },
   { key: 'ws-signatures', to: '/business/settings/signatures', labelKey: 'nav.signatureManage', section: 'settings', roles: ['owner', 'admin'] },
   { key: 'ws-work-env', to: '/business/settings/work-env', labelKey: 'nav.workEnv', section: 'settings', roles: ['owner', 'member'] },
+  // 공개 페이지 — 고객에게 주는 우리 회사 페이지(2026-11-20 · 권한 탭 안 카드에서 이사). 멤버는 보기·주소 복사
+  { key: 'ws-public-page', to: '/business/settings/public-page', labelKey: 'nav.publicPage', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-permissions', to: '/business/settings/permissions', labelKey: 'nav.permissions', section: 'settings', roles: ['owner', 'member'] },
   { key: 'ws-billing', to: '/business/settings/billing', labelKey: 'nav.billing', section: 'settings', roles: ['owner'] },
   { key: 'ws-org', to: '/business/org', labelKey: 'nav.org', section: 'settings', roles: ['owner'] },

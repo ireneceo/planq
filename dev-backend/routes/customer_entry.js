@@ -43,40 +43,11 @@ async function assertEntryAdmin(req, businessId) {
   return !!(scope && (scope.isPlatformAdmin || scope.isOwner));
 }
 
-/**
- * 창구 소개 설정의 **정본 모양**. `businesses.permissions.customer_entry` JSON 안에 산다
- * (§4.6 — 새 컬럼·새 표를 만들지 않는다).
- *
- * ★ 읽기도 쓰기도 **이 함수 하나**를 지난다. 라우트마다 손으로 기본값을 적으면 GET 과 PUT 의
- *   기본값이 갈라지고, 그러면 «저장하지 않았는데 값이 바뀌어 보이는» 화면이 된다.
- * ★ 화이트리스트다 — 무엇이 저장되는지 여기 한 곳에서 읽힌다. 모르는 키는 버린다.
- */
-const INTRO_MAX = 2000;
-const SERVICE_MAX = 6;
-function normalizeIntro(raw) {
-  const src = raw && typeof raw === 'object' ? raw : {};
-  const str = (v, max) => {
-    const s = typeof v === 'string' ? v.trim() : '';
-    return s ? s.slice(0, max) : '';
-  };
-  return {
-    // 소개 문단 — 창구 «안내» 탭의 본문.
-    intro: str(src.intro, INTRO_MAX),
-    // 제공 서비스 항목 3~6개. 문자열 배열이고 **빈 항목은 버린다**(빈 칸이 목록에 남으면 고장으로 보인다).
-    services: Array.isArray(src.services)
-      ? src.services.map((s) => str(s, 120)).filter(Boolean).slice(0, SERVICE_MAX)
-      : [],
-    // 상담 예약 설정(P2) — 모양은 services/booking.js normalizeBooking **한 곳**이 정한다
-    //   (슬롯 계산이 읽는 값과 저장하는 값이 갈라지지 않게).
-    booking: normalizeBooking(src.booking),
-  };
-}
-
-/** 이 워크스페이스의 창구 설정 — 저장된 값 + 기본값. */
-function introOf(biz) {
-  const p = biz && biz.permissions && typeof biz.permissions === 'object' ? biz.permissions : {};
-  return normalizeIntro(p.customer_entry);
-}
+// 창구 설정의 모양(저장·기본값·공개 직렬화)은 **services/workspacePage.js 한 곳**이 정한다
+//   (2026-11-20 — 가리기·추가 항목·서비스 카드·영어 칸이 늘면서 이 파일과 guest.js 두 벌이던 것을 모았다).
+const workspacePage = require('../services/workspacePage');
+const introOf = (biz) => workspacePage.entryOf(biz);
+const ENTRY_KEYS = ['intro', 'intro_en', 'hidden', 'services', 'extras', 'tags', 'form', 'booking'];
 
 /** 창구 링크 1건 직렬화 — 관리 화면용. 원문 토큰은 **발급 응답에만** 1회 실린다. */
 async function serializeEntryLink(link) {
@@ -105,7 +76,7 @@ router.get('/:businessId/customer-entry', authenticateToken, attachWorkspaceScop
       return errorResponse(res, 'forbidden', 403);
     }
     const biz = await Business.findByPk(businessId, {
-      attributes: ['id', 'name', 'brand_name', 'brand_logo_url', 'guest_links_enabled', 'permissions'],
+      attributes: [...workspacePage.PROFILE_ATTRS, 'guest_links_enabled'],
     });
     if (!biz) return errorResponse(res, 'business_not_found', 404);
 
@@ -115,6 +86,11 @@ router.get('/:businessId/customer-entry', authenticateToken, attachWorkspaceScop
       // ★ 키 이름은 저장 위치(`permissions.customer_entry`)와 같게 둔다 — 전에 `intro` 로 뒀다가
       //   안에 또 `intro` 가 들어가 `data.intro.intro` 가 됐다(화면이 잘못 읽기 좋은 모양이다).
       customer_entry: introOf(biz),
+      // «자동으로 들어간 정보» — 워크스페이스 정보 원천 값(가림과 무관). 멤버 이상 인증 응답이라 원천을 보여 준다.
+      auto: workspacePage.autoValuesOf(biz),
+      auto_keys: workspacePage.AUTO_KEYS,
+      // 미리 보기 — 고객이 실제로 받는 모양(같은 함수). 화면이 따로 조립하지 않는다.
+      preview: workspacePage.publicView(biz, { lang: req.query.lang === 'en' ? 'en' : 'ko' }),
       // #449 — Q sales 상담 유입 모드(services/salesIntake 한 곳이 모양을 정한다).
       sales_intake: require('../services/salesIntake').intakeOf(biz),
       // 2026-10-15 — 상담 유입 기준 목록(화면이 이 순서로 그린다 · 판정은 services/saleMailCriteria).
@@ -136,19 +112,26 @@ router.put('/:businessId/customer-entry', authenticateToken, attachWorkspaceScop
     const biz = await Business.findByPk(businessId);
     if (!biz) return errorResponse(res, 'business_not_found', 404);
 
-    const before = introOf(biz);
-    const body = req.body?.intro !== undefined || req.body?.services !== undefined || req.body?.booking !== undefined
-      ? req.body
-      : (req.body?.customer_entry || {});
-    // ★ **보낸 칸만 바꾼다.** 화면의 소개 칸은 {intro, services} 만 보낸다 — 통째로 정규화하면
-    //   보내지 않은 예약 설정이 기본값(꺼짐)으로 **조용히 되돌아간다.** 예약 칸도 부분만 보낼 수 있다.
+    // 처음 꾸미는 워크스페이스(저장값 없음 + 살아 있는 창구 링크 없음)는 새 기본 가림에서 시작한다.
+    //   링크가 이미 나가 있는데 저장값이 없으면 지금 보이던 대로(이메일 보임) 시작한다 — workspacePage.entryOf 머리말.
+    const fresh0 = !workspacePage.savedEntryOf(biz)
+      && !(await findLiveSharedLink({ businessId, scope: 'workspace' }));
+    const before = fresh0 ? workspacePage.newDefaults() : introOf(biz);
+    const raw = req.body || {};
+    const body = ENTRY_KEYS.some((k) => raw[k] !== undefined) ? raw : (raw.customer_entry || {});
+    // ★ **보낸 칸만 바꾼다.** 화면의 칸마다 자기 키만 보낸다 — 통째로 정규화하면
+    //   보내지 않은 예약 설정이 기본값(꺼짐)으로 **조용히 되돌아간다.** 예약·폼 칸은 부분만 보낼 수 있다.
     const merged = { ...before };
-    if (body.intro !== undefined) merged.intro = body.intro;
-    if (body.services !== undefined) merged.services = body.services;
+    for (const k of ['intro', 'intro_en', 'hidden', 'services', 'extras', 'tags']) {
+      if (body[k] !== undefined) merged[k] = body[k];
+    }
+    if (body.form !== undefined && body.form && typeof body.form === 'object') {
+      merged.form = { ...before.form, ...body.form };
+    }
     if (body.booking !== undefined && body.booking && typeof body.booking === 'object') {
       merged.booking = { ...before.booking, ...body.booking };
     }
-    const next = normalizeIntro(merged);
+    const next = workspacePage.normalizeEntry(merged, { hadSaved: true });
     // 담당 멤버는 **이 워크스페이스의 사람 멤버**만 — 남의 id·AI 멤버·떠난 사람을 저장하면
     //   슬롯 계산이 조용히 오너로 떨어지고, 설정 화면은 그 사람을 담당으로 보여 준다(거짓).
     if (next.booking.member_id) {
@@ -171,9 +154,46 @@ router.put('/:businessId/customer-entry', authenticateToken, attachWorkspaceScop
       action: 'customer_entry.update', targetType: 'business', targetId: businessId,
       oldValue: before, newValue: next,
     });
-    return successResponse(res, { customer_entry: next });
+    const fresh = await Business.findByPk(businessId, { attributes: workspacePage.PROFILE_ATTRS });
+    return successResponse(res, { customer_entry: next, preview: workspacePage.publicView(fresh) });
   } catch (err) { next(err); }
 });
+
+// ── POST /api/businesses/:businessId/customer-entry/service-image (multipart 'file') ──
+//   서비스 카드 사진 — 브랜드 로고와 **같은 저장·서빙 길**(uploads/business-symbols · GET /api/businesses/symbol/:uuid)을 쓴다.
+//   새 공개 파일 길을 만들지 않는다(설계 §4). 주소만 돌려주고, 카드에 거는 것은 PUT(services)이 한다.
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const SYMBOL_DIR = path.join(__dirname, '..', 'uploads', 'business-symbols');
+const IMG_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const serviceImageUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => { fs.mkdirSync(SYMBOL_DIR, { recursive: true }); cb(null, SYMBOL_DIR); },
+    filename: (_req, file, cb) => cb(null, `${require('crypto').randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  // SVG 는 받지 않는다 — 공개 화면에 남이 올린 문서형 이미지를 걸지 않는다(로고와 달리 카드 사진은 사진이다).
+  fileFilter: (_req, file, cb) => (IMG_EXT.has(path.extname(file.originalname).toLowerCase()) ? cb(null, true) : cb(new Error('disallowed_extension'))),
+  limits: { fileSize: 3 * 1024 * 1024 },
+});
+// audit-exempt: 파일을 올리기만 한다 — 카드에 거는 것은 PUT customer-entry 이고 그쪽이 감사한다(customer_entry.update)
+router.post('/:businessId/customer-entry/service-image', authenticateToken, attachWorkspaceScope(),
+  async (req, res, next) => {
+    try {
+      if (!(await assertEntryAdmin(req, Number(req.params.businessId)))) return errorResponse(res, 'forbidden', 403);
+      return next();
+    } catch (e) { return next(e); }
+  },
+  (req, res, next) => serviceImageUpload.single('file')(req, res, (err) => {
+    if (!err) return next();
+    if (err.message === 'disallowed_extension') return errorResponse(res, 'unsupported_file_type', 400);
+    if (err.code === 'LIMIT_FILE_SIZE') return errorResponse(res, 'file_too_large', 400);
+    return errorResponse(res, 'upload_failed', 400);
+  }),
+  (req, res) => {
+    if (!req.file) return errorResponse(res, 'no_file', 400);
+    return successResponse(res, { url: `/api/businesses/symbol/${req.file.filename}` }, 'uploaded', 201);
+  });
 
 // ── PUT /api/businesses/:businessId/sales-intake ───────────────────────────
 //   #449 — Q sales 상담 유입 모드 { mail: 'manual' | 'auto' }. 고치는 사람은 창구 설정과 같은 판정(assertEntryAdmin).
@@ -266,6 +286,17 @@ router.post('/:businessId/customer-entry/link', authenticateToken, attachWorkspa
       throw e;
     }
     const { link } = r;
+    // 창구 링크를 처음 만드는데 꾸민 적이 없으면 — 새 기본 가림(이메일·대표자·업태)을 저장해 둔다.
+    //   안 그러면 읽기 기본값(지금까지의 표시 = 이메일 보임)으로 공개된다(workspacePage.entryOf 머리말).
+    if (!r.reused) {
+      const bizRow = await Business.findByPk(businessId);
+      if (bizRow && !workspacePage.savedEntryOf(bizRow)) {
+        await bizRow.update({ permissions: {
+          ...(bizRow.permissions && typeof bizRow.permissions === 'object' ? bizRow.permissions : {}),
+          customer_entry: workspacePage.newDefaults(),
+        } });
+      }
+    }
     if (!r.reused) {
       createAuditLog({
         userId: req.user.id, businessId,

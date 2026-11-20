@@ -1,19 +1,17 @@
-// CustomerEntrySection — 설정 › 권한 «고객 창구» 카드 (2026-09-25)
+// CustomerEntrySection — 설정 › 공개 페이지 «우리 페이지 주소» 카드 (2026-09-25 · 2026-11-20 권한 탭에서 이사)
+//   소개·서비스 칸은 WorkspacePageSettings 로 옮겼다(가리기·추가 항목·서비스 카드와 한 화면).
 //
 //   설계: docs/CLIENT_ENTRY_DESIGN.md §4.5 · §5 P1
 //   자리: «고객 공개 범위» 카드 **옆** — 둘 다 «고객에게 무엇이 보이는가» 의 결정이다.
 //
-// ★ 이 카드가 하는 일은 셋뿐이다: ①창구 주소를 **다시 볼 수 있게** ②소개·서비스 문구 저장
-//   ③주소 교체·회수. 그 이상은 두지 않는다.
-// ★ 소개·서비스는 `AutoSaveField` 로 **변경 즉시** 저장한다(저장 버튼 없음 — CLAUDE.md 자동저장 절).
-//   래퍼가 `onSave` 를 부르므로 컨트롤이 직접 저장하지 않는다(두 번 나간다).
+// ★ 이 카드가 하는 일: ①창구 주소를 **다시 볼 수 있게**(복사·QR·메일 서명 한 줄) ②방문자 막기
+//   ③주소 교체·회수 ④상담 예약 설정. 그 이상은 두지 않는다.
 // ★ 발급 버튼이 막힐 수 있다(게스트 링크 킬스위치). 그때는 **이유를 화면이 말한다** —
 //   눌리게 두고 서버가 403 으로 거절하면 사용자에게는 «아무 일도 안 일어남» 이다.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
-import AutoSaveField from '../Common/AutoSaveField';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import BookingSettings from './BookingSettings';
 
@@ -26,28 +24,19 @@ type EntryLink = {
   last_used_at: string | null;
   contacts: { id: number; name: string | null; email: string | null; verified_at: string | null; revoked_at?: string | null }[];
 };
-type Settings = { intro: string; services: string[] };
-
-const MAX_SERVICES = 6;
 
 const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
   const { t } = useTranslation('settings');
   const [link, setLink] = useState<EntryLink | null>(null);
-  const [cfg, setCfg] = useState<Settings>({ intro: '', services: [] });
   const [enabled, setEnabled] = useState(true);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<null | 'url' | 'sig'>(null);
   const [askReplace, setAskReplace] = useState(false);
   // 방문자 한 사람 막기(D3) — 되돌릴 수 없으므로 한 번 묻는다. 막은 사람은 이메일을 다시 확인해도 못 들어온다.
   const [askBlock, setAskBlock] = useState<EntryLink['contacts'][number] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [qr, setQr] = useState<string | null>(null);
-
-  // ★ 최신값은 **클로저가 아니라 ref** 로 읽는다 — AutoSaveField 의 onSave 가 불릴 때
-  //   클로저는 뒤집기 전 값을 본다(CLAUDE.md 자동저장 절의 실사례).
-  const cfgRef = useRef<Settings>(cfg);
-  cfgRef.current = cfg;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -56,10 +45,6 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
       const j = await r.json();
       if (j?.success) {
         setLink(j.data.link || null);
-        setCfg({
-          intro: j.data.customer_entry?.intro || '',
-          services: Array.isArray(j.data.customer_entry?.services) ? j.data.customer_entry.services : [],
-        });
         setEnabled(j.data.guest_links_enabled !== false);
       }
     } catch (e) { setErr((e as Error).message); }
@@ -82,18 +67,6 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
     return () => { alive = false; };
   }, [linkUrl]);
 
-  /** 저장 — **던진다.** `if (j.success)` 로 삼키면 저장이 안 돼도 화면은 바뀐 채라
-   *  사용자는 값이 슬쩍 되돌아가는 것만 보고 이유를 모른다(CLAUDE.md). 던져야 «!» 배지가 뜬다. */
-  const persist = useCallback(async () => {
-    const r = await apiFetch(`/api/businesses/${businessId}/customer-entry`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(cfgRef.current),
-    });
-    const j = await r.json().catch(() => null);
-    if (!r.ok || !j?.success) throw new Error(j?.message || `save_failed_${r.status}`);
-  }, [businessId]);
-
   const issue = async (replace: boolean) => {
     if (busy) return;
     setBusy(true); setErr(null);
@@ -109,14 +82,16 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
     finally { setBusy(false); setAskReplace(false); }
   };
 
-  const copy = async () => {
+  const copy = async (text?: string, which: 'url' | 'sig' = 'url') => {
     if (!link?.url) return;
     try {
-      await navigator.clipboard.writeText(link.url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+      await navigator.clipboard.writeText(text || link.url);
+      setCopied(which);
+      setTimeout(() => setCopied(null), 1600);
     } catch { /* 클립보드가 막힌 브라우저 — 주소는 화면에 그대로 보인다 */ }
   };
+  // 메일 서명에 붙일 한 줄 — «고객에게 주는 방법» (docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §7 ②)
+  const sigLine = link?.url ? `${t('entry.sigPrefix', '문의·상담 예약')}: ${link.url}` : '';
 
   if (loading) return <Card><Empty>{t('entry.loading', '불러오는 중…')}</Empty></Card>;
 
@@ -136,8 +111,8 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
   return (
     <Card data-testid="settings-customer-entry">
       <CardHeader>
-        <Title>{t('entry.title', '고객 창구')}</Title>
-        <Desc>{t('entry.desc', '고객이 문의를 남길 수 있는 워크스페이스 주소입니다. 명함·메일 서명·홈페이지에 이 링크를 붙이세요.')}</Desc>
+        <Title>{t('wspage.linkTitle', '우리 페이지 주소')}</Title>
+        <Desc>{t('wspage.linkDesc', '고객에게 주는 링크입니다. 명함·메일 서명·홈페이지·카톡에 붙이세요. 검색에는 나오지 않습니다.')}</Desc>
       </CardHeader>
 
       {!enabled && (
@@ -150,8 +125,11 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
         <>
           <UrlRow>
             <Url data-testid="entry-url" title={link.url}>{link.url}</Url>
-            <Btn type="button" onClick={copy} data-testid="entry-copy">
-              {copied ? t('entry.copied', '복사됨') : t('entry.copy', '복사')}
+            <Btn type="button" onClick={() => copy()} data-testid="entry-copy">
+              {copied === 'url' ? t('entry.copied', '복사됨') : t('entry.copy', '복사')}
+            </Btn>
+            <Btn type="button" onClick={() => copy(sigLine, 'sig')} data-testid="entry-copy-signature" title={sigLine}>
+              {copied === 'sig' ? t('entry.copied', '복사됨') : t('entry.copySignature', '메일 서명 한 줄 복사')}
             </Btn>
             {/* 미리보기는 **새 탭** — 설정 화면을 잃지 않는다. */}
             <Btn type="button" data-testid="entry-preview"
@@ -205,48 +183,6 @@ const CustomerEntrySection: React.FC<Props> = ({ businessId, isOwner }) => {
       )}
 
       {err && <Warn data-testid="entry-error">{t(`entry.err.${err}`, err)}</Warn>}
-
-      {/* 안내 탭 문구 — 고객이 창구를 열면 가장 먼저 읽는 글이다. */}
-      <Field>
-        <Label htmlFor="entry-intro">{t('entry.introLabel', '소개')}</Label>
-        <AutoSaveField key={`entry-intro-${businessId}`} onSave={persist}>
-          <Area
-            id="entry-intro"
-            data-testid="entry-intro"
-            rows={4}
-            maxLength={2000}
-            disabled={!isOwner}
-            placeholder={t('entry.introPh', '어떤 일을 하는 회사인지 두세 줄로 적어 주세요.') as string}
-            value={cfg.intro}
-            onChange={(e) => setCfg((p) => ({ ...p, intro: e.target.value }))}
-          />
-        </AutoSaveField>
-      </Field>
-
-      <Field>
-        <Label>{t('entry.servicesLabel', '제공 서비스')}</Label>
-        <Hint>{t('entry.servicesHint', { count: MAX_SERVICES, defaultValue: '최대 {{count}}개. 빈 칸은 저장되지 않습니다.' })}</Hint>
-        <AutoSaveField key={`entry-svc-${businessId}`} onSave={persist}>
-          <SvcList>
-            {Array.from({ length: Math.min(MAX_SERVICES, cfg.services.length + 1) }).map((_, i) => (
-              <Input
-                key={i}
-                data-testid={`entry-service-${i}`}
-                maxLength={120}
-                disabled={!isOwner}
-                placeholder={t('entry.servicePh', '예: 브랜드 웹사이트 제작') as string}
-                value={cfg.services[i] || ''}
-                onChange={(e) => setCfg((p) => {
-                  const next = [...p.services];
-                  next[i] = e.target.value;
-                  // 뒤쪽 빈 칸은 모양만 — 저장은 서버가 빈 항목을 버린다(정규화 한 곳).
-                  return { ...p, services: next };
-                })}
-              />
-            ))}
-          </SvcList>
-        </AutoSaveField>
-      </Field>
 
       {/* 상담 예약(P2) — 창구가 있어야 뜻이 있다(예약 탭은 창구 화면 안에 있다). */}
       {link?.url && <BookingSettings businessId={businessId} isOwner={isOwner} />}
@@ -315,23 +251,7 @@ const QrRow = styled.div`display:flex;align-items:center;gap:12px;flex-wrap:wrap
 const QrImg = styled.img`
   flex-shrink:0;width:160px;height:160px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;
 `;
-const Field = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const Label = styled.label`font-size:0.75rem;font-weight:600;color:#475569;`;
 const Hint = styled.div`font-size:0.75rem;color:#94a3b8;line-height:1.5;`;
-const Area = styled.textarea`
-  width:100%;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;
-  font-size:0.8125rem;line-height:1.6;color:#0f172a;resize:vertical;font-family:inherit;
-  &:focus{outline:none;border-color:#14B8A6;}
-  &:disabled{background:#f8fafc;color:#94a3b8;}
-`;
-const SvcList = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const Input = styled.input`
-  width:100%;height:36px;padding:0 12px;border:1px solid #e2e8f0;border-radius:8px;
-  font-size:0.8125rem;color:#0f172a;
-  &:focus{outline:none;border-color:#14B8A6;}
-  &:disabled{background:#f8fafc;color:#94a3b8;}
-  @media (max-width:640px){ height:40px; }
-`;
 const Empty = styled.div`flex:1;font-size:0.8125rem;color:#94a3b8;`;
 const Warn = styled.div`
   padding:9px 12px;background:#FFF1F2;border:1px solid #FECDD3;border-radius:8px;

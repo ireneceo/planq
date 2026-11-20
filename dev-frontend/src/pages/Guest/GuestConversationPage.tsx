@@ -37,7 +37,9 @@ type GuestCtx = {
 
 export default function GuestConversationPage() {
   const { token } = useParams<{ token: string }>();
-  const { t } = useTranslation('guest');
+  const { t, i18n } = useTranslation('guest');
+  // 안내 탭 내용의 언어 — 워크스페이스가 영어 칸을 채웠으면 영어 화면에 영어로(서버 publicView 가 고른다).
+  const contentLang = (i18n.language || '').startsWith('en') ? 'en' : 'ko';
   const [ctx, setCtx] = useState<GuestCtx | null>(null);
   const [gone, setGone] = useState(false);
   // 첫 로드가 실패했는가 — 끝나지 않는 스피너 대신 이유와 다시 시도를 보여준다.
@@ -58,7 +60,7 @@ export default function GuestConversationPage() {
     //   화면이 **영원히 "불러오는 중…"** 이었다. 고객에게는 "고장" 과 구별되지 않는다
     //   (실제로 그렇게 보고됐다: "로딩이래. 이상해. 왜 안되지?").
     try {
-      const r = await fetch(`/api/guest/${token}`);
+      const r = await fetch(`/api/guest/${token}?lang=${contentLang}`);
       if (r.status === 404) { setGone(true); return; }
       if (!r.ok) throw new Error(`ctx ${r.status}`);
       const j = await r.json();
@@ -68,7 +70,7 @@ export default function GuestConversationPage() {
     } catch {
       setLoadErr(true);
     }
-  }, [token]);
+  }, [token, contentLang]);
 
   useEffect(() => { void load(); }, [load]);
   // ctx 를 아직 못 받았으면 5초마다 다시 시도한다 — 사용자가 아무것도 안 해도 네트워크가

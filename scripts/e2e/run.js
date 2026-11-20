@@ -195,6 +195,8 @@ const SUITES = {
   // 게스트 링크가 **누가 보낸 것인지 말하는가** (2026-09-24, CLIENT_ENTRY P0-①) — 이 무인증 표면을 재는
   //   첫 검사. 응답 원문 화이트리스트 · 외부 로고 차단 · 3폭 가시성 · workspace 제거 대조군 · 회수 404.
   guestentry: () => require('./canary-guest-entry'),
+  // 워크스페이스 공개 페이지 P1 — 설정 탭·창구 안내·Q sale [우리 페이지] 3폭 + 가림 대조군 (docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §10)
+  wspage: () => require('./canary-wspage'),
   // 폰·태블릿 우측패널 뒤로=닫기 · 메뉴 맨 위 · 메일 쓰기 모드 · 폴더 전체 선택 (2026-09-29, #437·#441·#436·#427)
   mobilepanels: () => require('./canary-mobile-panels'),
   // 우하단 바로 열기 8항목 × 3폭 — 열기·취소·뒤로·저장 뒤 «다시 안 열림» (2026-11-06, 폰 업무추가에서 못 나가던 것)

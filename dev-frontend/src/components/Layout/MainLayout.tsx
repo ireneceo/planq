@@ -1964,6 +1964,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
                         </AccordionItem>
                       )}
 
+                      {show('/business/settings/public-page') && (<AccordionItem to="/business/settings/public-page" data-testid="nav-public-page"
+                        $active={location.pathname.includes('/business/settings/public-page')}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>{t('nav.publicPage', { defaultValue: '공개 페이지' })}</AccordionItem>)}
                       {show('/business/settings/permissions') && (
                         <AccordionItem
                           to="/business/settings/permissions"
@@ -2380,6 +2382,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
             )}
 
             {/* 권한 — 투명성 원칙상 member 도 조회 가능. 편집은 owner 만 (탭 내부에서 disabled 처리) */}
+            {show('/business/settings/public-page') && (<SecondaryNavItem $collapsed={secondaryCollapsed} to="/business/settings/public-page"
+              $active={location.pathname.includes('/business/settings/public-page')}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>{t('nav.publicPage', { defaultValue: '공개 페이지' })}</SecondaryNavItem>)}
             {show('/business/settings/permissions') && (
               <SecondaryNavItem $collapsed={secondaryCollapsed}
                 to="/business/settings/permissions"

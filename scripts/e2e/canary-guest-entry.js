@@ -32,12 +32,17 @@ const SYMBOL = /^\/api\/businesses\/symbol\/[0-9a-f-]+\.(png|jpe?g|gif|webp|svg)
 //   걸리지도 않는 것을 뺀 것은 **이유 없는 완화**다(빨간불을 미리 끈 것). 되살렸다.
 //   옛 FORBIDDEN 중 창구에서 실제로 걸리는 것은 `@`·`"phone"`·`"email"` 셋뿐이고 그건 설계상 의도된
 //   연락처다(§4.2 안내 탭). 그 셋만 빠진다 — 그 외는 옛 목록과 같다.
-const FORBIDDEN_WS = [/business_id/, /"slug"/, /user_id/, /legal_/, /tax_id/, /representative/,
-  /biz_type/, /biz_item/, /"plan"/, /subscription/, /work_hours/, /token_hash/, /invite_token/,
-  /owner/, /brand_/];
+// ★ 2026-11-20 (docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §4 — 가리기·추가 항목·서비스 카드) — 대표자·업태·근무시간은
+//   이제 **워크스페이스가 보이게 켠 때만** 값이 실리는 키다(services/workspacePage.publicView). 키 이름으로 막던 셋을 빼고,
+//   기본 가림(대표자·업태)이 **값으로 null** 인지 아래에서 따로 잰다(키는 있어도 값이 새면 실패).
+const FORBIDDEN_WS = [/business_id/, /"slug"/, /user_id/, /legal_/, /tax_id/,
+  /biz_item/, /"plan"/, /subscription/, /token_hash/, /invite_token/,
+  /owner/, /brand_/,
+  // 2026-11-20 — 가림 목록·설정 원문이 새면 «무엇을 가렸는지» 가 드러난다
+  /"hidden"/, /permissions/];
 // 2026-09-25 P2 — `booking`({enabled, duration_minutes}) 이 더해졌다(예약 탭을 보일지). 의도한 확장이고
 //   그 안의 키도 아래 ENTRY_BOOKING_KEYS 로 **정확히** 잰다(담당 멤버·하루 상한이 새면 실패).
-const ENTRY_KEYS = 'booking,contact,intro,services,tagline';
+const ENTRY_KEYS = 'biz_type,booking,contact,extras,form,intro,representative,services,tagline,timezone,work_hours';
 const ENTRY_BOOKING_KEYS = 'duration_minutes,enabled';
 const ENTRY_CONTACT_KEYS = 'address,email,phone,website';
 const WS_TABS = ['info', 'chat', 'mine', 'projects'];
@@ -85,7 +90,8 @@ async function measure(browser, token, vp, strip) {
     if (strip) {
       await page.setRequestInterception(true);
       page.on('request', async (req) => {
-        if (req.method() === 'GET' && new RegExp(`/api/guest/${token}$`).test(req.url())) {
+        // 2026-11-20 — 화면이 `?lang=` 을 붙인다(안내 내용 언어). 쿼리까지 받는다 — 안 그러면 가로채기가 빠져 대조군이 죽는다
+        if (req.method() === 'GET' && new RegExp(`/api/guest/${token}(\\?|$)`).test(req.url())) {
           try {
             const r = await fetch(req.url());
             const j = await r.json();
@@ -345,7 +351,7 @@ async function measureEntryQr(browser, vp) {
   try {
     await page.setViewport({ width: vp.w, height: vp.h, isMobile: !!vp.mobile, hasTouch: !!vp.mobile });
     await login(page);
-    await page.goto(BASE + '/business/settings/permissions', { waitUntil: 'networkidle2' });
+    await page.goto(BASE + '/business/settings/public-page', { waitUntil: 'networkidle2' });
     await page.waitForSelector('[data-testid="entry-qr"]', { timeout: 15000 }).catch(() => null);
     return await page.evaluate(() => {
       const img = document.querySelector('[data-testid="entry-qr"]');
@@ -387,7 +393,9 @@ async function runDesk(browser, biz, push, unmeasured, issuedWs) {
   push('창구: scope=workspace', d.scope === 'workspace', String(d.scope));
   push('창구: 공유 링크에는 방이 없다 (conversation null)', d.conversation === null, JSON.stringify(d.conversation));
   const ek = Object.keys(d.entry || {}).sort().join(',');
-  push('창구: entry 키가 정확히 5개', ek === ENTRY_KEYS, ek || '없음');
+  push('창구: entry 키가 정확히 11개', ek === ENTRY_KEYS, ek || '없음');
+  push('창구: 기본 가림(대표자·업태)은 값이 null', d.entry && d.entry.representative === null && d.entry.biz_type === null,
+    `representative=${d.entry?.representative} biz_type=${d.entry?.biz_type}`);
   const bk = Object.keys(d.entry?.booking || {}).sort().join(',');
   push('창구: entry.booking 키가 정확히 2개', bk === ENTRY_BOOKING_KEYS, bk || '없음');
   const ck = Object.keys(d.entry?.contact || {}).sort().join(',');

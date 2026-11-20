@@ -199,7 +199,8 @@
     "signatures": "받은·보낸 서명",
     "signatureManage": "서명 관리",
     "support": "안내방",
-    "followup": "신규 고객"
+    "followup": "신규 고객",
+    "publicPage": "공개 페이지"
   },
   "user": {
     "profile": "내 프로필",
@@ -265,7 +266,9 @@
     "create": "만들기",
     "cancel": "취소",
     "noWorkspace": "워크스페이스 없음",
-    "noWorkspaceSub": "눌러서 새로 만들기"
+    "noWorkspaceSub": "눌러서 새로 만들기",
+    "publicPage": "우리 공개 페이지",
+    "publicPageSub": "고객에게 줄 링크 · QR"
   },
   "whatsNew": {
     "filterAll": "전체",

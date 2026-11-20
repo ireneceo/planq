@@ -35,6 +35,7 @@ import { downloadRowsAsCsv } from '../../utils/csv';
 import SaleInboxList from '../../components/QSale/SaleInboxList';
 import SaleCueBar from '../../components/QSale/SaleCueBar';
 import AddInquiryModal from '../../components/QSale/AddInquiryModal';
+import PageLinkDialog from '../../components/WorkspacePage/PageLinkDialog';
 // 응대 내역 입력칸은 **공용 한 벌** — RecordModal 과 같은 것을 쓴다
 // 이메일·전화는 **공용 입력**을 쓴다 — 형식을 입력 중에 맞춰 주고 틀리면 그 자리에서 말한다
 import {
@@ -58,6 +59,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
   const businessId = user?.business_id ? Number(user.business_id) : null;
 
   const [items, setItems] = useState<SaleClient[]>([]);
+  const [pageLinkOpen, setPageLinkOpen] = useState(false);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(1);
@@ -266,6 +268,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
   }, [items, t]);
 
   const Shell = embedded ? EmbeddedShell : PageShell;
+  const pageLinkDialog = businessId ? <PageLinkDialog open={pageLinkOpen} onClose={() => setPageLinkOpen(false)} businessId={businessId} /> : null;
   return (
     <Shell
       title={t('page.title') as string}
@@ -290,6 +293,14 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
               {t('list.tabClients') as string}
             </SegmentedBtn>
           </SegmentedToggle>}
+          {/* 우리 페이지 — 고객에게 줄 링크를 Q sale 에서 바로(docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §7 ② ⓑ) */}
+          {!embedded && businessId && (
+            <PageLinkBtn type="button" data-testid="sale-wspage-link" onClick={() => setPageLinkOpen(true)}
+              title={t('wspage.dialogTitle', { ns: 'settings', defaultValue: '우리 페이지' }) as string}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              <span>{t('wspage.dialogTitle', { ns: 'settings', defaultValue: '우리 페이지' }) as string}</span>
+            </PageLinkBtn>
+          )}
           {/* ★ 2026-09-14 3차 (Irene: *"+고객응대 내역 추가 버튼은 Q task 에 +업무추가랑 같은
               버튼으로 해. 활성화 버튼."* · *"프로젝트 헤더처럼."*)
               머리줄 주 액션은 **공용 `HeaderCta` 한 곳**에서 온다 — 프로젝트 [+ 새 프로젝트] ·
@@ -631,6 +642,7 @@ export default function SalePage({ embedded = false }: { embedded?: boolean } = 
         onClose={() => setPanelClientId(null)}
         onChanged={() => load({ silent: true })}
       />
+      {pageLinkDialog}
     </Shell>
   );
 }
@@ -651,6 +663,15 @@ function EmbeddedShell({ actions, children }: { title?: string; count?: number; 
    → 폰에서는 주 액션을 맨 앞으로 돌린다. 탭은 오른쪽으로 흘러도 스크롤로 닿는다. */
 const EmbedWrap = styled.div`display:flex;flex-direction:column;gap:12px;min-width:0;`;
 const EmbedHead = styled.div`display:flex;justify-content:flex-end;`;
+// «우리 페이지» — 보조 버튼(흰 배경). 높이는 머리줄 알약·CTA 와 같은 32. 폰에서는 아이콘만.
+const PageLinkBtn = styled.button`
+  display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;flex-shrink:0;
+  border:1px solid #CBD5E1;border-radius:8px;background:#fff;color:#334155;cursor:pointer;
+  font-size:0.8125rem;font-weight:600;white-space:nowrap;
+  &:hover{border-color:#14B8A6;color:#0D9488;}
+  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
+  @media (max-width:640px){ width:32px;padding:0;justify-content:center; span{display:none;} }
+`;
 const Actions = styled.div`
   display: flex; align-items: center; gap: 8px;
   @media (max-width: 640px) { gap: 6px; > *:last-child { order: -1; } }

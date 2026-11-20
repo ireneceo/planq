@@ -5,6 +5,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
@@ -12,7 +13,6 @@ import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import MemberPermissionMatrix from '../../components/Permissions/MemberPermissionMatrix';
 import DefaultBillingOwnerSection from '../../components/Permissions/DefaultBillingOwnerSection';
 // 고객 창구 — «고객 공개 범위» 와 같은 축(«고객에게 무엇이 보이는가»)이라 이 탭에 둔다.
-import CustomerEntrySection from '../../components/Permissions/CustomerEntrySection';
 import SalesIntakeSection from '../../components/Permissions/SalesIntakeSection';   // #449 상담 유입 모드
 
 type ToggleKey = 'financial' | 'schedule' | 'client_info';
@@ -272,9 +272,11 @@ const PermissionsSettings: React.FC<Props> = ({ businessId, canEdit, canEditPoli
         </Preview>
       </Card>
 
-      {/* 고객 창구 — 워크스페이스 주소·소개(docs/CLIENT_ENTRY_DESIGN.md §4.5).
-          «고객 공개 범위» 바로 아래다 — 둘 다 고객에게 보이는 것의 결정이다. */}
-      <CustomerEntrySection businessId={businessId} isOwner={isOwner} />
+      {/* 고객 창구 — 2026-11-20 설정 «공개 페이지» 탭으로 이사(docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §10 P1). 찾던 사람을 위해 한 줄 */}
+      <MovedNote data-testid="perm-entry-moved">
+        {t('permissions.entryMoved', '고객 창구(우리 페이지 주소·소개·서비스·상담 예약)는 «공개 페이지» 로 옮겼어요.')}
+        {' '}<MovedLink to="/business/settings/public-page">{t('permissions.entryMovedGo', '공개 페이지 열기 →')}</MovedLink>
+      </MovedNote>
       <SalesIntakeSection businessId={businessId} isOwner={isOwner} />
 
       {/* 사이클 N+21 — 멤버별 메뉴 권한 매트릭스 + 기본 청구 담당 */}
@@ -311,6 +313,11 @@ const OwnerHint = styled.div`
 const Grid = styled.div`
   display: grid; grid-template-columns: 1fr; gap: 16px;
 `;
+const MovedNote = styled.div`
+  padding:12px 16px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;
+  font-size:0.8125rem;color:#475569;line-height:1.5;
+`;
+const MovedLink = styled(Link)`color:#0D9488;font-weight:600;text-decoration:none;&:hover{text-decoration:underline;}`;
 const Card = styled.div<{ $disabled: boolean }>`
   background: #fff; border: 1px solid #E2E8F0; border-radius: 12px;
   padding: 20px; display: flex; flex-direction: column; gap: 16px;

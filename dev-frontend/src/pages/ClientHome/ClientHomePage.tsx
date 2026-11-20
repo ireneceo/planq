@@ -36,7 +36,8 @@ const TAB_KEYS = ['info', 'kb', 'book', 'mine'] as const;
 type TabKey = typeof TAB_KEYS[number];
 
 export default function ClientHomePage() {
-  const { t } = useTranslation('guest');
+  const { t, i18n } = useTranslation('guest');
+  const contentLang = (i18n.language || '').startsWith('en') ? 'en' : 'ko';
   const { user } = useAuth();
   const [voiceOpen, setVoiceOpen] = useState(false);
   const navigate = useNavigate();
@@ -51,14 +52,14 @@ export default function ClientHomePage() {
   const load = useCallback(async () => {
     if (!bizId) return;
     try {
-      const r = await apiFetch(`/api/client-home/${bizId}`);
+      const r = await apiFetch(`/api/client-home/${bizId}?lang=${contentLang}`);
       const j = await r.json().catch(() => null);
       if (!r.ok || !j?.success) { setErr(j?.message || `error_${r.status}`); return; }
       setHome(j.data); setErr(null);
     } catch { setErr('error'); }
     // 확인필요 — 청구·컨펌 같은 «내가 할 일» 이 있으면 홈 위에 한 줄로(§4.7). 숫자는 todo API 한 곳.
     try { const td = await fetchTodo(bizId); setTodoTotal(td.total || 0); } catch { /* 줄만 안 뜬다 */ }
-  }, [bizId]);
+  }, [bizId, contentLang]);
   useEffect(() => { void load(); }, [load]);
   // 자료 수(«자료 N» 탭)는 팀이 고객 범위 자료를 만들거나 범위를 바꾸면 달라진다 — 서버가 이 고객 user: 방으로 신호만 보낸다.
   //   탭이 0 이라 숨어 있어도 들어야 첫 자료가 생기는 순간 탭이 나타난다.

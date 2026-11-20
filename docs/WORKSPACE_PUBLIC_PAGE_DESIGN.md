@@ -4,7 +4,7 @@
 > 선행 정본: `docs/CLIENT_ENTRY_DESIGN.md`(고객 창구, 2026-09-24) · `docs/SALES_INTAKE_DESIGN.md` · `.claude/rules/seo-landing.md`.
 > 이 문서는 고객 창구를 **잇고**, 그 설계의 결정 두 건을 **뒤집는다**(§2) — 뒤집는 주체는 Irene 의 2026-11-20 요청이다.
 
-**VERDICT: NEEDS-IRENE** — 설계는 끝났다. Irene 이 직접 요구한 «페이지 구성 컨펌» 과 §9 결정 5건이 남았다. 답이 오면 P1 부터 바로 구현할 수 있다.
+**VERDICT: NEEDS-IRENE → 2026-11-20 Irene 결정 «권고대로 진행해 줘»** — ① 구성 예 ② 접수 확인 메일 보낸다(가) ③ 신규 문의함 → 한 번 눌러 고객 등록(가) ④ 첫 공개 관리자 승인(가) ⑤ 유료 + 체험 중(가). 구현 P1 → P2 → P3.
 
 ## 결론 (10줄)
 

@@ -98,7 +98,8 @@ async function resolveGuestToken(raw, { touch = false, ip = null } = {}) {
     //   가르지만, 안 읽는 것이 한 겹 더 안전하다).
     const bizAttrs = ['id', 'guest_links_enabled', 'deleted_at', 'name', 'brand_name', 'brand_logo_url'];
     if (link.scope === 'workspace') {
-      bizAttrs.push('brand_tagline', 'phone', 'email', 'website', 'address', 'permissions');
+      // 안내 탭이 읽는 칸 — services/workspacePage.PROFILE_ATTRS 한 목록(가림·영어 칸·근무시간 포함).
+      for (const a of require('./workspacePage').PROFILE_ATTRS) if (!bizAttrs.includes(a)) bizAttrs.push(a);
     }
     const business = await Business.findByPk(link.business_id, { attributes: bizAttrs });
     if (!business || business.deleted_at || business.guest_links_enabled === false) return null;

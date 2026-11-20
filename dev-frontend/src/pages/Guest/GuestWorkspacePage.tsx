@@ -27,11 +27,18 @@ import {
   Wrap, Head, HeadRow, HeadText, Title, HeadBtn, TabBar, Tab, NotifyColumn,
 } from './guestShell';
 
+/** 모양은 서버 services/workspacePage.js publicView 한 함수다(가린 항목은 null·없음). */
 export type EntryInfo = {
   tagline: string | null;
   intro: string | null;
-  services: string[];
+  services: { id: string; name: string; summary: string | null; price_text: string | null; image_url: string | null }[];
   contact: { phone: string | null; email: string | null; website: string | null; address: string | null };
+  work_hours?: import('../../utils/workHoursText').WorkHours | null;
+  timezone?: string | null;
+  representative?: string | null;
+  biz_type?: string | null;
+  extras?: { label: string; value: string; href: string | null }[];
+  form?: { enabled: boolean; ask_phone: boolean; ask_company: boolean };
   /** 상담 예약(P2) — 켜져 있으면 «상담 예약» 탭이 보인다. 옛 응답에는 없을 수 있다. */
   booking?: { enabled: boolean; duration_minutes: number };
 };

@@ -199,7 +199,8 @@
     "signatures": "Signatures",
     "signatureManage": "Signature management",
     "support": "Help rooms",
-    "followup": "New customers"
+    "followup": "New customers",
+    "publicPage": "Public page"
   },
   "user": {
     "profile": "My Profile",
@@ -265,7 +266,9 @@
     "create": "Create",
     "cancel": "Cancel",
     "noWorkspace": "No workspace",
-    "noWorkspaceSub": "Tap to create one"
+    "noWorkspaceSub": "Tap to create one",
+    "publicPage": "Our public page",
+    "publicPageSub": "Link & QR for customers"
   },
   "whatsNew": {
     "filterAll": "All",

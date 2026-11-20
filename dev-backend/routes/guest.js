@@ -67,53 +67,14 @@ const workspaceOf = (b) => (b ? {
   logo_url: b.brand_logo_url && SYMBOL_PATH.test(b.brand_logo_url) ? b.brand_logo_url : null,
 } : null);
 
-/** 외부 주소는 https 만, 길이 제한. 공개 화면에 임의 스킴(`javascript:`·`data:`)을 그리지 않는다. */
-const httpsUrl = (v) => {
-  const s = String(v || '').trim().slice(0, 500);
-  if (!s) return null;
-  try { return new URL(s).protocol === 'https:' ? s : null; } catch { return null; }
-};
-
 /**
- * 워크스페이스 창구(scope='workspace')의 **안내 탭** 자료 — §4.2.
- *
- * ★ **화이트리스트다.** 여기 적힌 것만 나간다. 담는 것은 워크스페이스가 이미 고객에게
- *   내보내고 있는 값들이다 — 전화·이메일·주소·홈페이지는 청구서·계약서에 인쇄되어
- *   고객 손에 들어가는 것과 **같은 컬럼**이다(models/Business.js 법인 정보 블록).
- * ★ **담지 않는 것과 이유**(무인증 응답이다):
- *   · `legal_name`·`tax_id`·`representative`·`biz_type`·`biz_item` — 증빙용이고 창구에 쓸 데가 없다
- *   · `slug`·`id`·요금제·멤버 수 — 열거·정찰 재료
- *   · `work_hours` — 컬럼에 **정해진 모양이 없다**(`routes/businesses.js:744` 가 `req.body` 를
- *     그대로 저장하고, 읽는 곳이 0곳이다). 원문을 무인증으로 내보내면 멤버가 적어 넣은
- *     아무 JSON 이 그대로 나간다. 모양은 **P2(예약 슬롯 계산)가 정의**하고 그때 같이 싣는다.
+ * 워크스페이스 창구(scope='workspace')의 **안내 탭** 자료 — 모양은 services/workspacePage.js `publicView` **한 함수**다
+ * (2026-11-20 — 가리기·추가 항목·서비스 카드. 여기 있던 화이트리스트를 그리로 옮겼다. 설정 화면 미리 보기·
+ * 로그인 고객 홈·(P3) 공개 주소가 같은 것을 쓴다).
  */
-function entryOf(b) {
+function entryOf(b, lang) {
   if (!b) return null;
-  const p = b.permissions && typeof b.permissions === 'object' ? b.permissions : {};
-  const ce = p.customer_entry && typeof p.customer_entry === 'object' ? p.customer_entry : {};
-  const str = (v, max) => {
-    const s2 = typeof v === 'string' ? v.trim() : '';
-    return s2 ? s2.slice(0, max) : null;
-  };
-  return {
-    tagline: str(b.brand_tagline, 200),
-    intro: str(ce.intro, 2000),
-    services: Array.isArray(ce.services)
-      ? ce.services.map((s2) => str(s2, 120)).filter(Boolean).slice(0, 6)
-      : [],
-    contact: {
-      phone: str(b.phone, 50),
-      email: str(b.email, 200),
-      website: httpsUrl(b.website),
-      address: str(b.address, 500),
-    },
-    // 상담 예약 탭을 보일지·한 번 길이 — **두 값만.** 담당 멤버·하루 상한·리드타임은 싣지 않는다
-    //   (무인증 응답이고, 화면은 슬롯 API 가 준 시각만 있으면 된다).
-    booking: (() => {
-      const bk = require('../services/booking').bookingOf(b);
-      return { enabled: bk.enabled, duration_minutes: bk.duration };
-    })(),
-  };
+  return require('../services/workspacePage').publicView(b, { lang: lang === 'en' ? 'en' : 'ko' });
 }
 
 // ── GET /api/guest/:token — 대화방 컨텍스트 ────────────────────────────────
@@ -191,7 +152,7 @@ router.get('/:token', guestLimiter('guest-ctx', { windowMs: 60 * 1000, max: 60 }
       workspace: workspaceOf(business),
       // ★ 창구(scope='workspace')에서만 «안내 탭» 자료가 실린다. 다른 scope 에서는 **키 자체가 없다** —
       //   옛 채팅·프로젝트 링크의 응답이 바이트 그대로여야 한다(설계 §5 P1 양성 대조군).
-      ...(link.scope === 'workspace' ? { entry: entryOf(business) } : {}),
+      ...(link.scope === 'workspace' ? { entry: entryOf(business, req.query.lang) } : {}),
     });
   } catch (err) { next(err); }
 });

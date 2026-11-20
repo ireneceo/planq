@@ -33,7 +33,8 @@
     "workEnv": "Work environment",
     "wsBackup": "Workspace backup",
     "payroll": "Payroll settings",
-    "signatures": "Signature management"
+    "signatures": "Signature management",
+    "publicPage": "Public page"
   },
   "dataExport": {
     "intro": "Export your personal items or the whole workspace as a ZIP. Files keep their originals, documents become HTML, and records such as tasks, chats, clients and invoices come as CSV (opens in Excel) plus JSON.",
@@ -259,7 +260,9 @@
       "preview_off": "Members appear as your workspace name on tasks and chat, and without a name on documents and files. Client names are always shown.",
       "preview_on": "Members appear with their display names. Client names are always shown."
     },
-    "owner_only_toggle": "Only owners can change this."
+    "owner_only_toggle": "Only owners can change this.",
+    "entryMoved": "The customer desk (page link, intro, services, bookings) has moved to «Public page».",
+    "entryMovedGo": "Open public page →"
   },
   "storage": {
     "title": "Storage & Integrations",
@@ -928,7 +931,9 @@
     "blocked": "Blocked",
     "blockTitle": "Block this visitor?",
     "blockOk": "Block",
-    "blockBody": "Their personal link closes right away, and verifying the email again won't let them back in. The conversation history stays."
+    "blockBody": "Their personal link closes right away, and verifying the email again won't let them back in. The conversation history stays.",
+    "sigPrefix": "Inquiries & bookings",
+    "copySignature": "Copy email signature line"
   },
   "holidays": {
     "title": "Holidays & workdays",
@@ -1213,5 +1218,70 @@
     "rejectBody": "{{name}} will be told it wasn't approved and can ask again after 7 days.",
     "quota": "No seats left · add member seats in your plan.",
     "failed": "Couldn't do that. Please try again shortly."
+  },
+  "wspage": {
+    "linkTitle": "Our page link",
+    "linkDesc": "Share this link with customers — business cards, email signatures, your website or chat. It does not appear in search.",
+    "loadErr": "Couldn't load the public page settings.",
+    "autoTitle": "Filled in automatically",
+    "autoDesc": "Taken from your workspace info. Turn off anything you want to hide. Empty values are not shown.",
+    "editInfo": "Edit info →",
+    "auto": {
+      "name": "Name & logo",
+      "tagline": "Tagline"
+    },
+    "alwaysShown": "Always shown",
+    "emptyValue": "(empty)",
+    "shown": "shown",
+    "hidden": "hidden",
+    "introTitle": "Introduction",
+    "langKo": "Korean",
+    "introPh": "Describe what you do and who you help.",
+    "introPhEn": "(Optional) Introduction for English-speaking visitors. Leave empty to show the Korean one.",
+    "servicesTitle": "Services",
+    "servicesDesc": "Up to {{count}} · drag to reorder. Customers ask about a service right from its card.",
+    "noServices": "No services yet. Show what you offer as cards.",
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "edit": "Edit",
+    "delete": "Delete",
+    "addService": "Add service",
+    "editService": "Edit service",
+    "extrasTitle": "Extra details",
+    "extrasDesc": "Add up to {{count}} more lines — founding year, Instagram, certifications. Values that are web addresses (https://…) become links.",
+    "extraLabelPh": "Label (e.g. Founded)",
+    "extraValuePh": "Value (e.g. 2019)",
+    "extraLabel": "Label",
+    "extraValue": "Value",
+    "addExtra": "Add line",
+    "previewTitle": "Preview",
+    "previewDesc": "What customers see when they open your link. Updates as you edit.",
+    "save": "Save",
+    "svcName": "Service name",
+    "svcNamePh": "e.g. Brand identity",
+    "svcNameRequired": "Please enter a service name.",
+    "svcSummary": "Description (a line or two)",
+    "svcSummaryPh": "e.g. Logo, colors and guidelines — the face of your brand.",
+    "svcPrice": "Price text (optional)",
+    "svcPricePh": "e.g. From $2,500 · Ask for a quote",
+    "svcImage": "Photo (optional)",
+    "uploading": "Uploading…",
+    "changeImage": "Change photo",
+    "addImage": "Upload photo",
+    "removeImage": "Remove photo",
+    "imageHint": "PNG, JPG or WEBP up to 3MB. Wide photos look best.",
+    "svcEnglish": "English (optional — Korean is shown if empty)",
+    "deleteServiceTitle": "Delete this service?",
+    "deleteServiceBody": "It disappears from your customer page right away.",
+    "err": {
+      "unsupported_file_type": "Only PNG, JPG or WEBP photos.",
+      "file_too_large": "Photos must be 3MB or smaller."
+    },
+    "dialogTitle": "Our page",
+    "dialogDesc": "Give customers this link. They can see your intro and services and send an inquiry or book a consultation.",
+    "open": "Open",
+    "decorate": "Edit page →",
+    "noLink": "No page link yet. The owner can create one in «Public page».",
+    "makePage": "Create page →"
   }
 }

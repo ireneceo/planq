@@ -74,10 +74,11 @@ import { useMemberRoleDict } from '../../components/MemberRole/useMemberRoleDict
 import { onSocket } from '../../services/socket';
 import WorkspaceBrandsSection from '../../components/Brand/WorkspaceBrandsSection';
 import WorkspaceDeletionSection from './WorkspaceDeletionSection';
+import WorkspacePageSettings from '../../components/WorkspacePage/WorkspacePageSettings';
 import NameCardViewDrawer, { MemberCardButton } from '../../components/NameCard/NameCardViewDrawer';
 import { formatDay, formatDayTime } from '../../utils/dateFormat';
 
-type TabKey = 'payroll' | 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity' | 'signatures';   // signatures — 서명 관리(owner/admin, 2026-10-23) · activity — 팀원 활동 기록(owner 전용)
+type TabKey = 'payroll' | 'attendance' | 'brand' | 'legal' | 'language' | 'work-env' | 'storage' | 'plan' | 'permissions' | 'members' | 'cue' | 'billing' | 'email' | 'mail-accounts' | 'notifications' | 'work-flow' | 'data-export' | 'activity' | 'signatures' | 'public-page';   // signatures — 서명 관리(owner/admin, 2026-10-23) · activity — 팀원 활동 기록(owner 전용)
 
 // ─────────────────────────────────────────────
 // Styled
@@ -510,7 +511,7 @@ export default function WorkspaceSettingsPage() {
     // ★ 새 탭을 만들면 **이 목록에도 넣어야 한다.** 여기 없으면 URL 이 맞아도
     //   아래 fallback 이 visibleTabs[0] 로 떨어뜨려 첫 탭이 열린다 — 화면은 멀쩡한데
     //   내가 만든 섹션만 영영 안 보인다(실측: activity 탭이 그렇게 죽어 있었다).
-    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'payroll', 'plan', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export', 'activity', 'signatures']
+    isMembersMode ? ['members'] : ['brand', 'legal', 'work-env', 'attendance', 'payroll', 'plan', 'public-page', 'permissions', 'billing', 'mail-accounts', 'email', 'storage', 'cue', 'notifications', 'data-export', 'activity', 'signatures']
   ), [isMembersMode]);
 
   const tabFromUrl = useMemo<TabKey>(() => {
@@ -1004,6 +1005,7 @@ export default function WorkspaceSettingsPage() {
       case 'signatures':  return t('tabs.signatures', '서명 관리') as string;
       case 'storage':     return t('tabs.storage') as string;
       case 'plan':        return t('tabs.plan') as string;
+      case 'public-page': return t('tabs.publicPage', '공개 페이지') as string;
       case 'permissions': return t('tabs.permissions') as string;
       case 'cue':         return t('tabs.cue') as string;
       case 'billing':     return t('tabs.billing', '청구') as string;
@@ -1464,6 +1466,10 @@ export default function WorkspaceSettingsPage() {
           내 출퇴근·내 휴가(개인)와 성격이 달라 한 페이지에 탭으로 묶으면 둘 다 어정쩡해진다. */}
       {tab === 'attendance' && businessId && (
         <AttendanceAdminSettings businessId={businessId} />
+      )}
+      {/* 공개 페이지 — 고객에게 주는 우리 회사 페이지(docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §7 ②). 고치는 것은 오너, 멤버는 보기·주소 복사 */}
+      {tab === 'public-page' && businessId && (
+        <WorkspacePageSettings businessId={businessId} isOwner={isAdmin} />
       )}
       {tab === 'permissions' && businessId && (
         <PermissionsSettings businessId={businessId} canEdit={isWsAdmin} canEditPolicy={isAdmin} />

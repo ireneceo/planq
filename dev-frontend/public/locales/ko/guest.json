@@ -194,7 +194,7 @@
     "tabMine": "내 문의",
     "tabProjects": "프로젝트",
     "noIntro": "아직 소개가 등록되지 않았어요.",
-    "services": "제공 서비스",
+    "services": "서비스",
     "contact": "연락처",
     "phone": "전화",
     "email": "이메일",
@@ -209,7 +209,22 @@
     "projectsLocked": "초대된 고객 계정으로 로그인하면 프로젝트를 볼 수 있어요.",
     "tabsAria": "고객 창구 탭",
     "tabBook": "상담 예약",
-    "goBook": "상담 예약"
+    "goBook": "상담 예약",
+    "intro": "소개",
+    "workHours": "근무시간",
+    "representative": "대표자",
+    "bizType": "업태·종목",
+    "askService": "이 서비스 문의",
+    "companyInfo": "회사 정보",
+    "day": {
+      "mon": "월",
+      "tue": "화",
+      "wed": "수",
+      "thu": "목",
+      "fri": "금",
+      "sat": "토",
+      "sun": "일"
+    }
   },
   "booking": {
     "locked": "이메일을 확인하면 상담 시간을 예약할 수 있어요. 위의 [확인하기] 를 눌러 주세요.",

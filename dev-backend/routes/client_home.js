@@ -32,7 +32,7 @@ router.get('/:businessId', authenticateToken, async (req, res, next) => {
     const actor = await actorOf(req);
     const { Business } = require('../models');
     const biz = await Business.findByPk(actor.businessId, {
-      attributes: ['id', 'name', 'brand_name', 'brand_logo_url', 'brand_tagline', 'phone', 'email', 'website', 'address', 'permissions'],
+      attributes: require('../services/workspacePage').PROFILE_ATTRS,
     });
     // 내 대화방 — 이 고객의 customer 방 중 가장 최근. 없으면 null(화면은 «대화» 줄을 그리지 않는다).
     const conv = await Conversation.findOne({
@@ -50,7 +50,7 @@ router.get('/:businessId', authenticateToken, async (req, res, next) => {
     return successResponse(res, {
       info_count: infoCount,
       workspace: workspaceOf(biz),
-      entry: entryOf(biz),
+      entry: entryOf(biz, req.query.lang),
       client: { id: actor.client.id, name: actor.client.display_name || actor.client.company_name || null },
       conversation: conv ? { id: conv.id, title: conv.title || null } : null,
       projects_count: Number(pc.n) || 0,

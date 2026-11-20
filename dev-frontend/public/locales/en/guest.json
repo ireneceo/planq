@@ -209,7 +209,22 @@
     "projectsLocked": "Sign in with your invited customer account to view projects.",
     "tabsAria": "Customer desk tabs",
     "tabBook": "Book",
-    "goBook": "Book a consultation"
+    "goBook": "Book a consultation",
+    "intro": "About",
+    "workHours": "Hours",
+    "representative": "Representative",
+    "bizType": "Business type",
+    "askService": "Ask about this",
+    "companyInfo": "Company info",
+    "day": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    }
   },
   "booking": {
     "locked": "Verify your email to book a consultation. Tap [Verify] above.",

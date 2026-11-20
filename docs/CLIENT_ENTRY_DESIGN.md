@@ -4,6 +4,8 @@
 > 선행 정본: `docs/Q_SALE_DESIGN.md`(고객 축) · `docs/GUEST_LINK_DESIGN.md` + `docs/PROJECT_EXTERNAL_VIEW_DESIGN.md` +
 > `docs/GUEST_PROJECT_VIEW_DECISIONS.md`(게스트 표면). 이 문서는 그 셋을 **뒤집지 않고 잇는다.**
 > 뒤집는 항목은 한 건뿐이다 — GUEST_LINK §10 이 스케치한 `/w/{slug}/contact` **공개 슬러그 폼은 만들지 않는다**(§3-D1).
+>
+> ⚠️ **2026-11-20 — §3-D1(공개 슬러그·검색 노출 금지)과 §5 «새 표 금지»(문의 표 1개)는 `docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md` 로 뒤집혔다**(Irene «권고대로»). 범위는 그 문서 §2 — 공개를 켜고 승인된 워크스페이스만.
 
 ## 0. Irene 원문 (요약하지 않는다)
 

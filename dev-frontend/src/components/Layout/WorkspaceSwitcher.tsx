@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useAuth, type WorkspaceMembership } from '../../contexts/AuthContext';
 import { workspaceSwitchLanding } from '../../config/navMenus';
+import PageLinkDialog from '../WorkspacePage/PageLinkDialog';
 
 /**
  * WorkspaceSwitcher (사이드바 전용)
@@ -54,6 +55,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
   const navigate = useChromeNav();
   const [open, setOpen] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [pageLinkOpen, setPageLinkOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     if (!open) return;
@@ -224,6 +226,22 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
             </>
           )}
 
+          {/* 우리 공개 페이지 — 고객에게 줄 링크를 어디서든(docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §7 ② ⓒ). 고객 역할·관리자 모드에는 없다 */}
+          {!isAdminMode && activeWs && activeWs.role !== 'client' && (
+            <>
+              <MenuDivider />
+              <MenuItem type="button" $current={false} data-testid="ws-switcher-public-page"
+                onClick={() => { setOpen(false); setPageLinkOpen(true); }}>
+                <PlusBadge>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                </PlusBadge>
+                <ItemBody>
+                  <ItemName>{t('switcher.publicPage', '우리 공개 페이지')}</ItemName>
+                  <ItemSub>{t('switcher.publicPageSub', '고객에게 줄 링크 · QR')}</ItemSub>
+                </ItemBody>
+              </MenuItem>
+            </>
+          )}
           <MenuDivider />
           <MenuItem type="button" $current={false} onClick={goWelcome}>
             <PlusBadge>
@@ -259,6 +277,7 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         </Menu>
       )}
 
+      {activeWs && <PageLinkDialog open={pageLinkOpen} onClose={() => setPageLinkOpen(false)} businessId={activeWs.business_id} />}
     </Container>
   );
 };
