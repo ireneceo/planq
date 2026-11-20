@@ -1,6 +1,15 @@
 ## 현재 작업 상태
-**마지막 업데이트:** 2026-11-20 (방 ffb5c980 — 정기 점검 11/20 00:15) · 이전: 2026-11-19 (방 2a574c2f — AI 앱 파일 붙이기)
+**마지막 업데이트:** 2026-11-20 (방 1f89f011 — ChatGPT 업무 그룹 배정 도구) · 그 전: 2026-11-20 (방 ffb5c980 — 정기 점검 11/20 00:15) · 이전: 2026-11-19 (방 2a574c2f — AI 앱 파일 붙이기)
 **작업 상태:** 완료
+
+### ✅ ChatGPT 업무 그룹 배정 — `set_task_workstream` (방 1f89f011 · 2026-11-20 · [Opus] · Fable 안 씀 — 이미 Fable 통과한 update_task 그룹 칸과 같은 실행 길에 이름만 더함, 새 scope·알림 없음)
+- Irene: ChatGPT 재연결 뒤에도 «update_task 에 workstream_id 없음 · 그룹 배정 도구 없음» → 우리 MCP 목록엔 10-27(072d80c3)부터 있고 운영에도 나감. 그 칸만 «숫자|null»(anyOf) 모양이라 ChatGPT 가 못 본 것으로 판단
+- 고침 8081ac2c: 전용 도구 set_task_workstream(task_id · workstream_id 정수, 0=빼기) · create_task/get_project/create_workstream 설명이 이 도구를 가리킴
+- 실측(dev 실호출): 배정·옮김·0 빼기·다른 프로젝트 그룹 거절·없는 그룹 거절·권한 없는 멤버 PERMISSION_DENIED·get_project 업무 수 반영 9/9 · MCP 목록 스키마 {"type":"integer","minimum":0} · guard 85/86(전과 같음) · agentsurface 통과
+- 발견(고치지 않음): 멱등 «파라미터 지문 10분» 때문에 같은 연결이 A→B→A 를 10분 안에 하면 마지막 A 가 replayed(실행 안 됨, 옛 결과 반환) — update_task 도 같음. execute.js 는 Fable 영역이라 손대지 않음
+- 확인 못 함: 운영 ChatGPT 화면에서 실제로 보이는지(배포 뒤 앱 [새로고침] 필요 — 할 일 todomwn6jg0o 와 같은 행동)
+- 확인용(ws6): 프로젝트 1720 «[확인용] 관리자 멤버관리» · 업무 9883 → 그룹 «[확인용] 그룹 배정 A1»
+- 운영 반영: 다음 배포 때
 
 ### ✅ 정기 점검 11/20 00:15 — 개발완료 · 개발시작 (방 ffb5c980 · 2026-11-19 UTC · [Opus] · Fable 미검증(자체 검증) — 기록·도움말·화면 버그 한 줄)
 - 개발완료: 11/19 오후 커밋 4(메일 허용 요청서 · AI 앱 파일 붙이기 · Q mail 안 읽음만) DEVELOPMENT_PLAN 기록 · Q위키 3줄(커버리지 통과) · 게이트 미리보기 health 101/101 · 가드 0 · e2e tenant 0 · build EXIT 0
