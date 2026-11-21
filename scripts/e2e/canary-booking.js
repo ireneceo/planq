@@ -244,7 +244,8 @@ async function run() {
       try {
         await page.setViewport({ width: vp.w, height: vp.h, isMobile: vp.mobile, hasTouch: vp.mobile });
         await login(page);
-        await page.goto(`${BASE}/business/settings/permissions`, { waitUntil: 'networkidle2', timeout: 45000 });
+        // 고객 창구 카드(예약 설정 포함)는 2026-11-20 공개 페이지 P1(3e2e08e1)에서 «공개 페이지» 탭으로 옮겨졌다.
+        await page.goto(`${BASE}/business/settings/public-page`, { waitUntil: 'networkidle2', timeout: 45000 });
         await page.waitForSelector('[data-testid="entry-booking-toggle"]', { timeout: 15000 }).catch(() => null);
         const tg = await visible(page, '[data-testid="entry-booking-toggle"]');
         const hr = await visible(page, '[data-testid="entry-hours-mon"]');

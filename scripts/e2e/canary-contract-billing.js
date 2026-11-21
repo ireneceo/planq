@@ -54,6 +54,8 @@ async function run() {
     const lj = await api('/auth/dev-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: devCode('owner') }) });
     H = { Authorization: `Bearer ${lj.json?.data?.token}`, 'Content-Type': 'application/json', 'X-Workspace-Id': '6' };
     me = lj.json?.data?.user?.id;
+    // 출근 묻는 창이 화면을 덮지 않게(dev-login 은 b.login() 을 거치지 않는다 — lib/browser snoozeAttendancePrompt)
+    await b.snoozeAttendancePrompt(lj.json?.data?.token, 6);
     const mk = async (title, them) => {
       const content = [{ type: 'paragraph', content: [{ type: 'text', text: '계약 본문' }] }, { type: 'signatureField', attrs: { slot: 1, party: 'us', label: null } }];
       if (them) content.push({ type: 'signatureField', attrs: { slot: 2, party: 'them', label: null } });

@@ -13,7 +13,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CONTROL = process.env.LGNB_CONTROL === '1';
 const CONTROL_CSS = '[data-testid="landing-gnb-contact"]{visibility:hidden!important} [data-testid="landing-gnb-resources-panel"]{display:none!important} [data-testid="landing-mobile-sheet"] a[href="/app"]{display:none!important} [data-testid="landing-gnb-app"]{visibility:hidden!important} header nav > a[href="/insights"]{visibility:hidden!important}';
 const WIDTHS = [390, 820, 1024, 1440];
-const RES = ['/start', '/guide'];
+// 리소스 3 — 회사 찾기(/directory)가 2026-11-20 공개 페이지 P3 에서 리소스 첫 줄로 들어왔다(LandingLayout RESOURCE_ITEMS).
+const RES = ['/directory', '/start', '/guide'];
 
 // 요소가 실제로 그려져 손가락/마우스가 닿는가 — 페이지에 함수로 심는다(CSP 가 문자열 eval 을 막는 페이지가 있다)
 const VIS_FN = 'window.__pqVis';
@@ -103,7 +104,7 @@ async function run() {
             for (const h of want) { const a = sheet.querySelector(`a[href="${h}"]`); if (a) { a.scrollIntoView({ block: 'center' }); await new Promise((ok) => setTimeout(ok, 60)); } seen[h] = V(a); }
             return { sheet: true, order, seen, overflow: document.documentElement.scrollWidth - innerWidth };
           }, VIS_FN, want);
-          push(`${w}px · ① 메뉴 시트 — 무료로 시작·로그인 → 앱 다운로드 → 기능·요금제·컨설팅·인사이트·브랜드스토리 → 리소스 2 → 문의 · 모두 닿음 · 넘침 0`,
+          push(`${w}px · ① 메뉴 시트 — 무료로 시작·로그인 → 앱 다운로드 → 기능·요금제·컨설팅·인사이트·브랜드스토리 → 리소스 3 → 문의 · 모두 닿음 · 넘침 0`,
             s.sheet && s.order.join(',') === want.join(',') && Object.values(s.seen).every(Boolean) && s.overflow <= 0, JSON.stringify(s));
         }
       } catch (e) { push(`${w}px · ① 오류`, false, e.message.slice(0, 200)); }

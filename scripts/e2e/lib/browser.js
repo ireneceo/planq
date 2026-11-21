@@ -73,6 +73,44 @@ async function login(page, creds = CREDS) {
   if (!['already', 'accepted'].includes(consent)) {
     console.warn(`  [harness] 약관 자동 동의 실패: ${consent} — 재동의 모달이 판정을 가릴 수 있다`);
   }
+
+  // ★ «출근하셨어요?» · «퇴근 시각 확인» 묻는 창 (2026-11-21) — 근태 출근 묻기(e3602efd, 11-20) 뒤
+  //   밤마다 시험 계정에 «어제 자동 마감» 이 생겨 **로그인한 모든 화면**에 이 StandardModal 이 떴다.
+  //   그 밤 wspage·contractbilling·drafts·wsdelete 가 «found:true, mine:false»(창이 덮음)로 빨갰다.
+  //   답은 서버에 남으므로(«아직이에요» = 1시간 조용) 사용자처럼 «아직이에요» 를 API 로 먼저 보낸다 —
+  //   기록(출근·퇴근 시각)은 건드리지 않는다. 이 창 자체를 재는 카나리가 생기면 그 카나리는 login 뒤 다시 띄워 잰다.
+  await snoozeAttendancePrompt(res.token);
+}
+
+// 출근 묻는 창을 «아직이에요»(1시간 조용)로 미룬다 — 토큰 하나로(node 쪽 fetch). login() 이 부르고,
+//   dev-login 처럼 login() 을 거치지 않는 카나리는 받은 토큰으로 직접 부른다. 기록(출근·퇴근 시각)은 건드리지 않는다.
+async function snoozeAttendancePrompt(token, bizId = null) {
+  let attn;
+  if (!token) attn = 'no-token';
+  else {
+    const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+    try {
+      let biz = bizId;
+      if (!biz) { const me = await fetch(`${BASE}/api/auth/me`, { headers: H }); biz = me.ok ? (await me.json()).data?.business_id : null; }
+      if (!biz) attn = 'no-biz';
+      else {
+        const r = await fetch(`${BASE}/api/attendance/today?business_id=${biz}`, { headers: H });
+        if (!r.ok) attn = 'today-' + r.status;   // 근태 꺼진 워크스페이스·고객 = 창도 없다
+        else {
+          const d = (await r.json()).data || {};
+          if (!d.prompt && !d.close_check) attn = 'none';
+          else {
+            const w = await fetch(`${BASE}/api/attendance/prompt-answer`, { method: 'POST', headers: H, body: JSON.stringify({ business_id: biz, answer: 'later' }) });
+            attn = w.ok ? 'snoozed' : 'answer-' + w.status;
+          }
+        }
+      }
+    } catch (e) { attn = 'err-' + (e && e.message); }
+  }
+  if (!['none', 'snoozed', 'no-biz'].includes(attn) && !/^today-(403|404)$/.test(attn)) {
+    console.warn(`  [harness] 출근 묻는 창 미루기 실패: ${attn} — 창이 판정을 가릴 수 있다`);
+  }
+  return attn;
 }
 
 // ★ networkidle2 만 믿으면 **멀쩡한 화면에서 거짓 실패**가 난다.
@@ -313,4 +351,4 @@ async function visibleInputs(page) {
   return out;
 }
 
-module.exports = { dismissBlockers, launch, login, goto, gotoSPA, sleep, assertKeyboardSafe, assertRendered, visibleInputs, waitForInputs, BASE, CREDS, MOBILE_VP };
+module.exports = { dismissBlockers, launch, login, snoozeAttendancePrompt, goto, gotoSPA, sleep, assertKeyboardSafe, assertRendered, visibleInputs, waitForInputs, BASE, CREDS, MOBILE_VP };
