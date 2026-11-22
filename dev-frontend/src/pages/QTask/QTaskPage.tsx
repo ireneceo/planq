@@ -2535,6 +2535,7 @@ const QTaskPage:React.FC=()=>{
                       </>),
                       status:(<>
                       {showFocusCol&&<TaskRowFocusButton focus={focus} task={task} />}
+                      <StatusPillSlot>
                       <StatusPill $bg={sc.bg} $fg={sc.fg} $clickable
                         onClick={e=>{e.stopPropagation();setStatusDropdownId(statusDropdownId===task.id?null:task.id);}}
                         title={task.status==='on_hold'&&task.hold_reason ? task.hold_reason : t('list.statusHint','클릭하면 단계 선택')}
@@ -2549,6 +2550,7 @@ const QTaskPage:React.FC=()=>{
                           );})}
                         </StatusDropdown></FloatingMenu>
                       )}
+                      </StatusPillSlot>
                       </>),
                       est:(<>
                           <EstWrap $flash={!!aiEstFlash[task.id]}>
@@ -2631,7 +2633,7 @@ const QTaskPage:React.FC=()=>{
                       </>),
                       };
                       return qtColumns.columns.map(c=>(c.key==='prio'&&qtColumns.phone&&!displayPriorityMap.get(task.id))?null:(
-                        <TCell key={c.key} $flex={!!c.flex} $center={QT_CENTER.has(c.key)} data-col={c.key} data-compact={c.compact?'1':undefined}
+                        <TCell key={c.key} $flex={!!c.flex} $center={QT_CENTER.has(c.key)} $start={c.key==='status'&&showFocusCol} data-col={c.key} data-compact={c.compact?'1':undefined}
                           style={{...cellStyle(c,{phone:qtColumns.phone,titleMinW}),...QT_CELL_STYLE[c.key]}}>{cells[c.key]}</TCell>
                       ));
                     })()}
@@ -3604,7 +3606,7 @@ const Col=styled.span<{$center?:boolean}>`
 
 
 const TRow=styled.div<{$done?:boolean;$delayed?:boolean;$selected?:boolean}>`display:flex;align-items:center;gap:6px;padding:7px 14px;border-bottom:1px solid #F8FAFC;min-width:520px;@media(max-width:640px){min-width:0;padding:8px 10px;}opacity:${p=>p.$done?0.45:1};${p=>p.$selected?'background:#F0FDFA;box-shadow:inset 3px 0 0 #14B8A6;':p.$delayed&&!p.$done?'box-shadow:inset 3px 0 0 #DC2626;':''}&:hover{background:${p=>p.$selected?'#CCFBF1':p.$delayed&&!p.$done?'#FEF2F2':'#FAFBFC'};}`;
-const TCell=styled.div<{$flex?:boolean;$center?:boolean}>`
+const TCell=styled.div<{$flex?:boolean;$center?:boolean;$start?:boolean}>`
   box-sizing:border-box;
   ${p=>p.$flex
     // #249 — 업무명 셀 최소폭 상향(180→240). 배지들이 shrink 불가라 180px 에서는
@@ -3620,6 +3622,7 @@ const TCell=styled.div<{$flex?:boolean;$center?:boolean}>`
     ? `display:flex;align-items:center;gap:4px;overflow:hidden;@media (max-width: 640px){flex-wrap:wrap;row-gap:4px;}`
     : `overflow:hidden;`}
   ${p=>p.$center&&'display:flex;justify-content:center;align-items:center;'}
+  ${p=>p.$start&&'justify-content:flex-start;'}
 `;
 const ProjLabel=styled.span`font-size:0.6875rem;color:#94A3B8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;`;
 const DelayBadge=styled.span<{$severe?:boolean}>`
@@ -3693,6 +3696,12 @@ const UnreadDot=styled.span`flex-shrink:0;width:6px;height:6px;border-radius:50%
 // 폰 목록 줄바꿈 — 너비 100% 빈 칸이 다음 칩들을 둘째 줄로 보낸다. 둘째 줄 첫 칩은 제목 시작선에 맞춘다
 //   (폰 ⋮ 36 + 체크 15 + 안읽음 점 6 + 간격 4×3 = 69 — TaskRowActionMenu 폰 규칙과 같은 숫자). 데스크탑·태블릿은 그리지 않는다.
 const UnreadDotSpacer=styled.span`flex-shrink:0;width:6px;height:6px;display:inline-block;`;
+// 진행 버튼이 붙는 칸은 왼쪽 맞춤(TCell $start) — 버튼 줄·칩 시작선이 행마다 같다(2026-11-22).
+//   버튼+칩 묶음을 통째로 가운데 맞추면 칩 글자 길이(진행중 44 · 진행대기 53 · 확인요청중 62px)만큼
+//   버튼이 행마다 0~15px 씩 옆으로 밀려 열이 삐뚤삐뚤했다. 칩과 상태 메뉴는 이 칸이 기준이다.
+const StatusPillSlot=styled.span`
+  display:inline-flex;align-items:center;min-width:0;position:relative;
+`;
 const StatusPill=styled.span<{$bg:string;$fg:string;$clickable?:boolean}>`
   padding:2px 8px;background:${p=>p.$bg};color:${p=>p.$fg};font-size:0.625rem;font-weight:700;
   border-radius:8px;white-space:nowrap;${p=>p.$clickable?'cursor:pointer;user-select:none;&:hover{opacity:0.8;}':''}
