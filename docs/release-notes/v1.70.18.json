@@ -1,0 +1,112 @@
+{
+  "version": "1.70.18",
+  "date": "2026-11-22",
+  "_auto": true,
+  "_range": "a3af5ccd..b120653e",
+  "summary": {
+    "ko": "공개 페이지·근태·Q note·Q mail이 더 편해졌어요",
+    "en": "Public pages, attendance, Q note, and Q mail just got easier to use"
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "우리 회사 소개·문의용 «공개 페이지» 오픈",
+        "body": "설정의 «공개 페이지» 탭에서 회사 소개·서비스 카드·추가 항목을 꾸미고, 자동 정보 가리기와 미리 보기를 사용할 수 있어요. Q sale과 워크스페이스 메뉴에 «우리 페이지»가 생겨 바로 확인할 수 있습니다."
+      },
+      "en": {
+        "title": "Launch a public company page for intro and inquiries",
+        "body": "In Settings → “공개 페이지”, you can design a public page with company info, service cards, and extra fields, plus auto-hiding sensitive info and preview. A “우리 페이지” entry is added in Q sale and the workspace menu for quick access."
+      }
+    },
+    {
+      "ko": {
+        "title": "로그인 없이 받는 문의, Q sale «신규 문의»로 정리",
+        "body": "공개 페이지에 로그인 없이 남긴 문의가 Q sale의 «신규 문의»로 자동 들어가고, 접수 확인 메일도 나갑니다. 의심스러운 문의는 스팸 보류로 따로 모아둘 수 있어요."
+      },
+      "en": {
+        "title": "Collect no-login inquiries directly into Q sale",
+        "body": "Inquiries submitted on your public page without login now flow into Q sale as “신규 문의”, with an automatic confirmation email to the sender. Suspicious messages can be held separately as spam."
+      }
+    },
+    {
+      "ko": {
+        "title": "회사 찾기·검색용 공개 페이지 주소 제공",
+        "body": "공개 페이지가 /w/<주소> 형태의 주소로 만들어지고, PlanQ «회사 찾기»와 검색·AI 검색용 페이지에서 찾을 수 있도록 첫 공개 승인 흐름이 준비됐습니다."
+      },
+      "en": {
+        "title": "Shareable public page URL and company discovery",
+        "body": "Your public page now has a /w/<address> style URL and is prepared to appear in PlanQ “회사 찾기” and search/AI-search pages, with an initial approval flow for first-time publishing."
+      }
+    },
+    {
+      "ko": {
+        "title": "근태: 출근·퇴근 확인과 관리자 승인 설정",
+        "body": "근태에서 오늘 출근 여부를 물어보고, 어제 퇴근 기록도 다시 확인할 수 있습니다. 본인이 수정한 기록 표시와 함께, 관리자 확인·승인 여부를 설정해 더 깔끔하게 관리할 수 있어요."
+      },
+      "en": {
+        "title": "Attendance: check-in prompts and manager approval options",
+        "body": "Attendance now asks about today’s check-in and lets you re-confirm yesterday’s check-out. Edits made by the user are marked, and you can configure manager review/approval to keep records cleaner."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q note 요약 아래 «AI 추가 요청»으로 바로 다듬기",
+        "body": "Q note 기본 요약 아래 «AI 추가 요청» 버튼이 생겨, 원하는 문장을 적으면 그 요청대로 내용을 가공·다듬을 수 있습니다. 메일에서 쓰던 AI 요청 흐름과 같은 방식으로 동작합니다."
+      },
+      "en": {
+        "title": "Refine Q note summaries with “AI 추가 요청”",
+        "body": "Under the default Q note summary, an “AI 추가 요청” button lets you type how you want the text refined and processes it accordingly. It works in the same way as AI requests you use in Q mail."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q note 녹음 중 탭 이동·종료 실수 방지",
+        "body": "Q note에서 녹음 중 탭 모드로 열면, 다른 화면으로 이동해도 녹음 탭은 유지됩니다. 탭 닫기·새로고침·로그아웃·전환·휴대폰 이동 시에는 확인창이 떠서 실수로 녹음이 끊기는 일을 줄여줍니다."
+      },
+      "en": {
+        "title": "Safer Q note recording when switching tabs or closing",
+        "body": "When recording in Q note in tab mode, the recording tab stays alive even if you navigate elsewhere. Closing, refreshing, logging out, switching, or moving on mobile now shows a confirmation dialog to prevent accidental recording loss."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q mail에서 전체·안 읽음 메일을 빠르게 전환",
+        "body": "Q mail 전체 탭에 [전체 | 안 읽음] 토글이 생겨, 안 읽은 메일만 모아 볼 수 있습니다. 읽은 메일은 제자리에 유지되고, 무한 스크롤에서도 안 읽음 목록을 이어서 볼 수 있어요."
+      },
+      "en": {
+        "title": "Quickly switch between all and unread emails in Q mail",
+        "body": "In the Q mail All tab, a new [All | Unread] toggle lets you focus on unread messages only. Opened emails stay in place, and infinite scroll continues smoothly through your unread list."
+      }
+    },
+    {
+      "ko": {
+        "title": "프로젝트 히스토리에 메일·채팅 주요 이슈 표시",
+        "body": "프로젝트 히스토리에서 연결된 메일과 채팅 중 주요 이슈가 함께 보입니다. 프로젝트 관련 대화 흐름을 한눈에 확인하고, 중요한 논의를 놓치지 않을 수 있어요."
+      },
+      "en": {
+        "title": "See key email and chat issues in project history",
+        "body": "Project history now shows key issues from linked emails and chats. This helps you follow the full conversation around a project at a glance and avoid missing important discussions."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선",
+        "body": "메일 서버 접속이 안 될 때 관리자에게 보낼 메일 허용 요청서를 한·영으로 만들고 복사·메일 앱 열기가 쉬워졌습니다. Q note 한국어 받아쓰기에서 «한 번»·«하나로»가 숫자로 인식되던 문제와 앱에서 파일을 새 탭으로 열 때 빈 창만 뜨던 문제도 고쳤습니다."
+      },
+      "en": {
+        "title": "Other improvements",
+        "body": "When the mail server is unreachable, you can now generate a bilingual (KR/EN) mail-access request for admins and easily copy or open it in your mail app. We also fixed Korean dictation in Q note where phrases like “한 번” and “하나로” were turned into numbers, and an issue where opening files in a new tab inside the app showed an empty window."
+      }
+    },
+    {
+      "ko": {
+        "title": "보안과 안정성 강화",
+        "body": "데이터를 더 안전하게 지키도록 보안과 안정성을 강화했습니다."
+      },
+      "en": {
+        "title": "Security and stability improvements",
+        "body": "We strengthened security and stability to keep your data safer."
+      }
+    }
+  ]
+}
