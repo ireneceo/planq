@@ -170,7 +170,7 @@
 
 ### 다음 할 일
 - AI 도구 멱등 «파라미터 지문 10분» 이 상태 지정 도구(set_task_workstream·update_task)에서 A→B→A 를 삼킴 — Fable 설계로 규칙 정하기(임시 완화안: 도구 설명에 «되돌릴 땐 새 idempotency_key»)
-- Irene 할 일 todomwn6jg0o «ChatGPT 에서 PlanQ 앱 [새로고침] (그룹 만들기 거절되면 다시 연결)» — 고침 5441e14b 는 11-19 10:21 UTC 운영 배포됨 → 지금 할 수 있음 (11-19 점검)
+- Irene 할 일 todomwn6jg0o «ChatGPT 에서 PlanQ 앱 [새로고침]» — set_task_workstream(8081ac2c)도 11-22 12:40 UTC 운영 배포(v1.70.18) → 지금 할 수 있음 (11-22 점검)
 - Q note 녹음 이탈 보호 확인 못 한 것: 데스크탑 대화창 실기기 · 워크스페이스/계정 전환 · 프로젝트 탭 노트 녹음
 - secrets 워크스페이스 백업 검사 120초 시간초과가 또 나면 그 검사의 느린 지점 보기
 
