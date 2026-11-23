@@ -911,6 +911,47 @@
     "notFound": "Post not found.",
     "ctaTitle": "Trying it beats reading about it"
   },
+  "visitConsult": {
+    "badge": "50% off your first visit",
+    "title": "On-site Work Design Consulting · 1 hour",
+    "regular": "KRW 300,000",
+    "regularAria": "Regular price KRW 300,000",
+    "price": "KRW 150,000",
+    "priceNote": "First visit only",
+    "lead": "A work design expert visits your office, watches how work actually happens for an hour, and organizes it with you on the spot. Settle what to split and how before you change any tools.",
+    "getsLabel": "What you keep after one hour",
+    "g0": "A one-page map of your current workflow — who hands what to whom, from request to done",
+    "g1": "The 3 places losing you the most time, and what you can change this week",
+    "g2": "A next-steps sheet — what to do yourselves and what to hand off, in order",
+    "assure": "Everything you get works even if you never use PlanQ. It stays with your company whatever tools you use.",
+    "cta": "Book your first on-site session",
+    "finalCta": "Book the first visit (KRW 150,000)",
+    "fine": "First session per company · KRW 300,000 afterwards · Delivered by WOR-PRO Lab Studio",
+    "hintBadge": "New here?",
+    "hint": "On-site work design consulting, 1 hour — first session KRW 150,000 (regular KRW 300,000, 50% off)",
+    "hintLink": "Book a visit →",
+    "pageTitle": "Book On-site Work Design Consulting",
+    "pageSub": "An expert visits your office and organizes your work with you for an hour. Your first session is KRW 150,000.",
+    "formTitle": "Visit request",
+    "form": {
+      "address": "Address to visit (city and district is fine)",
+      "addressPlaceholder": "e.g. Teheran-ro, Gangnam-gu, Seoul",
+      "slots": "Preferred times (up to 3)",
+      "slotsHint": "Takes about an hour. Time zone: {{tz}}",
+      "pain": "What's most stuck right now (optional)",
+      "painPlaceholder": "e.g. Client requests are scattered across chat and email, and nobody knows who owns them",
+      "submit": "Request the visit",
+      "ok": "Request received. We'll check your times and address and get back to you with a visit schedule.",
+      "errRequired": "Please enter your name, email, company, phone, address and at least one preferred time."
+    },
+    "msg": {
+      "head": "[First on-site work design consulting · 1 hour · first session KRW 150,000 (regular KRW 300,000)]",
+      "address": "Visit address",
+      "slots": "Preferred times",
+      "team": "Team size",
+      "pain": "Stuck on"
+    }
+  },
   "servicePage": {
     "eyebrow": "SERVICE",
     "titleTop": "Work System Design & Implementation",

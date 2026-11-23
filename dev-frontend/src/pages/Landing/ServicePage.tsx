@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { Container, Eyebrow, PrimaryCta, SecondaryCta } from '../../components/Landing/landingShell';
 import { useReveal } from '../../hooks/useReveal';
+import { VisitConsultOffer, VISIT_URL } from '../../components/Landing/VisitConsultOffer';
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
   const ref = useReveal<HTMLElement>();
@@ -45,8 +46,10 @@ const ServicePage: React.FC = () => {
           <TitleTop>{S('titleTop')}</TitleTop>
           <Title>{S('title')}</Title>
           <Sub>{S('sub')}</Sub>
+          {/* 2026-11-23 Irene — 첫 방문 업무설계 컨설팅(1시간, 첫 회 150,000원)을 진단·견적보다 앞에 둔다. */}
+          <VisitConsultOffer testId="service-visit-offer" />
           <HeroActions>
-            <PrimaryCta to={AUDIT_URL}>{S('cta')}</PrimaryCta>
+            <SecondaryCta to={AUDIT_URL}>{S('cta')}</SecondaryCta>
             <SecondaryCta to={QUOTE_URL}>{S('ctaSecondary')}</SecondaryCta>
           </HeroActions>
           {/* #426 — 유료 진단 앞의 무료 자가진단. 왜 업무체계부터인지 5분 안에 스스로 확인하게 한다. */}
@@ -220,7 +223,8 @@ const ServicePage: React.FC = () => {
           <Reveal><FinalSub>{S('final.sub')}</FinalSub></Reveal>
           <Reveal>
             <HeroActions>
-              <PrimaryCta to={AUDIT_URL}>{S('final.cta')}</PrimaryCta>
+              <PrimaryCta to={VISIT_URL} data-testid="service-final-visit">{t('visitConsult.finalCta')}</PrimaryCta>
+              <SecondaryCta to={AUDIT_URL}>{S('final.cta')}</SecondaryCta>
               <SecondaryCta to={QUOTE_URL}>{S('ctaSecondary')}</SecondaryCta>
             </HeroActions>
           </Reveal>

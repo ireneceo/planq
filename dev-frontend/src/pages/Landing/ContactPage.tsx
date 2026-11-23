@@ -10,6 +10,8 @@
 //   접수 경로가 둘로 갈라지면 admin 장부도 둘로 갈라진다.
 // 화상 업무설계·사용안내 신청(`?type=onboarding`)도 같은 폼의 모드다 — 칸은 앱 신청 창과 같은
 //   OnboardingCallFields 한 벌(docs/ONBOARDING_CALL_DESIGN.md).
+// 첫 방문 업무설계 컨설팅 신청(`?type=visit`, 2026-11-23)도 같은 폼의 모드 — 혜택 카드가 폼 위에 서고,
+//   견적·화상 안내·일반 문의 폼 위에는 «처음이면 방문 컨설팅부터» 한 줄이 먼저 나온다.
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import styled from 'styled-components';
@@ -21,6 +23,10 @@ import { mapApiError } from '../../utils/apiError';
 import OnboardingCallFields, {
   emptyOnboardingCall, toDetails, hasValidSlot, browserTimezone, type OnboardingCallValue,
 } from '../../components/Common/OnboardingCallFields';
+import { VisitConsultOffer, VisitConsultHint } from '../../components/Landing/VisitConsultOffer';
+import VisitConsultFields, {
+  emptyVisitConsult, visitConsultReady, visitConsultMessage, type VisitConsultValue,
+} from '../../components/Landing/VisitConsultFields';
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
   const ref = useReveal<HTMLElement>();
@@ -43,10 +49,13 @@ const SCOPE_LABEL_KEY: Record<Scope, string> = {
 const ContactPage: React.FC = () => {
   const { t, i18n } = useTranslation('landing');
   const { t: tErr } = useTranslation('errors');
+  const { t: tCommon } = useTranslation('common');
   const [params] = useSearchParams();
   // 견적 문의 모드 — /service 의 CTA 가 이 쿼리로 들어온다.
   const isQuote = params.get('type') === 'quote';
   const isCall = params.get('type') === 'onboarding';
+  const isVisit = params.get('type') === 'visit';
+  const [visit, setVisit] = useState<VisitConsultValue>(emptyVisitConsult);
   // ?topic=migration 으로 들어오면(요금제 FAQ·Q file 안내) «자료 옮기기» 만 골라 둔다
   const callTopicParam = params.get('topic');
   const initialCall = () => emptyOnboardingCall(callTopicParam === 'migration' ? ['migration'] : callTopicParam === 'workflow' ? ['workflow'] : undefined);
@@ -68,7 +77,13 @@ const ContactPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
-    if (isCall) {
+    if (isVisit) {
+      if (!name.trim() || !email.trim() || !company.trim() || !phone.trim() || !visitConsultReady(visit)) {
+        setResult('err');
+        setErrMsg(t('visitConsult.form.errRequired') as string);
+        return;
+      }
+    } else if (isCall) {
       if (!name.trim() || !email.trim() || !hasValidSlot(call)) {
         setResult('err');
         setErrMsg(t('contactPage.call.errRequired', '이름·이메일과 희망 시간을 하나 이상 골라 주세요.') as string);
@@ -88,7 +103,17 @@ const ContactPage: React.FC = () => {
       const r = await fetch('/api/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isCall ? {
+        body: JSON.stringify(isVisit ? {
+          locale: i18n.language,
+          // 견적·서비스 문의 종류 그대로 — 경로(source)로 «첫 방문 컨설팅» 을 가른다(관리자 목록에 경로가 보인다).
+          kind: 'enterprise',
+          source: 'landing_visit_consult',
+          from_name: name,
+          from_email: email,
+          from_company: company,
+          from_phone: phone,
+          message: visitConsultMessage(visit, t, tCommon),
+        } : isCall ? {
           kind: 'onboarding_call',
           source: 'landing_contact:onboarding',
           from_name: name,
@@ -114,11 +139,13 @@ const ContactPage: React.FC = () => {
       if (!r.ok || !j.success) throw new Error(j.message || 'submit_failed');
       setResult('ok');
       // 고른 칸 값만 — 이름·메일·본문은 보내지 않는다(docs/MARKETING_TRACKING_DESIGN.md §3-4)
-      track('pq_lead', isCall
+      track('pq_lead', isVisit
+        ? { lead_type: 'visit_consult' }
+        : isCall
         ? { lead_type: 'onboarding_call' }
         : { lead_type: isQuote ? 'quote' : 'contact', contact_reason: isQuote ? 'quote' : reason });
       setName(''); setEmail(''); setMessage(''); setReason('sales');
-      setCompany(''); setPhone(''); setScopes([]); setCall(initialCall());
+      setCompany(''); setPhone(''); setScopes([]); setCall(initialCall()); setVisit(emptyVisitConsult());
     } catch (err) {
       setResult('err');
       setErrMsg(mapApiError(err, tErr));
@@ -132,12 +159,16 @@ const ContactPage: React.FC = () => {
       <SubHero>
         <Container>
           <Eyebrow>{t('contactPage.eyebrow', 'CONTACT')}</Eyebrow>
-          <Title>{isCall
+          <Title>{isVisit
+            ? t('visitConsult.pageTitle')
+            : isCall
             ? t('contactPage.call.title', '화상으로 업무 설계·사용 안내 받기')
             : isQuote
             ? t('contactPage.quoteTitle', '견적 문의')
             : t('contactPage.title', '편하게 연락 주세요')}</Title>
-          <Sub>{isCall
+          <Sub>{isVisit
+            ? t('visitConsult.pageSub')
+            : isCall
             ? t('contactPage.call.sub', '30분 화상 미팅으로 지금 일하는 방식을 듣고, PlanQ 에서 어떻게 나누고 쓰면 좋을지 맞춰 안내해 드려요.')
             : isQuote
             ? t('contactPage.quoteSub', '')
@@ -147,6 +178,9 @@ const ContactPage: React.FC = () => {
 
       <MainSection>
         <Container>
+          {isVisit
+            ? <OfferWrap><VisitConsultOffer withCta={false} testId="contact-visit-offer" /></OfferWrap>
+            : <HintWrap><VisitConsultHint testId="contact-visit-hint" /></HintWrap>}
           <Layout>
             <Reveal>
               <SideCard>
@@ -175,7 +209,9 @@ const ContactPage: React.FC = () => {
 
             <Reveal>
               <FormCard onSubmit={handleSubmit}>
-                <FormTitle>{isCall
+                <FormTitle>{isVisit
+                  ? t('visitConsult.formTitle')
+                  : isCall
                   ? t('contactPage.call.formTitle', '신청서')
                   : isQuote
                   ? t('contactPage.quoteTitle', '견적 문의')
@@ -188,7 +224,21 @@ const ContactPage: React.FC = () => {
                   <FieldLabel htmlFor="contact-email">{t('contactPage.form.email', '이메일')}</FieldLabel>
                   <FieldInput id="contact-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
                 </Field>
-                {isCall ? (
+                {isVisit ? (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="contact-company">{t('contactPage.company', '회사명')}</FieldLabel>
+                      <FieldInput id="contact-company" type="text" value={company} required
+                        onChange={e => setCompany(e.target.value)} maxLength={100} />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="contact-phone">{t('contactPage.phone', '연락처')}</FieldLabel>
+                      <FieldInput id="contact-phone" type="tel" value={phone} required
+                        onChange={e => setPhone(e.target.value)} maxLength={40} />
+                    </Field>
+                    <VisitConsultFields value={visit} onChange={setVisit} />
+                  </>
+                ) : isCall ? (
                   <>
                     <Field>
                       <FieldLabel htmlFor="contact-company">{t('contactPage.call.company', '회사·팀 이름 (선택)')}</FieldLabel>
@@ -246,7 +296,7 @@ const ContactPage: React.FC = () => {
                     </ReasonGroup>
                   </Field>
                 )}
-                <Field>
+                {!isVisit && <Field>
                   <FieldLabel htmlFor="contact-message">{isCall
                     ? t('contactPage.call.note', '더 알려 주실 것 (선택)')
                     : isQuote
@@ -255,15 +305,18 @@ const ContactPage: React.FC = () => {
                   <FieldTextarea id="contact-message" rows={isCall ? 3 : 6} value={message}
                     placeholder={isQuote ? (t('contactPage.quotePlaceholder', '') as string) : undefined}
                     onChange={e => setMessage(e.target.value)} required={!isCall} maxLength={isCall ? 200 : 2000} />
-                </Field>
+                </Field>}
                 <SubmitRow>
                   <SubmitBtn type="submit" disabled={submitting} data-testid="contact-submit">
                     {submitting
                       ? t('contactPage.form.sending', '보내는 중…')
+                      : isVisit ? t('visitConsult.form.submit')
                       : isCall ? t('contactPage.call.submit', '화상 안내 신청하기')
                       : (isQuote ? t('contactPage.quoteSubmit', '견적 문의 보내기') : t('contactPage.form.submit', '문의 보내기'))}
                   </SubmitBtn>
-                  {result === 'ok' && <ResultOk>{isCall
+                  {result === 'ok' && <ResultOk>{isVisit
+                    ? t('visitConsult.form.ok')
+                    : isCall
                     ? t('contactPage.call.ok', '신청을 받았습니다. 희망 시간을 확인하고 일정과 회의 링크를 메일로 보내 드릴게요.')
                     : t('contactPage.form.ok', '메시지를 받았습니다. 곧 연락드리겠습니다.')}</ResultOk>}
                   {result === 'err' && <ResultErr>{errMsg}</ResultErr>}
@@ -309,7 +362,7 @@ const MainSection = styled.section`
 const Layout = styled.div`
   display: grid; grid-template-columns: 360px 1fr; gap: 32px;
   align-items: stretch;
-  @media (max-width: 900px) { grid-template-columns: 1fr; }
+  @media (max-width: 900px) { grid-template-columns: minmax(0, 1fr); }
 `;
 const SideCard = styled.div`
   padding: 32px 28px; background: #FAFBFC;
@@ -393,11 +446,15 @@ const ResultOk = styled.div`font-size: 0.8125rem; color: #0D9488; font-weight: 5
 const ResultErr = styled.div`font-size: 0.8125rem; color: #B91C1C; font-weight: 500;`;
 
 // 의뢰할 때 다른 길(무료 30분 ↔ 유료 대량 이전)을 알려 주는 한 줄 (2026-10-23, docs/TRUST_SERVICES_DESIGN.md D4)
+// 첫 방문 컨설팅 — 혜택 카드(방문 모드) / 한 줄 안내(나머지 모드)를 폼 앞에 둔다.
+const OfferWrap = styled.div`margin: -28px 0 32px;`;
+const HintWrap = styled.div`margin-bottom: 24px;`;
 const ServiceHint = styled.p`
   margin: 0; font-size: 0.8125rem; color: #64748B; line-height: 1.6;
   background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 10px 12px;
 `;
 const ServiceHintLink = styled(Link)`
   color: #0D9488; font-weight: 600; text-decoration: none; white-space: nowrap;
+  @media (max-width: 640px) { white-space: normal; }   /* 영어 링크 글이 길어 폰에서 본문 폭을 426px 로 밀었다 */
   &:hover { text-decoration: underline; }
 `;
