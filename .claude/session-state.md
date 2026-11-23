@@ -11,7 +11,7 @@
 ### 답 기다림 (이전): ChatGPT 가 set_task_workstream 을 보는지 (방 101276d0 · 2026-11-23 · [Opus] · Fable 안 씀 — 확인만)
 - Irene «했어요»(ChatGPT 앱 새로고침) 받음. 운영 코드에 set_task_workstream 있음(운영 services/agent/registry.js·tools/tasks.js grep) · 8081ac2c 는 운영 배포 b120653e(v1.70.18) 안
 - 확인 못 함: ChatGPT 화면 · 운영 audit_logs «agent.set_task_workstream» 조회(운영 DB 읽기가 권한 거부됨 — 우회 안 함)
-- 물음: ChatGPT 가 «업무 9883 을 그룹에 넣는 도구 이름» 에 set_task_workstream 이라 답했는지 (상황판 askmwsyqna8)
+- 물음(2차, Irene «권고대로» = 답 문장 아직 없음 → act 카드로 다시): ChatGPT 가 «업무 9883 을 그룹에 넣는 도구 이름» 에 set_task_workstream 이라 답했는지 (상황판 askmwsyqna8)
 - 답이 오면: ① 답함 → ✅ 마무리 ② 없다 → 앱 삭제 후 다시 추가 순서 안내(act) · 그래도 없으면 운영 /agent/mcp tools/list 를 OAuth 토큰으로 떠서 칸 확인
 
 ### ✅ 출근 묻기 창이 «묻는 중» 인데 안 뜸 — 메인 탭이 «팝아웃 창» 으로 잘못 찍힘 (방 7ff26699 · 2026-11-23 · [Opus] · Fable 미검증(자체 검증) — 화면 버그)
