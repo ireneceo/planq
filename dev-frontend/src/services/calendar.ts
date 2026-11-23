@@ -205,13 +205,14 @@ export async function notifyEventMaterials(bizId: number, eventId: number, dry: 
 }
 
 // 일정 «위치» 칸 장소 자동완성 (2026-10-29 · 서버 프록시 /api/places — 카카오 로컬 · 11-23 해외는 구글 Places, 서버가 고른다)
-//   opts.session = 구글 세션 토큰(한 번 고를 때까지 같은 값) · opts.lang = 결과 언어
+//   opts.session = 구글 세션 토큰(한 번 고를 때까지 같은 값) · opts.lang = 결과 언어 · opts.near = «내 주변» 버튼으로 받은 위치(그때만)
 //   disabled = 서버에 키 없음(세션 동안 다시 묻지 않는다) · degraded = 잠깐 못 씀(잠시 뒤 다시)
-export interface PlaceSuggestion { id: string; name: string; road_address: string; address: string; provider: string }
-export async function searchPlaces(q: string, signal?: AbortSignal, opts: { session?: string; lang?: string } = {}): Promise<{ data: PlaceSuggestion[]; disabled?: boolean; degraded?: boolean }> {
+export interface PlaceSuggestion { id: string; name: string; road_address: string; address: string; provider: string; distance_m?: number | null }
+export async function searchPlaces(q: string, signal?: AbortSignal, opts: { session?: string; lang?: string; near?: { lat: number; lng: number } | null } = {}): Promise<{ data: PlaceSuggestion[]; disabled?: boolean; degraded?: boolean }> {
   const qs = new URLSearchParams({ q });
   if (opts.session) qs.set('st', opts.session);
   if (opts.lang) qs.set('lang', opts.lang);
+  if (opts.near) qs.set('near', `${opts.near.lat.toFixed(3)},${opts.near.lng.toFixed(3)}`);
   const res = await apiFetch(`/api/places/search?${qs.toString()}`, { signal });
   const json = await res.json().catch(() => null) as { success?: boolean; data?: PlaceSuggestion[]; disabled?: boolean; degraded?: boolean } | null;
   if (!res.ok || !json?.success) return { data: [], degraded: true };

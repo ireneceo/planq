@@ -107,7 +107,7 @@ const securityHeaders = (req, res, next) => {
   //   타 origin 클릭재킹 방어는 SAMEORIGIN + CSP frame-ancestors 'self' 로 그대로 유지된다.
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  res.setHeader('Permissions-Policy', 'geolocation=(self), microphone=(), camera=()');   // 위치 = 일정 장소 «내 주변» 버튼(누를 때만 묻는다, 2026-11-23)
 
   // API 응답은 캐시 금지
   if (req.path.startsWith('/api/')) {

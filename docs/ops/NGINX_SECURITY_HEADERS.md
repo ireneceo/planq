@@ -37,7 +37,7 @@ x-frame-options: DENY · strict-transport-security: … · x-content-type-option
     add_header X-Content-Type-Options "nosniff" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-    add_header Permissions-Policy "camera=(self), microphone=(self), geolocation=()" always;
+    add_header Permissions-Policy "camera=(self), microphone=(self), geolocation=(self)" always;
 ```
 
 > **CSP 값은 백엔드(`middleware/security.js` 의 `cspMiddleware`)와 같은 값으로 유지한다.**

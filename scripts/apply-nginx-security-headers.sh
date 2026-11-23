@@ -64,7 +64,8 @@ add_header X-Frame-Options "SAMEORIGIN" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-add_header Permissions-Policy "camera=(self), microphone=(self), geolocation=()" always;
+#   geolocation=(self) — 일정 장소 «내 주변 먼저» 버튼(누를 때만 브라우저가 묻는다 · 2026-11-23). () 면 버튼이 조용히 «위치를 쓸 수 없어요».
+add_header Permissions-Policy "camera=(self), microphone=(self), geolocation=(self)" always;
 EOF
 echo "snippet: $SNIPPET"
 

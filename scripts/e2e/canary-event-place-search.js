@@ -12,6 +12,8 @@
 //     ④ 후보를 누르면 → PUT 정확히 1건 · DB 위치 = 고른 줄
 //     ⑤ 양성 대조군: 후보가 없는 글자를 치고 2.6초 → PUT 1건(③ 의 0건이 hold 덕분임을 보인다)
 //     ⑥ 후보가 열린 채 상세를 닫으면 친 글자가 저장된다(떠날 때 확정 저장은 hold 를 무시)
+//     ⑦ (2026-11-23) 목록 아래 «내 주변 먼저» 버튼이 보이고, 누르기 전에는 위치를 보내지 않는다 · 누르면 near= 로 다시 찾고
+//        줄에 거리(1.2km)가 보인다 · «최근» 꼬리표가 보인다
 //   ★ 만든 일정은 판정 뒤 지운다.
 const b = require('./lib/browser');
 require('/opt/planq/dev-backend/node_modules/dotenv').config({ path: '/opt/planq/dev-backend/.env', quiet: true });
@@ -30,6 +32,7 @@ const FIX = [
   { id: '1', name: '스타벅스 강남역점', road_address: '서울 강남구 강남대로 390', address: '서울 강남구 역삼동 825', provider: 'kakao' },
   { id: '2', name: '스타벅스 강남R점', road_address: '서울 강남구 강남대로 396', address: '서울 강남구 역삼동 826', provider: 'kakao' },
 ];
+const RECENT = { id: 'recent:0', name: '스타벅스 성수역점', road_address: '', address: '서울 성동구 아차산로 100', provider: 'recent', distance_m: null };
 const LINE1 = '스타벅스 강남역점, 서울 강남구 강남대로 390';
 const LINE2 = '스타벅스 강남R점, 서울 강남구 강남대로 396';
 
@@ -79,17 +82,30 @@ async function run() {
       const ctx = await browser.createBrowserContext();
       const page = await ctx.newPage();
       const puts = [];
+      const nearReqs = [];
       let curEvent = null;
       try {
+        await ctx.overridePermissions(b.BASE || 'https://dev.planq.kr', ['geolocation']);
         await page.setViewport(v.vp);
+        await page.setGeolocation({ latitude: 37.5446, longitude: 127.0559 });
         if (v.touch) await page.setUserAgent(UA);
         await page.setRequestInterception(true);
         page.on('request', (req) => {
           const u = req.url();
           if (u.includes('/api/places/search')) {
             const q = decodeURIComponent((u.split('q=')[1] || '').replace(/\+/g, ' '));
-            const data = q.includes('스타') ? FIX : [];
+            const near = u.includes('near=');
+            if (near) nearReqs.push(u);
+            const data = q.includes('스타') ? FIX.map(d => ({ ...d, distance_m: near ? 1234 : null })).concat([RECENT]) : [];
             return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
+          }
+          // (임시) 서버 헤더가 geolocation=(self) 로 바뀌기 전 — 문서 응답의 Permissions-Policy 만 (self) 로 바꿔 화면 계약을 잰다
+          if (process.env.PLACES_GEO_HEADER_SHIM === '1' && req.isNavigationRequest() && req.resourceType() === 'document') {
+            return fetch(u, { headers: { 'User-Agent': 'canary' } }).then(async (r) => {
+              const headers = {}; r.headers.forEach((val, k) => { headers[k] = k === 'permissions-policy' ? val.replace('geolocation=()', 'geolocation=(self)') : val; });
+              delete headers['content-encoding']; delete headers['content-length'];
+              return req.respond({ status: r.status, headers, body: Buffer.from(await r.arrayBuffer()) });
+            }).catch(() => req.continue());
           }
           if (req.method() === 'PUT' && curEvent && u.includes(`/${curEvent}`) && u.includes('/api/calendar')) puts.push(u);
           return req.continue();
@@ -108,6 +124,23 @@ async function run() {
         await waitList(page);
         const lv = await listVisible(page);
         push(`${v.key} · ① 새 일정: 후보 목록이 칸 아래 화면 안에 그려짐`, lv.ok, JSON.stringify(lv));
+        // ⑦ 내 주변 · 거리 · 최근
+        const seen = (sel) => page.evaluate((x) => {
+          const el = document.querySelector(x); if (!el) return false;
+          const r = el.getBoundingClientRect(); if (!r.width || !r.height) return false;
+          const h = document.elementFromPoint(r.left + Math.min(10, r.width / 2), r.top + r.height / 2);
+          return !!h && (el === h || el.contains(h));
+        }, sel);
+        const pre = { btn: await seen(T('event-location-near-me')), nearReqs: nearReqs.length,
+          tag: await page.evaluate(() => Array.from(document.querySelectorAll('[data-testid="event-location-suggestion"]')).some(e => e.textContent.includes('최근'))),
+          dist: await page.evaluate(() => /\d(\.\d)?k?m/.test(document.querySelector('[data-testid="event-location-suggestions"]')?.textContent || '')) };
+        await page.evaluate((x) => document.querySelector(x)?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })), T('event-location-near-me'));
+        for (let i = 0; i < 20 && !nearReqs.length; i++) await sleep(200);
+        await sleep(500);
+        const post = { nearReqs: nearReqs.length, dist: await page.evaluate(() => (document.querySelector('[data-testid="event-location-suggestions"]')?.textContent || '').includes('1.2km')),
+          focus: await page.evaluate((x) => document.activeElement === document.querySelector(x), T('new-event-location')) };
+        push(`${v.key} · ⑦ «내 주변» 버튼 보임·누르기 전 위치 안 보냄·누르면 거리 1.2km · «최근» 꼬리표`,
+          pre.btn && pre.nearReqs === 0 && pre.tag && !pre.dist && post.nearReqs >= 1 && post.dist && post.focus, JSON.stringify({ pre, post }));
         await page.keyboard.press('ArrowDown');
         await page.keyboard.press('Enter');
         await sleep(400);
