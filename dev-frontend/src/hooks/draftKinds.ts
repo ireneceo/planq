@@ -67,6 +67,11 @@ export const DRAFT_KINDS = {
   'history-note': { ttlMs: 7 * DAY, mode: 'edit', owners: ['components/Common/HistoryNote.tsx'] },
   'project-history-entry-edit': { ttlMs: 7 * DAY, mode: 'edit', owners: ['pages/QProject/HistoryTab.tsx'] },
   'sale-task-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/SaleInboxList.tsx', 'components/QTask/TaskCreateForm.tsx'] },
+  // 업무 추가·일정 추가 폼의 제목·설명(2026-11-23 Irene «내용 입력하던 거 임시저장도 안되고 … 항상 다 날라가잖아»).
+  //   닫기·새로고침·탭 닫기에도 남고 만들기 성공 때만 지운다. 업무 = 화면별(Q task 'qtask' · 프로젝트 'project-<id>'),
+  //   일정 = 'new' 하나. 말로 추가·Cue 카드처럼 첫 값을 들고 열린 폼은 초안 없이(그 값이 정본).
+  'task-create': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QTask/TaskCreateForm.tsx', 'pages/QTask/QTaskPage.tsx', 'pages/QProject/TasksTab.tsx'] },
+  'event-create': { ttlMs: 7 * DAY, mode: 'append', owners: ['pages/QCalendar/NewEventModal.tsx'] },
   // 문의 추가 모달 — 붙여넣은 원문과 첫 상담 메모. 둘 다 길고, 쓰다 닫으면 사라지던 값이다(2026-09-12).
   'sale-inquiry-add': { ttlMs: 7 * DAY, mode: 'append', owners: ['components/QSale/AddInquiryModal.tsx', 'components/QSale/SaleCueBar.tsx'] },
   // 다음 연락 약속 메모 — 일정으로 저장되기 전까지 남는다(2026-09-12)

@@ -4,6 +4,8 @@ import { allDayIsoRange } from '../../utils/allDayDate';
 import TzLines from './TzLines';
 import TaskLinkPicker from '../../components/Common/TaskLinkPicker';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
+import DraftRestoredNote, { combineDrafts } from '../../components/Common/DraftRestoredNote';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
 import { CONNECT_PROMPT } from '../../components/Common/connectPrompts';
 import styled from 'styled-components';
@@ -86,8 +88,21 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
   // 운영 #41 — 입력 시간의 기준 타임존(워크스페이스) 안내
   const wsTz = user?.workspace_timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const myTz = user?.timezone || null;   // 내 업무 시간대 — 다를 때만 TzLines 가 «내 시간» 줄을 그린다
-  const [title, setTitle] = useState(initialTitle || '');
-  const [description, setDescription] = useState(initialDescription || '');
+  // 제목·설명 임시저장(2026-11-23 Irene «내용 입력하던 거 임시저장도 안되고 … 항상 다 날라가잖아») —
+  //   빈 폼으로 연 «새 일정» 만. 말로 추가·Cue 카드·업무 결과물 액션처럼 첫 값을 들고 열리면 그 값이 정본이라 초안을 쓰지 않는다.
+  //   닫기·새로고침에도 남고 만들기 성공 때만 지운다(실패 = onCreate 가 일정을 돌려주지 않음 → 그대로 둔다).
+  const plainNew = initialTitle == null && initialDescription == null && !seed && !fromTask;
+  const evTitleKey = useDraftKey('event-create', plainNew ? 'new:title' : null, bizId);
+  const evDescKey = useDraftKey('event-create', plainNew ? 'new:desc' : null, bizId);
+  const titleDraft = useDraftText(evTitleKey);
+  const descDraft = useDraftText(evDescKey);
+  const [titleLocal, setTitleLocal] = useState(initialTitle || '');
+  const [descLocal, setDescLocal] = useState(initialDescription || '');
+  const title = plainNew ? titleDraft.text : titleLocal;
+  const setTitle = plainNew ? titleDraft.setText : setTitleLocal;
+  const description = plainNew ? descDraft.text : descLocal;
+  const setDescription = plainNew ? descDraft.setText : setDescLocal;
+  const draftNote = combineDrafts(titleDraft, descDraft);
   const [location, setLocation] = useState(seed?.location || '');
 
   const [startDate, setStartDate] = useState<string>(toDateKey(initialStart));
@@ -397,7 +412,10 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       });
     }
     // #242 — 실패 경로에서 submitting 이 영영 안 풀려 버튼이 잠기던 것. 성공 시엔 모달이 사라지므로 무해.
-    Promise.resolve(created).finally(() => setSubmitting(false));
+    Promise.resolve(created).then((ev) => {
+      // 만들어졌을 때만 초안을 지운다 — 실패를 삼키는 부모(handleCreate)는 아무것도 돌려주지 않는다
+      if (plainNew && ev && (ev as CalendarEvent).id) { titleDraft.clear(); descDraft.clear(); }
+    }).catch(() => {}).finally(() => setSubmitting(false));
   };
 
   return (
@@ -411,7 +429,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       submitLabel={t('button.create')}
       submitDisabled={!title.trim()} submitTestId="calendar-new-submit"
     >
-          {fromTask?.notice}<Field>
+          {fromTask?.notice}{plainNew && <DraftRestoredNote draft={draftNote} />}<Field>
             <TitleInput data-testid="new-event-title"
               ref={titleRef}
               value={title}

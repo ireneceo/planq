@@ -31,6 +31,18 @@ const DraftRestoredNote: React.FC<Props> = ({ draft }) => {
 
 export default DraftRestoredNote;
 
+/** 여러 칸(제목·설명)의 초안을 안내 한 줄로 묶는다 — 지우기·닫기는 모두에 (업무 추가·일정 추가 폼, 2026-11-23) */
+export function combineDrafts(...ds: Props['draft'][]): Props['draft'] {
+  return {
+    restored: ds.some((d) => d.restored),
+    replaced: ds.some((d) => d.replaced),
+    baseChanged: false,
+    text: ds.map((d) => d.text).join(''),
+    clear: () => ds.forEach((d) => d.clear()),
+    dismissNotice: () => ds.forEach((d) => d.dismissNotice()),
+  };
+}
+
 const Row = styled.div`
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   margin-top: 4px; font-size: 0.6875rem; color: #64748B;

@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next';
 import AutoSaveField, { type AutoSaveHandle } from '../../components/Common/AutoSaveField';
 import { quickActionFor } from '../../components/QTask/popoutQuickAction';   // 체크박스 노출 규칙 — 팝아웃과 단일 원천
 import { useAuth } from '../../contexts/AuthContext';
+import { useTabActive } from '../../contexts/TabActiveContext';
 import { joinRoom, leaveRoom, onSocket, getSocket } from '../../services/socket';
 import CapacityWorkdays, { type CapacityInfo } from '../../components/QTask/CapacityWorkdays';
 import CommentContextTag from '../../components/QTask/CommentContextTag';   // 댓글이 확인 요청·승인·수정 요청과 함께 남긴 글인지
@@ -902,7 +903,11 @@ const QTaskPage:React.FC=()=>{
   }, [load, refreshCapacity]));
 
   // Esc 키로 드로어 닫기 (상세 + 업무 추가)
+  //   ★ 숨은 앱 탭이면 듣지 않는다(2026-11-23) — 탭을 옮겨도 패널을 남겨 두므로, 다른 탭에서 누른 Esc 가
+  //     이 탭의 쓰던 업무 추가·상세를 몰래 닫았다(useEscapeStack 과 같은 판정).
+  const qtaskTabActive = useTabActive();
   useEffect(() => {
+    if (!qtaskTabActive) return undefined;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       // ★ 열려 있던 드롭다운의 몫인 Esc 는 여기서 받지 않는다 (2026-09-08 실측).
@@ -917,7 +922,7 @@ const QTaskPage:React.FC=()=>{
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addingTask, detailTaskId]);
+  }, [addingTask, detailTaskId, qtaskTabActive]);
 
   // 일별 스냅샷 로드 — WORK_FLOW §6-C: 이번 주 업무 집합(chartTaskIds)으로 스코핑.
   //   chartTaskIds 는 filtered 정의 이후라 아래(weekTotalEst 근처)에서 effect 로 실행.
@@ -1025,6 +1030,9 @@ const QTaskPage:React.FC=()=>{
     createDefaults: tabCreateDefaults,
     initial: addInitial,
     initialNonce: addInitialNonce,
+    // 쓰다 닫거나 새로고침해도 제목·설명이 남는다 — 만들기 성공 때만 지운다(2026-11-23)
+    draftKind: 'task-create' as const,
+    draftId: 'qtask',
     members,
     projects,
     tagDict,

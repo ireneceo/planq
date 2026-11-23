@@ -359,6 +359,7 @@ const SUITES = {
   drafts: () => require('./canary-drafts'),
   // 메일 계정 등록 폼 — 닫기·새로고침·연결 실패에도 입력이 남는가 · 비밀번호는 저장소에 0건 (2026-11-14)
   maildraft: () => require('./canary-mail-account-draft'),
+  tabpanel: () => require('./canary-tab-panel-keep'),
   // 입력하고 debounce 안에 떠나도(화면 이동·✕·새로고침·로그아웃) 저장이 나가는가 (D-C3 라운드 1B).
   //   "떠나기 전 0건 + 떠난 뒤 1건" 을 같이 잰다 — 늦게 터진 debounce 와 떠날 때 보낸 것을 가른다.
   leavesave: () => require('./canary-leave-save'),

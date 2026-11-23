@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useTabActive } from '../contexts/TabActiveContext';
 
 // 모듈 레벨 스택 — 드로어/모달이 중첩 열렸을 때 최상단만 Esc 처리
 const stack: Array<{ id: number; handler: () => void }> = [];
@@ -64,8 +65,12 @@ const attachKeyOnce = (() => {
  *   useEscapeStack(open, onClose);
  */
 export const useEscapeStack = (active: boolean, onClose: () => void): void => {
+  // ★ 숨은 앱 탭의 패널은 Esc 를 받지 않는다(2026-11-23) — 탭을 옮겨도 패널을 열어 둔 채 남기므로,
+  //   안 그러면 지금 탭에서 누른 Esc 가 **보이지도 않는 다른 탭의 패널**(쓰던 업무·일정)을 닫는다.
+  //   다시 그 탭으로 오면 스택 맨 위로 다시 올라간다. 단일 탭(Provider 없음)은 항상 활성 = 종전 그대로.
+  const tabActive = useTabActive();
   useEffect(() => {
-    if (!active) return;
+    if (!active || !tabActive) return;
     attachKeyOnce();
     const entry = { id: ++seq, handler: onClose };
     stack.push(entry);
@@ -73,5 +78,5 @@ export const useEscapeStack = (active: boolean, onClose: () => void): void => {
       const idx = stack.findIndex((x) => x.id === entry.id);
       if (idx >= 0) stack.splice(idx, 1);
     };
-  }, [active, onClose]);
+  }, [active, tabActive, onClose]);
 };

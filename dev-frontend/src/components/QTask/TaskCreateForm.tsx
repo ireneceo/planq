@@ -41,6 +41,7 @@ import VisibilityChangeModal from '../Common/VisibilityChangeModal';
 import { useSecurityLevelLabel } from '../Common/SecurityLevelBadge';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
+import DraftRestoredNote, { combineDrafts } from '../Common/DraftRestoredNote';
 import { todayInTz } from '../../utils/timezones';
 import type { DraftKind } from '../../hooks/draftKinds';
 import { orderProjectsForMe } from '../../utils/projectOrder';
@@ -487,8 +488,11 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     else if (assigneeId == null) setAssigneeId(assigneeFixedToMe ? myId : null);
   };
 
+  // 불러온 초안 안내 한 줄(제목·설명 묶음) — 조용히 채워지면 «이게 왜 있지» 가 된다.
+  const draftNote = combineDrafts(titleDraft, descDraft);
   const fields = (
     <>
+      {draftKind && draftId && <DraftRestoredNote draft={draftNote} />}
       {allowModeSwitch && (
         <ModeRow>
           <SegmentedToggle role="group" aria-label={t('add.modeGroup', '업무 종류') as string}>
