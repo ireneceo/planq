@@ -2,6 +2,12 @@
 **마지막 업데이트:** 2026-11-23 (방 7ff26699 — 출근 묻기 창 안 뜸 원인: 팝아웃 표식 오판) · 그 전: 2026-11-23 (방 9e05aa34 — 근태 출근 묻기 재요청 · Q note AI 표) · 그 전: 2026-11-23 (방 3e160bf7 — 클릭 창 잘림 통합) · 그 전: 2026-11-22 (방 fefd8991 — 정기 점검 11/23 00:15: 개발완료 건너뜀 + 개발시작) · 그 전: 2026-11-22 (방 c6af099e — Q task 진행 버튼 열 정렬 + 개발완료) · 그 전: 2026-11-21 (방 ac3ee72e — 정기 점검 11/22 00:15: 개발시작 · 밤 검사 검사기 3건) · 그 전: 2026-11-21 (방 3f60bc2c — 정기 점검 11/21 00:15: 개발완료 + 개발시작) · 그 전: 2026-11-20 (방 c01e4dab — Q note 받아쓰기 숫자 표기) · 그 전: 2026-11-20 (방 0f368a1e — Q note AI 추가 요청) · 그 전: 2026-11-20 (방 fec4b3e3 — 프로젝트 히스토리 메일·이슈) · 그 전: 2026-11-20 (방 1f89f011 — ChatGPT 업무 그룹 배정 도구) · 그 전: 2026-11-20 (방 ffb5c980 — 정기 점검 11/20 00:15) · 이전: 2026-11-19 (방 2a574c2f — AI 앱 파일 붙이기)
 **작업 상태:** 완료 (방 fefd8991 — 정기 점검 11/23 00:15 ✅ · 제품 코드 변경 0)
 
+### 답 기다림: ChatGPT 가 set_task_workstream 을 보는지 (방 101276d0 · 2026-11-23 · [Opus] · Fable 안 씀 — 확인만)
+- Irene «했어요»(ChatGPT 앱 새로고침) 받음. 운영 코드에 set_task_workstream 있음(운영 services/agent/registry.js·tools/tasks.js grep) · 8081ac2c 는 운영 배포 b120653e(v1.70.18) 안
+- 확인 못 함: ChatGPT 화면 · 운영 audit_logs «agent.set_task_workstream» 조회(운영 DB 읽기가 권한 거부됨 — 우회 안 함)
+- 물음: ChatGPT 가 «업무 9883 을 그룹에 넣는 도구 이름» 에 set_task_workstream 이라 답했는지 (상황판 askmwsyqna8)
+- 답이 오면: ① 답함 → ✅ 마무리 ② 없다 → 앱 삭제 후 다시 추가 순서 안내(act) · 그래도 없으면 운영 /agent/mcp tools/list 를 OAuth 토큰으로 떠서 칸 확인
+
 ### ✅ 출근 묻기 창이 «묻는 중» 인데 안 뜸 — 메인 탭이 «팝아웃 창» 으로 잘못 찍힘 (방 7ff26699 · 2026-11-23 · [Opus] · Fable 미검증(자체 검증) — 화면 버그)
 - 원인: PopoutBridge 가 메인 창에서도 markPopoutWindow() 를 부르고, 그 판정이 `window.opener` 만 있어도 팝아웃으로 봤다 → 다른 탭(상황판 «시험 계정으로 열기» 등)이 window.open 으로 연 탭은 sessionStorage `pq_popout=1` → **새로고침부터** AttendancePromptHost(·도크 등)가 숨음. 탭 모드는 크롬을 그대로 그려 겉으론 멀쩡. 팝아웃이 연 메인 탭(window.open 은 sessionStorage 복사)도 같은 길.
 - 고침: utils/popout — opener 는 팝아웃 경로일 때만 증거(이름 pq-* 는 그대로) · `healStrayPopoutMark()` 부팅 때 첫 렌더 전(main.tsx) 잘못 남은 표식 지움(이름 pq-*·팝아웃 경로·/guide·/wiki 는 둠) · PopoutInboxBand 메인 열기 noopener
