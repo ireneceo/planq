@@ -99,14 +99,6 @@ async function run() {
             const data = q.includes('스타') ? FIX.map(d => ({ ...d, distance_m: near ? 1234 : null })).concat([RECENT]) : [];
             return req.respond({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data }) });
           }
-          // (임시) 서버 헤더가 geolocation=(self) 로 바뀌기 전 — 문서 응답의 Permissions-Policy 만 (self) 로 바꿔 화면 계약을 잰다
-          if (process.env.PLACES_GEO_HEADER_SHIM === '1' && req.isNavigationRequest() && req.resourceType() === 'document') {
-            return fetch(u, { headers: { 'User-Agent': 'canary' } }).then(async (r) => {
-              const headers = {}; r.headers.forEach((val, k) => { headers[k] = k === 'permissions-policy' ? val.replace('geolocation=()', 'geolocation=(self)') : val; });
-              delete headers['content-encoding']; delete headers['content-length'];
-              return req.respond({ status: r.status, headers, body: Buffer.from(await r.arrayBuffer()) });
-            }).catch(() => req.continue());
-          }
           if (req.method() === 'PUT' && curEvent && u.includes(`/${curEvent}`) && u.includes('/api/calendar')) puts.push(u);
           return req.continue();
         });

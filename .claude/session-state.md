@@ -15,14 +15,12 @@
 - 확인용 데이터: ws6 owner 일정 «[확인용] 장소 최근 시험»(위치 «스타벅스 성수역점, 서울 성동구 아차산로 100») — 지우지 않음
 - ★ 막혀 있던 것: 화면 보안 헤더 `Permissions-Policy … geolocation=()` 가 위치를 통째로 꺼 «내 주변» 이 아무에게도 안 됨(카나리 ⑦ 3폭 실패로 발견) → `geolocation=(self)` 로(scripts/apply-nginx-security-headers.sh · middleware/security.js · docs/ops/NGINX_SECURITY_HEADERS.md). nginx 반영은 root — dev: Irene 이 `sudo /opt/planq/scripts/apply-nginx-security-headers.sh dev` · 운영: 배포 때 같은 스크립트 prod
 - 화면 시험 `--suite eventplacesearch`: 헤더를 (self) 로 바꿔 띄우면(PLACES_GEO_HEADER_SHIM=1) 3폭 21/21 · 지금 헤더 그대로면 ⑦ 3폭 실패(양성 대조군). dev nginx 반영 뒤 shim 없이 다시 돌려 21/21 이면 카나리의 shim 줄을 지운다
-- 확인 못 함: 진짜 구글 응답(키 없음) · 실제 dev 주소에서 «내 주변»(nginx 헤더 반영 전)
+- 확인 못 함: 진짜 구글 응답(키 없음) — «내 주변» 은 dev 실헤더로 3폭 확인함
 - Irene 할 일: «구글 Places 키 만들기» todomwt6eoby — 상황판에 올림
 
-### 답 기다림: dev nginx 위치 헤더 반영 (방 64c85333 · 2026-11-23)
-- 무엇: 서버 창에서 `sudo /opt/planq/scripts/apply-nginx-security-headers.sh dev` (root 필요 — 방에서 못 함)
-- 왜: 지금 헤더가 브라우저 위치를 막아 «내 주변 먼저» 버튼이 «위치를 쓸 수 없어요» 만 뜸
-- 답이 오면: `curl -sI https://dev.planq.kr/calendar | grep -i permissions` 에 geolocation=(self) 확인 → shim 없이 `--suite eventplacesearch` 21/21 → 카나리 shim 줄 삭제 → 커밋
-- 운영 반영: 다음 배포 때(운영 .env 에 GOOGLE_PLACES_API_KEY)
+### ✅ (닫힘) dev nginx 위치 헤더 반영 (방 64c85333 · 2026-11-23)
+- Irene «했어요»(sudo apply-nginx-security-headers.sh dev) → dev 응답 헤더 `geolocation=(self)` 확인 · 카나리 shim 지움 · 실헤더로 `--suite eventplacesearch` 3폭 21/21
+- 운영: 다음 배포 때 `sudo /opt/planq/scripts/apply-nginx-security-headers.sh prod`(운영 서버) + 운영 .env GOOGLE_PLACES_API_KEY(키 생기면)
 
 ### ✅ 메일 AI 답장 — 마지막 메일에 답하게 + 초안 있을 때 Enter 가 조용하던 것 (방 dc369816 · 2026-11-23 · [Opus] · Fable 안 씀 — 판정 기준·발송 불변, AI 입력 고르기 버그)
 - 원인 ① AI 에 넘기는 대화 흐름(최근 6통×800자)을 3000자로 자를 때 **앞(옛 메일)을 남기고 뒤를 버렸다** → 최신 메일(방금 받은 것·우리가 보낸 것)이 빠져 그 앞 대화에 답함. dev 스레드 9226 실측: 옛 방식 문맥에 마지막 받은 메일 12982 없음
