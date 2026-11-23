@@ -7,14 +7,43 @@ import { isNativeApp } from '../services/native';
 
 const KEY = 'pq_popout';
 
+// 팝아웃 창이 처음 여는 경로 — 이 경로에서만 «열어 준 창이 있다(window.opener)» 를 팝아웃 증거로 쓴다.
+const POPOUT_PATH_RE = /^\/(talk-popout|task-popout|note-popout|help-popout|doc-popout|mail-popout)(\/|$)|^\/memo\//;
+// 팝아웃 창이 안에서 옮겨 가는 화면(Q helper → 위키) — 표식이 남아 있어도 정상이다.
+const POPOUT_INNER_RE = /^\/(guide|wiki)(\/|$)/;
+
+function pathNow(): string {
+  try { return window.location.pathname || ''; } catch { return ''; }
+}
+function hasPopoutName(): boolean {
+  try { return /^pq-/.test(window.name || ''); } catch { return false; }
+}
+
 export function markPopoutWindow(): void {
   try {
     // 진짜 분리 창에서만 마킹. 메인 탭이 실수로 /help-popout 직접 열어도(window.open 아님)
-    // 오염되지 않게 가드 — window.opener(열어준 부모 존재) 또는 window.name='pq-*'(window.open 2nd arg).
+    // 오염되지 않게 가드 — window.name='pq-*'(window.open 2nd arg) 또는 팝아웃 경로 + window.opener.
+    // ★ opener 만으로는 증거가 아니다 (2026-11-23, Irene «서버는 묻는 중인데 창이 안 떠»).
+    //   PopoutBridge 가 **메인 창에서도** 이 함수를 부르는데, 다른 탭(상황판 «시험 계정으로 열기»·메일 링크 등)이
+    //   window.open 으로 연 메인 탭은 opener 가 있어 «팝아웃» 으로 찍혔다 → 새로고침부터 출근 묻는 창·우하단 도크가
+    //   사라졌다(탭 모드는 크롬을 그대로 그려서 겉으로는 멀쩡해 보였다).
     const realPopout = typeof window !== 'undefined'
-      && (!!window.opener || /^pq-/.test(window.name || ''));
+      && (hasPopoutName() || (!!window.opener && POPOUT_PATH_RE.test(pathNow())));
     if (realPopout) sessionStorage.setItem(KEY, '1');
   } catch { /* private mode 등 — best-effort */ }
+}
+
+/** 메인 창에 잘못 남은 팝아웃 표식을 지운다 — 부팅 때 한 번(main.tsx, 첫 렌더 전).
+ *  위 opener 오판으로 이미 찍힌 탭(sessionStorage 는 새로고침에도 남는다)과, 팝아웃 창이 window.open 으로 연
+ *  메인 탭(window.open 은 sessionStorage 를 복사한다)이 대상이다. 이름(pq-*)이 있거나 팝아웃 경로면 그대로 둔다. */
+export function healStrayPopoutMark(): void {
+  try {
+    if (sessionStorage.getItem(KEY) !== '1') return;
+    if (hasPopoutName()) return;
+    const p = pathNow();
+    if (POPOUT_PATH_RE.test(p) || POPOUT_INNER_RE.test(p)) return;
+    sessionStorage.removeItem(KEY);
+  } catch { /* noop */ }
 }
 
 export function isPopoutWindow(): boolean {

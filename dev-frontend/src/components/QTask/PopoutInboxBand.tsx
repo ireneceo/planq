@@ -88,7 +88,7 @@ const PopoutInboxBand: React.FC<Props> = ({ bizId, onOpenTask, excludeTaskIds = 
   const top = listed[0] || data.items[0];
   const verb = (it: TodoItem) => td(`todo.verb.${it.verb}`, { defaultValue: it.verb }) as string;
 
-  const openMain = (path: string) => { if (!requestMainNavigate(path)) window.open(path, '_blank'); };
+  const openMain = (path: string) => { if (!requestMainNavigate(path)) window.open(path, '_blank', 'noopener'); };  // noopener — 새 메인 탭이 이 창의 sessionStorage(팝아웃 표식)를 물려받지 않게
   const openItem = (it: TodoItem) => {
     if (it.drawer?.kind === 'task' && Number(it.drawer.id)) { onOpenTask(Number(it.drawer.id)); return; }
     if (it.type === 'signature' && it.link?.startsWith('/sign/')) { window.open(it.link, '_blank', 'noopener,noreferrer'); return; }

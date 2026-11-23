@@ -7,6 +7,7 @@ import './index.css'
 import { initFontScale } from './services/fontScale'
 import { captureFirstTouch } from './services/firstTouch'
 import App from './App.tsx'
+import { healStrayPopoutMark } from './utils/popout'
 import { bindPermissionSync } from './services/push.ts'
 import { isNativeApp, isDesktopApp, nativePlatform } from './services/native'
 
@@ -446,6 +447,8 @@ if (typeof window !== 'undefined' && window.visualViewport) {
 initFontScale();
 // 가입 출처 — 처음 들어온 곳을 한 번 적어 둔다(services/firstTouch). 렌더 전에 — referrer·utm 이 아직 그대로일 때.
 captureFirstTouch();
+// 메인 창에 잘못 남은 «팝아웃» 표식 지우기 — 첫 렌더 전에(출근 묻는 창·도크가 표식을 보고 숨는다, 2026-11-23).
+healStrayPopoutMark();
 
 // 크래시 직전 조작을 남긴다 — 보고에 '어디서' 뿐 아니라 '무엇을 눌렀을 때' 가 실린다.
 installCrashTrail();
