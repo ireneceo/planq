@@ -35,7 +35,8 @@
 - Irene «했어요»(ChatGPT 앱 새로고침) 받음. 운영 코드에 set_task_workstream 있음(운영 services/agent/registry.js·tools/tasks.js grep) · 8081ac2c 는 운영 배포 b120653e(v1.70.18) 안
 - 확인 못 함: ChatGPT 화면 · 운영 audit_logs «agent.set_task_workstream» 조회(운영 DB 읽기가 권한 거부됨 — 우회 안 함)
 - 물음(2차, Irene «권고대로» = 답 문장 아직 없음 → act 카드로 다시): ChatGPT 가 «업무 9883 을 그룹에 넣는 도구 이름» 에 set_task_workstream 이라 답했는지 (상황판 askmwsyqna8)
-- 답이 오면: ① 답함 → ✅ 마무리 ② 없다 → 앱 삭제 후 다시 추가 순서 안내(act) · 그래도 없으면 운영 /agent/mcp tools/list 를 OAuth 토큰으로 떠서 칸 확인
+- 결과(Irene 11/23 16:46): «PlanQ ver02» 앱 도구 새로 고침 뒤 새 대화 → ChatGPT 답 «mcp__PlanQ_ver02__set_task_workstream» → 해결. 원인은 Fable 비차단 1 그대로(ChatGPT 가 옛 도구 목록을 들고 있었음)
+- (닫힘) 답이 오면: ① 답함 → ✅ 마무리 ② 없다 → 앱 삭제 후 다시 추가 순서 안내(act) · 그래도 없으면 운영 /agent/mcp tools/list 를 OAuth 토큰으로 떠서 칸 확인
 
 ### ✅ 출근 묻기 창이 «묻는 중» 인데 안 뜸 — 메인 탭이 «팝아웃 창» 으로 잘못 찍힘 (방 7ff26699 · 2026-11-23 · [Opus] · Fable 미검증(자체 검증) — 화면 버그)
 - 원인: PopoutBridge 가 메인 창에서도 markPopoutWindow() 를 부르고, 그 판정이 `window.opener` 만 있어도 팝아웃으로 봤다 → 다른 탭(상황판 «시험 계정으로 열기» 등)이 window.open 으로 연 탭은 sessionStorage `pq_popout=1` → **새로고침부터** AttendancePromptHost(·도크 등)가 숨음. 탭 모드는 크롬을 그대로 그려 겉으론 멀쩡. 팝아웃이 연 메인 탭(window.open 은 sessionStorage 복사)도 같은 길.
