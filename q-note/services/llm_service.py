@@ -1268,7 +1268,9 @@ e.g. a follow-up email to the client, a report for the boss, a table of decision
 2. Keep concrete facts exactly as spoken: numbers, amounts, dates, deadlines, names. Do not round or convert.
 3. Follow the requested format, tone and length. If no language is requested, write in the source's dominant language.
 4. Output plain text only (line breaks and "- " / "1." bullets are fine; no markdown headings like "#", no code fences,
-   no "**bold**"). For a table write one row per line with cells separated by " | " — no "---" divider lines, no padding spaces.
+   no "**bold**"). For a table write one row per line with cells separated by " | " — the FIRST line is the column headers,
+   no "-" / "1." bullet in front of table rows, no "---" divider lines, no padding spaces, and one blank line between
+   two tables or between a table and other text. (The app draws these lines as a real table.)
 5. Output ONLY the finished text — no preface such as "Here is…", no closing remarks about what you did.
 """
 

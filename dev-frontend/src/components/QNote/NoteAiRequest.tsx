@@ -15,6 +15,7 @@ import MailAiBar from '../../pages/QMail/MailAiBar';
 import { CORAL } from '../Common/cueBarShell';
 import { generateNoteAiRequest, clearNoteAiRequest } from '../../services/qnote';
 import { copyRichContent } from '../../utils/copyRich';
+import { parsePipeBlocks, pipeBlocksToHtml } from '../../utils/pipeTable';
 
 export interface NoteAiRequestValue {
   ai_request_text?: string | null;
@@ -108,7 +109,9 @@ export default function NoteAiRequest({
   };
 
   const copy = async () => {
-    const ok = await copyRichContent({ text: result });
+    // 표가 있으면 HTML 도 같이 — 메일·문서에 붙이면 표로 들어간다(없으면 종전처럼 평문만)
+    const blocks = parsePipeBlocks(result);
+    const ok = await copyRichContent({ text: result, html: blocks.some((b) => b.kind === 'table') ? pipeBlocksToHtml(blocks) : null });
     setCopied(ok);
     if (ok) window.setTimeout(() => setCopied(false), 2000);
   };
@@ -184,7 +187,19 @@ export default function NoteAiRequest({
           {value.ai_request_text && (
             <ReqLine>{t('aiRequest.lastRequest', '마지막 요청')}: {value.ai_request_text}</ReqLine>
           )}
-          <ResultText data-testid="qnote-ai-request-result">{result}</ResultText>
+          <ResultText data-testid="qnote-ai-request-result">
+            {/* «칸 | 칸» 줄이 이어지면 표로 그린다 — 판정은 utils/pipeTable 한 벌(복사·문서 저장도 같은 것) */}
+            {parsePipeBlocks(result).map((b, i) => (b.kind === 'text'
+              ? <TextPart key={i}>{b.text}</TextPart>
+              : (
+                <TableScroll key={i}>
+                  <ResultTable data-testid="qnote-ai-request-table">
+                    <thead><tr>{b.header.map((c, k) => <th key={k}>{c}</th>)}</tr></thead>
+                    <tbody>{b.rows.map((r, ri) => <tr key={ri}>{r.map((c, k) => <td key={k}>{c}</td>)}</tr>)}</tbody>
+                  </ResultTable>
+                </TableScroll>
+              )))}
+          </ResultText>
         </ResultBox>
       )}
     </Wrap>
@@ -315,6 +330,34 @@ const ResultText = styled.div`
   font-size: 0.8125rem;
   line-height: 1.7;
   color: #334155;
-  white-space: pre-wrap;
   word-break: break-word;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`;
+const TextPart = styled.div`
+  white-space: pre-wrap;
+`;
+// 폰에서 칸이 많으면 표만 가로로 흘린다(글은 그대로 감긴다)
+const TableScroll = styled.div`
+  overflow-x: auto;
+  max-width: 100%;
+`;
+const ResultTable = styled.table`
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  th, td {
+    border: 1px solid #E2E8F0;
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: top;
+    white-space: pre-wrap;
+  }
+  th {
+    background: #F8FAFC;
+    color: #0F172A;
+    font-weight: 600;
+  }
 `;

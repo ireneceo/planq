@@ -2,6 +2,7 @@
 // 요약(key_points + full)을 TipTap doc 으로 빌드해 createPost 로 저장. 사적 기본(L1).
 import { createPost } from '../services/posts';
 import type { PostDetail } from '../services/posts';
+import { parsePipeBlocks } from './pipeTable';
 
 interface SummaryDocLabels {
   keyPoints: string;  // "핵심 요점" (i18n 경유 — 호출부에서 t() 로 전달)
@@ -24,8 +25,18 @@ export function buildSummaryDoc(keyPoints: string[], full: string, labels: Summa
   }
   if (full) {
     content.push({ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: labels.full }] });
-    full.split('\n').map((l) => l.trim()).filter(Boolean).forEach((line) => {
-      content.push({ type: 'paragraph', content: [{ type: 'text', text: line }] });
+    // «칸 | 칸» 줄이 이어지면 문서에도 표로 넣는다(AI 추가 요청 «표로 정리» — 화면과 같은 판정 utils/pipeTable)
+    const para = (text: string): TiptapNode => (text ? { type: 'paragraph', content: [{ type: 'text', text }] } : { type: 'paragraph' });
+    parsePipeBlocks(full).forEach((b) => {
+      if (b.kind === 'text') {
+        b.text.split('\n').map((l) => l.trim()).filter(Boolean).forEach((line) => content.push(para(line)));
+        return;
+      }
+      const row = (cells: string[], cellType: 'tableHeader' | 'tableCell'): TiptapNode => ({
+        type: 'tableRow',
+        content: cells.map((c) => ({ type: cellType, attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [para(c)] })),
+      });
+      content.push({ type: 'table', content: [row(b.header, 'tableHeader'), ...b.rows.map((r) => row(r, 'tableCell'))] });
     });
   }
   if (content.length === 0) content.push({ type: 'paragraph' });
