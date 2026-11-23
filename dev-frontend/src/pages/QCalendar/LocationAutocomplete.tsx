@@ -8,6 +8,7 @@
 //   - 목록이 열린 동안은 onOpenChange(true) — 상세 화면은 이것으로 AutoSaveField hold 를 걸어 반쪽 입력 저장·알림을 막는다.
 //   - 목록 항목은 mousedown preventDefault — 입력칸이 blur 되지 않는다.
 //   - 목록이 열린 동안 Enter 는 폼 제출로 흘리지 않는다 · 한글 조합 중 키는 무시 · Esc 는 스택 최상단(목록 먼저).
+//   - 구글 세션 토큰(2026-11-23): 이 칸에서 치기 시작할 때 하나 만들고, 고르거나 칸을 떠나면 버린다(구글 과금 단위 = 세션).
 //   - 서버 키가 없으면(disabled) 이 창이 살아 있는 동안 다시 묻지 않는다 · 잠깐 못 쓰면(degraded) 30초 쉰다. 화면엔 표시 없음.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
@@ -20,6 +21,11 @@ import { Input as FormInput } from './eventFormStyles';
 
 let placesDisabled = false;   // 세 자리가 각각 두드리지 않게 모듈 메모
 let placesBackoffUntil = 0;
+
+function newPlaceSession(): string {
+  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch { /* 옛 브라우저 */ }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
 
 const MAX_LEN = 200;
 export function placeLine(p: PlaceSuggestion): string {
@@ -40,7 +46,7 @@ interface Props {
 }
 
 const LocationAutocomplete: React.FC<Props> = ({ value, onChange, onOpenChange, placeholder, input, ...rest }) => {
-  const { t } = useTranslation('qcalendar');
+  const { t, i18n } = useTranslation('qcalendar');
   const InputEl = input || FormInput;
   const [items, setItems] = useState<PlaceSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -49,6 +55,7 @@ const LocationAutocomplete: React.FC<Props> = ({ value, onChange, onOpenChange, 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const typedRef = useRef(false);   // 사용자가 이 칸에 친 뒤에만 검색(값이 밖에서 바뀐 것엔 반응 안 함)
+  const sessionRef = useRef('');   // 구글 자동완성 세션 토큰
   const listId = useRef(`place-ac-${Math.random().toString(36).slice(2, 8)}`).current;
 
   const showList = open && items.length > 0;
@@ -74,7 +81,8 @@ const LocationAutocomplete: React.FC<Props> = ({ value, onChange, onOpenChange, 
       const ac = new AbortController();
       abortRef.current = ac;
       try {
-        const r = await searchPlaces(q, ac.signal);
+        if (!sessionRef.current) sessionRef.current = newPlaceSession();
+        const r = await searchPlaces(q, ac.signal, { session: sessionRef.current, lang: i18n.language });
         if (seq !== reqSeq.current) return; // 늦게 온 옛 응답은 버린다
         if (r.disabled) placesDisabled = true;
         if (r.degraded) placesBackoffUntil = Date.now() + 30_000;
@@ -87,6 +95,7 @@ const LocationAutocomplete: React.FC<Props> = ({ value, onChange, onOpenChange, 
   const pick = (p: PlaceSuggestion) => {
     reqSeq.current += 1;
     typedRef.current = false;
+    sessionRef.current = '';
     onChange(placeLine(p));
     setItems([]);
     close();
@@ -116,7 +125,7 @@ const LocationAutocomplete: React.FC<Props> = ({ value, onChange, onOpenChange, 
         aria-controls={listId}
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => { typedRef.current = true; onChange(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
-        onBlur={close}
+        onBlur={() => { sessionRef.current = ''; close(); }}
         onKeyDown={onKeyDown}
       />
       {showList && (

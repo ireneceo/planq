@@ -204,11 +204,15 @@ export async function notifyEventMaterials(bizId: number, eventId: number, dry: 
   return handle<{ count?: number; names?: string[]; notified?: number }>(res);
 }
 
-// 일정 «위치» 칸 장소 자동완성 (2026-10-29 · 서버 프록시 /api/places — 카카오 로컬)
+// 일정 «위치» 칸 장소 자동완성 (2026-10-29 · 서버 프록시 /api/places — 카카오 로컬 · 11-23 해외는 구글 Places, 서버가 고른다)
+//   opts.session = 구글 세션 토큰(한 번 고를 때까지 같은 값) · opts.lang = 결과 언어
 //   disabled = 서버에 키 없음(세션 동안 다시 묻지 않는다) · degraded = 잠깐 못 씀(잠시 뒤 다시)
 export interface PlaceSuggestion { id: string; name: string; road_address: string; address: string; provider: string }
-export async function searchPlaces(q: string, signal?: AbortSignal): Promise<{ data: PlaceSuggestion[]; disabled?: boolean; degraded?: boolean }> {
-  const res = await apiFetch(`/api/places/search?q=${encodeURIComponent(q)}`, { signal });
+export async function searchPlaces(q: string, signal?: AbortSignal, opts: { session?: string; lang?: string } = {}): Promise<{ data: PlaceSuggestion[]; disabled?: boolean; degraded?: boolean }> {
+  const qs = new URLSearchParams({ q });
+  if (opts.session) qs.set('st', opts.session);
+  if (opts.lang) qs.set('lang', opts.lang);
+  const res = await apiFetch(`/api/places/search?${qs.toString()}`, { signal });
   const json = await res.json().catch(() => null) as { success?: boolean; data?: PlaceSuggestion[]; disabled?: boolean; degraded?: boolean } | null;
   if (!res.ok || !json?.success) return { data: [], degraded: true };
   return { data: Array.isArray(json.data) ? json.data : [], disabled: json.disabled, degraded: json.degraded };
