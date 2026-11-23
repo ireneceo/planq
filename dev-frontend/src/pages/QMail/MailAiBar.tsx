@@ -25,10 +25,12 @@ interface Props {
   sendLabel: string;
   inputRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
   testId?: string;
+  /** 비어 있어 보낼 수 없을 때 Enter — 조용히 지나가지 말고 부모가 이유를 말하게(2026-11-23 «아예 안나와») */
+  onEmptySubmit?: () => void;
 }
 
 export default function MailAiBar({
-  value, onChange, onSubmit, busy, disabled, allowEmpty, placeholder, ariaLabel, sendLabel, inputRef, testId,
+  value, onChange, onSubmit, busy, disabled, allowEmpty, placeholder, ariaLabel, sendLabel, inputRef, testId, onEmptySubmit,
 }: Props) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const setRef = (el: HTMLTextAreaElement | null) => {
@@ -63,6 +65,7 @@ export default function MailAiBar({
             e.preventDefault();
             e.stopPropagation();
             if (canSend) onSubmit();
+            else if (!busy && !disabled && !value.trim()) onEmptySubmit?.();
           }
         }}
         placeholder={placeholder}

@@ -1560,6 +1560,9 @@ const MailPage: React.FC = () => {
   const [keepReplyNeeded, setKeepReplyNeeded] = useState(false);
   const [sending, setSending] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  // AI 요청 바의 오류는 **바 바로 아래**에 말한다(2026-11-23 Irene «답변을 수정할 수 없어. 아예 안나와») —
+  //   옛 코드는 보내기 오류와 같은 줄(첨부 칸 아래)에 띄워, 저장된 초안이 있어 막힌 경우 등 화면 밖에서 조용했다.
+  const [aiError, setAiError] = useState<string | null>(null);
   // 60초가 넘으면 «오래 걸린다» 고 말한다. 침묵은 고장과 구별되지 않는다.
   const [aiSlow, setAiSlow] = useState(false);
   const [aiBusy, setAiBusy] = useState(false);
@@ -1576,14 +1579,14 @@ const MailPage: React.FC = () => {
     //   Irene: "두번째는 ai에게 원하는 요청을 넣게 해줘. 처음 작성한거에서 마음대로 또 바꾸고 바꾸고 해서 뭐해."
     //   첫 생성(초안 없음)은 그대로 지시 없이 동작한다 — 마찰을 늘리지 않는다.
     if (!instruction && !isEmptyHtml(replyHtml)) {
-      setReplyError(t('reply.aiInstructionRequired', {
+      setAiError(t('reply.aiInstructionRequired', {
         defaultValue: '이미 초안이 있어요. 어떻게 고칠지 위 AI 요청란에 적어 주세요.',
       }) as string);
       aiInstructionRef.current?.focus();
       return;
     }
     setAiBusy(true);
-    setReplyError(null);
+    setAiError(null);
     setAiSlow(false);
     const slowTimer = window.setTimeout(() => setAiSlow(true), 60_000);
     try {
@@ -1612,7 +1615,7 @@ const MailPage: React.FC = () => {
             defaultValue: '받은 메일을 되풀이하는 초안만 나왔어요. 어떤 답을 보내고 싶은지 위 AI 요청란에 적어 주세요.',
           }) as string,
         };
-        setReplyError(map[j.message] || (t('reply.aiFailed', { defaultValue: 'AI 제안 생성 실패' }) as string));
+        setAiError(map[j.message] || (t('reply.aiFailed', { defaultValue: 'AI 제안 생성 실패' }) as string));
         // 이 둘은 «요청을 적어 주세요» 로 끝난다 — 요청 바(본문 위, 늘 보인다)로 커서를 옮긴다.
         if (j.message === 'ai_echoed_inbound' || j.message === 'ai_empty') {
           window.setTimeout(() => aiInstructionRef.current?.focus(), 0);
@@ -1624,7 +1627,7 @@ const MailPage: React.FC = () => {
       //   바뀌어 «어디에 들어갔는지 모르겠다» 가 된다(2026-10-12 Irene).
       if (j.data?.suggestion) { setReplyHtml(j.data.suggestion); setReplyScrollTick((n) => n + 1); }
       else {
-        setReplyError(t('reply.aiEmpty', {
+        setAiError(t('reply.aiEmpty', {
           defaultValue: 'AI 가 이번엔 초안을 만들지 못했어요. 다시 시도하거나 위 AI 요청란에 요청을 적어 주세요.',
         }) as string);
         return;
@@ -1632,14 +1635,14 @@ const MailPage: React.FC = () => {
       setAiFaqSources(j.data?.faq_used ? (j.data.faq_sources || []) : []);
       if (instruction) setAiInstruction(''); // 반영됐으니 요청란 비움
     } catch (e) {
-      setReplyError((e as Error).message);
+      setAiError((e as Error).message);
     } finally { window.clearTimeout(slowTimer); setAiSlow(false); setAiBusy(false); }
   }, [detail, businessId, aiBusy, t, aiInstruction, replyHtml]);
 
   // 스레드 전환 시 컴포저 초기화 — 답장창은 닫힌 채로. 먼저 내용을 읽고, 답장하기를 누르면 열린다.
   useEffect(() => {
     void sendPendingDraft(replyPendingRef);   // 떠나는 스레드에 걸려 있던 답장 초안부터 보낸다(아래 D-C3)
-    setReplyOpen(false); setReplyHtml(''); setReplyCc(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiFaqSources([]);
+    setReplyOpen(false); setReplyHtml(''); setReplyCc(''); setReplyUploads([]); setReplyFileIds([]); setReplyError(null); setAiError(null); setAiFaqSources([]);
     setReplyTo(''); setReplyBcc(''); setReplyMode('sender'); replyAutoCc.current = [];
   }, [activeId]);
 
@@ -3447,6 +3450,7 @@ const MailPage: React.FC = () => {
                       value={aiInstruction}
                       onChange={setAiInstruction}
                       onSubmit={() => { void aiSuggest(); }}
+                      onEmptySubmit={() => { void aiSuggest(); }}
                       busy={aiBusy}
                       disabled={sending}
                       allowEmpty={isEmptyHtml(replyHtml)}
@@ -3466,6 +3470,7 @@ const MailPage: React.FC = () => {
                           : (t('reply.aiWorking', { defaultValue: 'AI 가 답장 초안을 쓰는 중이에요…' }) as string)}
                       </AiWorkingLine>
                     )}
+                    {aiError && !aiBusy && <ComposerError role="alert" data-testid="mail-reply-ai-error">{aiError}</ComposerError>}
                     <FocusBlock on={replyFocus.on} onExit={replyFocus.exit} testId="mail-reply-focus"
                       title={t('reply.focusTitle', { defaultValue: '답장 — {{subject}}', subject: detail?.subject || '' }) as string}>
                     <RichEditor

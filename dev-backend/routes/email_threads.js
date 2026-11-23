@@ -1731,7 +1731,10 @@ router.post('/:businessId/email-threads/:id/ai-suggest', // audit-exempt: 답장
       if (!thread) return errorResponse(res, 'thread_not_found', 404);
 
       const msgs = await EmailMessage.findAll({ where: { thread_id: threadId, business_id: businessId }, order: [['sent_at', 'ASC'], ['id', 'ASC']] });
-      const lastInbound = [...msgs].reverse().find(m => m.direction === 'inbound');
+      // 답할 메일 = 상대가 보낸 마지막 메일(반송·우리 주소에서 온 메일 제외) — services/mailReplyContext 한 곳
+      const replyCtx = require('../services/mailReplyContext');
+      const ours = await replyCtx.ourAddressesOf(businessId);
+      const lastInbound = replyCtx.pickReplyTarget(msgs, ours);
       if (!lastInbound) return errorResponse(res, 'no_inbound_message', 400);
 
       // 본문 텍스트 확보 — 정리된 "새로 쓴 본문"(인용/전달/서명 제거) 우선. AI 입력·언어감지 공통.
@@ -1777,15 +1780,9 @@ router.post('/:businessId/email-threads/:id/ai-suggest', // audit-exempt: 답장
         ? String(currentDraftRaw).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 4000) || null
         : null;
 
-      // 대화 흐름 — 마지막 받은 메일 한 통만 주면 **우리가 무엇을 물었는지** 모른다.
-      //   운영 실사례: 우리가 질문하고 상대가 답한 스레드에서 모델이 역할을 잃고 받은 답장을 그대로 베꼈다.
-      //   방향을 라벨로 붙여 준다. 오래된 것부터, 최근 6통, 통당 800자 (costGuard 입력 캡 원칙).
-      const threadContext = msgs.slice(-6).map((m) => {
-        const body = cleanVisibleBody(m.body_text, m.body_html)
-          || String(m.body_text || '').replace(/\s+/g, ' ').trim();
-        if (!body) return null;
-        return `[${m.direction === 'inbound' ? 'THEM' : 'US'}] ${body.slice(0, 800)}`;
-      }).filter(Boolean).join('\n\n').slice(0, 3000) || null;
+      // 대화 흐름(누가 무엇을 말했는지) — 마지막 받은 메일 한 통만으로는 우리가 무엇을 물었는지 모른다.
+      //   **최신부터** 예산 안에 담는다(옛 코드는 앞을 남기고 뒤를 잘라 최신 메일이 빠졌다 — services/mailReplyContext).
+      const threadContext = replyCtx.buildThreadContext(msgs, lastInbound, ours);
 
       const cueOrch = require('../services/cue_orchestrator');
       const out = await cueOrch.generateEmailReplyDraft(businessId, {
