@@ -46,6 +46,9 @@ export interface SelfFix {
 export interface CheckInPrompt { kind: 'check_in'; proposed_at: string; first_seen_at: string | null }
 /** 어제(가장 최근 근무일) 자동 마감 확인 */
 export interface CloseCheck { day_id: number; work_date: string; clock_out_at: string | null }
+/** 지금 묻는가·왜 안 묻는가 — 서버 services/attendancePrompt.promptFor 가 정한 값 그대로(화면은 다시 계산하지 않는다). */
+export type PromptStatusState = 'asking' | 'off' | 'snoozed' | 'not_today' | 'checked_in' | 'day_off' | 'leave' | 'before' | 'after' | 'error';
+export interface PromptStatus { state: PromptStatusState; from?: string; until?: string | null }
 
 /** 시스템이 대신 상태를 바꿨을 때 화면에 알릴 재료 (#208) */
 export interface AutoNotice { source: 'auto_focus'; at: string; can_undo: boolean; first_seen_at?: string }
@@ -59,6 +62,7 @@ export function useAttendance(businessId: number | null) {
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [prompt, setPrompt] = useState<CheckInPrompt | null>(null);
   const [closeCheck, setCloseCheck] = useState<CloseCheck | null>(null);
+  const [promptStatus, setPromptStatus] = useState<PromptStatus | null>(null);
   const [fixApproval, setFixApproval] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -82,6 +86,7 @@ export function useAttendance(businessId: number | null) {
       setAutoNotice(j.data?.auto_notice || null);
       setPrompt(j.data?.prompt || null);
       setCloseCheck(j.data?.close_check || null);
+      setPromptStatus(j.data?.prompt_status || null);
       setFixApproval(!!j.data?.fix_approval);
       baseRef.current = j.data?.day
         ? { work: j.data.day.work_sec, brk: j.data.day.break_sec, at: Date.now() }
@@ -195,14 +200,16 @@ export function useAttendance(businessId: number | null) {
     window.dispatchEvent(new CustomEvent(ATTENDANCE_REFRESH_EVENT));
   }, [businessId, load]);
 
-  /** 묻는 창 «아직이에요»(later) · «오늘은 안 해요»(not_today) */
-  const answerPrompt = useCallback(async (answer: 'later' | 'not_today') => {
+  /** 묻는 창 «아직이에요»(later) · «오늘은 안 해요»(not_today) · 근태 페이지 «지금 다시 묻기»(ask_again) */
+  const answerPrompt = useCallback(async (answer: 'later' | 'not_today' | 'ask_again') => {
     if (!businessId) return;
-    setPrompt(null); setCloseCheck(null);
-    await apiFetch('/api/attendance/prompt-answer', {
+    if (answer !== 'ask_again') { setPrompt(null); setCloseCheck(null); }
+    const r = await apiFetch('/api/attendance/prompt-answer', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ business_id: businessId, answer }),
     }).catch(() => null);
+    // 다른 표면(묻는 창 · 근태 페이지 상태 줄)이 같은 답을 보게 — 서버가 개인 방에도 신호를 보내지만 같은 탭은 즉시.
+    if (r && r.ok) window.dispatchEvent(new CustomEvent(ATTENDANCE_REFRESH_EVENT));
   }, [businessId]);
 
   /** 어제 자동 마감 «맞아요» / 시각 고치기(at = ISO) */
@@ -220,7 +227,7 @@ export function useAttendance(businessId: number | null) {
 
   return {
     day, state, loading, submitting, live, reload: load,
-    prompt, closeCheck, fixApproval, answerPrompt, answerClose,
+    prompt, closeCheck, promptStatus, fixApproval, answerPrompt, answerClose,
     /** 묻는 창 «09:12 부터 출근»(observed) · «시각 고치기»(at) */
     clockInObserved: () => act('clock-in', { observed: true }),
     clockInAt: (at: string) => act('clock-in', { at }),

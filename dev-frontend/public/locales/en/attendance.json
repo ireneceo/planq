@@ -155,7 +155,19 @@
     "autoClockIn": "Clock in when I start work",
     "autoClockInHint": "If you start a task in Q Task and have no record today, you are clocked in automatically.",
     "promptOn": "Ask about clock-in / clock-out",
-    "promptOnHint": "When you first come in we ask «Have you started work?», and the day after a missed clock-out we ask once if the time is right."
+    "promptOnHint": "When you first come in we ask «Have you started work?», and the day after a missed clock-out we ask once if the time is right.",
+    "promptStatus": {
+      "asking": "Asking now — if you don't see the window, press «Ask again».",
+      "snoozed": "You answered «Not yet», so we won't ask until {{time}}.",
+      "not_today": "You answered «Not today» (or «Not yet» 3 times), so we won't ask again today.",
+      "checked_in": "You already have a clock-in today, so we won't ask.",
+      "day_off": "Today is a day off (work hours or holiday), so we won't ask.",
+      "leave": "You are on full-day leave today, so we won't ask.",
+      "before": "Today we ask when you first come in between {{from}} and {{until}} (from 2 hours before work starts).",
+      "after": "Today's asking window ({{from}}–{{until}}) has passed.",
+      "error": "Couldn't check whether to ask right now. Please reopen in a moment.",
+      "askAgain": "Ask again"
+    }
   },
   "error": {
     "already_working": "You are already working.",

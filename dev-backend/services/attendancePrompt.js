@@ -142,13 +142,19 @@ function snoozed(row, now) {
  */
 async function promptFor({ businessId, userId, day, now = new Date() }) {
   const u = await User.findByPk(userId, { attributes: ['id', 'attendance_prompt_on'] });
-  if (!u || u.attendance_prompt_on === false) return { prompt: null, close_check: null };
+  if (!u || u.attendance_prompt_on === false) return { prompt: null, close_check: null, prompt_status: { state: 'off' } };
   const tz = await tzOf(businessId);
   const workDate = dateStrInTz(now, tz);
   const row = await AttendanceActivity.findOne({
     where: { business_id: businessId, user_id: userId, work_date: workDate },
   });
-  if (snoozed(row, now)) return { prompt: null, close_check: null };
+  if (snoozed(row, now)) {
+    // 출근 기록이 있으면 미룬 답과 상관없이 «출근 기록 있음» 이 이유다(출근은 어차피 묻지 않는다)
+    const status = day ? { state: 'checked_in' } : row.prompt_answer === 'not_today'
+      ? { state: 'not_today' }
+      : { state: 'snoozed', until: row.prompt_snooze_until };
+    return { prompt: null, close_check: null, prompt_status: status };
+  }
 
   // 어제(가장 최근 근무일 하나) 자동 마감 확인 — 근무시간대와 무관하게.
   let closeCheck = null;
@@ -163,23 +169,36 @@ async function promptFor({ businessId, userId, day, now = new Date() }) {
   }
 
   let prompt = null;
+  // prompt_status — 지금 묻지 않으면 **왜** 안 묻는지(근태 페이지가 그대로 보여 준다 · 2026-11-23 Irene
+  //   «안 뜨는 게 맞는 조건이면 그 조건을 화면에 알려 주세요»). 판정은 아래 한 벌 그대로 — 값만 이름 붙여 내보낸다.
+  let status;
   const win = day ? null : await workWindow({ businessId, workDate, tz });
-  if (win && now >= win[0] && now <= win[1]
-      && !(await onFullDayLeave({ businessId, userId, workDate }))) {
+  if (day) status = { state: 'checked_in' };
+  else if (!win) status = { state: 'day_off' };
+  else if (now < win[0]) status = { state: 'before', from: win[0], until: win[1] };
+  else if (now > win[1]) status = { state: 'after', from: win[0], until: win[1] };
+  else if (await onFullDayLeave({ businessId, userId, workDate })) status = { state: 'leave' };
+  else {
     const seen = await observedStart({ businessId, userId, now });
     prompt = { kind: 'check_in', proposed_at: seen || now, first_seen_at: seen };
+    status = { state: 'asking', from: win[0], until: win[1] };
   }
-  return { prompt, close_check: closeCheck };
+  return { prompt, close_check: closeCheck, prompt_status: status };
 }
 
-/** «아직이에요»(later) · «오늘은 안 해요»(not_today). 3번째 later 는 not_today. */
+/** «아직이에요»(later) · «오늘은 안 해요»(not_today) · «지금 다시 묻기»(ask_again). 3번째 later 는 not_today. */
 async function answerPrompt({ businessId, userId, answer, now = new Date() }) {
-  if (!['later', 'not_today'].includes(answer)) {
+  if (!['later', 'not_today', 'ask_again'].includes(answer)) {
     const e = new Error('invalid_answer'); e.code = 'invalid_answer'; e.status = 400; throw e;
   }
   const tz = await tzOf(businessId);
   const workDate = dateStrInTz(now, tz);
   const row = await findOrCreateRow({ businessId, userId, workDate });
+  // «지금 다시 묻기»(근태 페이지) — 본인이 오늘 미룬 답을 거둔다. 기록(출근·퇴근 시각)은 건드리지 않는다.
+  if (answer === 'ask_again') {
+    await row.update({ prompt_answer: null, prompt_count: 0, prompt_snooze_until: null });
+    return { answer: null, count: 0 };
+  }
   const count = (row.prompt_count || 0) + 1;
   const final = answer === 'not_today' || count >= MAX_PROMPTS ? 'not_today' : 'later';
   await row.update({

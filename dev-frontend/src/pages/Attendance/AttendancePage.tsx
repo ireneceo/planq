@@ -13,6 +13,7 @@ import AutoSaveField from '../../components/Common/AutoSaveField';
 import AttendanceWidget from '../../components/Attendance/AttendanceWidget';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import { ATTENDANCE_REFRESH_EVENT, formatHours, type AttendanceDay } from '../../hooks/useAttendance';
+import PromptStatusLine from './PromptStatusLine';
 import { LeaveRequestDrawer } from './LeaveRequestDrawer';
 import CorrectDayModal from './CorrectDayModal';
 import SelfFixBadge from './SelfFixBadge';
@@ -138,6 +139,8 @@ const AttendancePage: React.FC = () => {
       body: JSON.stringify({ attendance_prompt_on: next }),
     });
     if (!r.ok) { setPromptOn(!next); throw new Error('save_failed'); }
+    // 묻는 창·아래 상태 줄이 바뀐 설정으로 다시 읽게(켜면 지금 묻고, 끄면 열린 창이 닫힌다)
+    window.dispatchEvent(new CustomEvent(ATTENDANCE_REFRESH_EVENT));
   };
   /** 내 승인 대기 거두기 */
   const withdrawFix = async (requestId: number) => {
@@ -325,10 +328,13 @@ const AttendancePage: React.FC = () => {
                   </SettingTrack>
                 </SettingSwitch>
               </AutoSaveField>
-              <SettingText id="attn-prompt-on-label" onClick={flipPromptOn}>
-                <b>{t('settings.promptOn')}</b>
-                <span>{t('settings.promptOnHint')}</span>
-              </SettingText>
+              <SettingCol>
+                <SettingText id="attn-prompt-on-label" onClick={flipPromptOn}>
+                  <b>{t('settings.promptOn')}</b>
+                  <span>{t('settings.promptOnHint')}</span>
+                </SettingText>
+                {promptOn && bizId && <PromptStatusLine bizId={bizId} />}
+              </SettingCol>
             </SettingRow>
           )}
         </>
@@ -479,6 +485,7 @@ const SettingKnob = styled.span<{ $on: boolean }>`
   transform: translateX(${(p) => (p.$on ? '18px' : '2px')});
   transition: transform 0.15s;
 `;
+const SettingCol = styled.div`display: flex; flex-direction: column; gap: 8px; min-width: 0;`;
 const SettingText = styled.div`
   display: flex; flex-direction: column; gap: 2px; cursor: pointer;
   b { font-size: 0.8125rem; font-weight: 600; color: #0F172A; }

@@ -5,7 +5,7 @@
 // 묻는 조건은 서버(GET /today 의 prompt·close_check)가 정한다. 화면은 값이 있을 때만 그리고, 답은 서버에 남는다
 //   (폰에서 답하면 컴퓨터에서 또 묻지 않는다 — 다른 기기는 attendance:fix_updated 로 다시 읽어 창을 닫는다).
 // 답을 안 해도 아무것도 막지 않는다 — 닫기(×·바깥)는 «아직이에요» 와 같다.
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
@@ -47,6 +47,18 @@ const AttendancePromptHost: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sentPending, setSentPending] = useState(false);
+
+  // 열어 둔 채로 묻는 시간이 되는 탭 — 묻는 시간대(근무 시작 2시간 전~끝) 밖에서 연 탭은 첫 읽기에서 prompt 가 없고,
+  //   그 뒤 다시 읽을 계기(탭 복귀·소켓)가 없으면 시간대에 들어와도 영영 안 물었다. 보이는 동안 5분마다 한 번 다시 읽는다
+  //   (출근 기록이 있으면 안 읽는다 — 오늘은 더 물을 것이 없다).
+  const { reload, state: dayState } = a;
+  useEffect(() => {
+    if (!bizId || dayState) return undefined;
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void reload();
+    }, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, [bizId, dayState, reload]);
 
   if (!bizId || a.loading) return null;
   const prompt = a.prompt;

@@ -53,7 +53,7 @@ router.get('/today', authenticateToken, async (req, res, next) => {
     const P = require('../services/attendancePrompt');
     if (req.query.visible === '1') await P.markSeen({ businessId, userId: req.user.id }).catch((e) => console.warn('[attendance seen]', e.message));
     const asks = await P.promptFor({ businessId, userId: req.user.id, day })
-      .catch((e) => { console.warn('[attendance prompt]', e.message); return { prompt: null, close_check: null }; });
+      .catch((e) => { console.warn('[attendance prompt]', e.message); return { prompt: null, close_check: null, prompt_status: { state: 'error' } }; });
     // 화면이 정정 창 안내 문구(«바로 반영» / «승인 뒤 반영»)를 고르는 값 — 설정 «본인 수정은 승인 후 반영».
     const fixApproval = await require('../services/attendanceFix').approvalOn(businessId);
     if (!day) return successResponse(res, { work_date: workDate, state: null, day: null, fix_approval: fixApproval, ...asks });
