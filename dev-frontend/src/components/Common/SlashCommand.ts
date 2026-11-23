@@ -3,6 +3,7 @@
 import { Extension, type Editor, type Range } from '@tiptap/core';
 import Suggestion, { type SuggestionOptions, type SuggestionProps } from '@tiptap/suggestion';
 import { ReactRenderer } from '@tiptap/react';
+import { placeFloating } from './popoverAnchor';
 
 export type SlashItem = {
   // i18n keys (resolved at render time in SlashCommandList) + Korean fallback text
@@ -123,11 +124,16 @@ export const SlashCommand = Extension.create<SlashOptions>({
 
         const position = (rect: DOMRect | null) => {
           if (!popupEl || !rect) return;
-          const pad = 6;
+          // 자리는 공용 placeFloating — 문서 아래쪽에서 «/» 를 치면 목록이 화면 아래로 잘리던 것 (2026-11-23)
           popupEl.style.position = 'fixed';
-          popupEl.style.top = `${rect.bottom + pad}px`;
-          popupEl.style.left = `${rect.left}px`;
           popupEl.style.zIndex = '2000';
+          popupEl.style.maxHeight = '';
+          popupEl.style.overflowY = '';
+          const p = placeFloating(rect, { width: popupEl.offsetWidth, height: popupEl.offsetHeight }, { align: 'start', gap: 6 });
+          popupEl.style.top = p.top !== undefined ? `${p.top}px` : 'auto';
+          popupEl.style.bottom = p.bottom !== undefined ? `${p.bottom}px` : 'auto';
+          popupEl.style.left = `${p.left}px`;
+          if (p.maxHeight !== undefined) { popupEl.style.maxHeight = `${p.maxHeight}px`; popupEl.style.overflowY = 'auto'; }
         };
 
         return {
@@ -137,6 +143,8 @@ export const SlashCommand = Extension.create<SlashOptions>({
             popupEl.appendChild(component.element!);
             document.body.appendChild(popupEl);
             position(props.clientRect?.() || null);
+            // 목록이 그려진 뒤 실제 높이로 한 번 더(첫 호출 땐 높이가 0일 수 있다)
+            requestAnimationFrame(() => position(props.clientRect?.() || null));
           },
           onUpdate: (props: SuggestionProps<SlashItem>) => {
             component?.updateProps(props);

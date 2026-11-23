@@ -6,11 +6,12 @@
 //   - 모바일: tap 으로 popover 토글, outside 탭 닫힘
 //   - Portal 렌더 — 부모의 overflow:hidden 에 잘리지 않음 (Q Note 사이드바 등)
 //   - Popover 본문 줄바꿈 (\n) 그대로 표시 (white-space: pre-line)
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { askCue as askCueTo } from '../../utils/cueAsk';
+import { useFloatingPanel } from './popoverAnchor';
 
 export interface HelpDotProps {
   /** popover 본문. \n 으로 줄바꿈 가능 */
@@ -30,37 +31,20 @@ export interface HelpDotProps {
   className?: string;
 }
 
-const POPOVER_WIDTH = 280;
 const POPOVER_GAP = 8;
-const VIEWPORT_PAD = 12;
 
 const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', placement = 'auto', className }) => {
   const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number; placeAbove: boolean } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const hoverOpenedRef = useRef(false);   // 지금 열린 것이 «올려서» 열린 것인가 — 바로 뒤 누름이 닫지 않게
-  const popoverRef = useRef<HTMLDivElement>(null);
 
-  // Trigger 위치 기반으로 Popover 좌표 계산 — viewport 안에 자동 정렬
-  useLayoutEffect(() => {
-    if (!open || !triggerRef.current) return;
-    const r = triggerRef.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    // 좌표: trigger 아래 8px, 좌측 정렬 (-8px offset)
-    let left = r.left - 8;
-    let placeAbove = false;
-    if (placement === 'top') placeAbove = true;
-    else if (placement === 'auto' && r.bottom + 200 > vh) placeAbove = true;
-    // 우측 viewport 넘으면 좌측 이동
-    if (left + POPOVER_WIDTH + VIEWPORT_PAD > vw) {
-      left = vw - POPOVER_WIDTH - VIEWPORT_PAD;
-    }
-    if (left < VIEWPORT_PAD) left = VIEWPORT_PAD;
-    const top = placeAbove ? r.top : r.bottom + POPOVER_GAP;
-    setPos({ top, left, placeAbove });
-  }, [open, placement]);
+  // 자리는 공용 placeFloating 한 벌 — 아래가 모자라면 위로 · 둘 다 모자라면 높이를 맞춰 안에서 스크롤 · 가로는 화면 안 (2026-11-23).
+  //   옛 계산은 위로 펼 때 `calc(top - 100%)` 를 썼는데 fixed 요소의 100% 는 **화면 높이**라 화면 밖으로 날아갔고,
+  //   아래로 펼 때는 높이를 재지 않아(«200px 이면 되겠지») 긴 도움말이 화면 아래에서 잘렸다.
+  const { ref: popoverRef, style: floatStyle } = useFloatingPanel<HTMLDivElement>(open ? triggerRef.current : null, {
+    align: 'start', gap: POPOVER_GAP, prefer: placement === 'top' ? 'up' : 'down', zIndex: 9999,
+  });
 
   // 외부 클릭/Esc 닫기 + 스크롤·리사이즈 시 닫기
   useEffect(() => {
@@ -114,14 +98,11 @@ const HelpDot: React.FC<HelpDotProps> = ({ children, askCue, askTab = 'wiki', pl
           <circle cx="12" cy="16.5" r="0.5" fill="currentColor" />
         </svg>
       </Trigger>
-      {open && pos && createPortal(
+      {open && createPortal(
         <Popover
           ref={popoverRef}
           role="tooltip"
-          style={{
-            top: pos.placeAbove ? `calc(${pos.top}px - 100% - ${POPOVER_GAP}px)` : `${pos.top}px`,
-            left: `${pos.left}px`,
-          }}
+          style={floatStyle}
           onMouseLeave={() => setOpen(false)}
         >
           <Body>{children}</Body>

@@ -75,6 +75,10 @@ function naturalSize(el: HTMLElement) {
   return size;
 }
 
+function samePos(a: AnchorPos | null, b: AnchorPos) {
+  return !!a && a.top === b.top && a.bottom === b.bottom && a.left === b.left && a.right === b.right && a.maxHeight === b.maxHeight;
+}
+
 // 밑에서 스크롤하면 닫는다 — 아래 usePopoverAnchor 의 같은 이름 절 주석이 이유다(2026-10-07 순찰 실측).
 function useDismissOnOuterScroll(open: boolean, panelRef: React.RefObject<HTMLElement | null>, onDismiss?: () => void) {
   // 호출부가 화살표 함수를 매번 새로 넘겨도 구독을 다시 걸지 않는다(다시 걸면 400ms 유예가 렌더마다 새로 시작된다).
@@ -117,9 +121,20 @@ export function useFloatingPanel<T extends HTMLElement = HTMLDivElement>(
   useLayoutEffect(() => {
     const el = ref.current;
     if (!anchor || !el) { setPos(null); return; }
-    const r = anchor.getBoundingClientRect();
-    if (matchWidth) { el.style.minWidth = `${r.width}px`; setMinWidth(r.width); }
-    setPos(placeFloating(r, naturalSize(el), { align, gap, prefer }));
+    const place = () => {
+      const r = anchor.getBoundingClientRect();
+      if (matchWidth) { el.style.minWidth = `${r.width}px`; setMinWidth(r.width); }
+      const next = placeFloating(r, naturalSize(el), { align, gap, prefer });
+      setPos((prev) => (samePos(prev, next) ? prev : next));
+    };
+    place();
+    // ★ 내용이 늦게 차는 메뉴(불러온 뒤 줄이 늘어나는 카드·목록)는 연 순간 높이로 자리를 잡으면 아래가 잘린다
+    //   (2026-11-23, Irene «아이디 누르면 프로필이 아래 잘려 … 클릭 후 뜨는 화면들 잘리는 일 없게 통합»).
+    //   크기가 바뀌면 다시 잰다 — 값이 같으면 그대로 두어 루프가 없다. 창 크기가 바뀌어도(데스크탑 앱 창) 다시 잰다.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => place()) : null;
+    ro?.observe(el);
+    window.addEventListener('resize', place);
+    return () => { ro?.disconnect(); window.removeEventListener('resize', place); };
   }, [anchor, align, gap, prefer, contentKey, matchWidth]);
   useDismissOnOuterScroll(!!anchor, ref, onDismiss);
   return { ref, style: { ...anchorStyle(pos, zIndex), ...(minWidth ? { minWidth, boxSizing: 'border-box' as const } : {}) } };

@@ -10,6 +10,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
+import FloatingMenu from '../Common/FloatingMenu';
 
 export interface AddressMenuProps {
   email: string;
@@ -33,12 +34,15 @@ const AddressMenu: React.FC<AddressMenuProps> = ({ email, name, onViewMail, onCo
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const wrapRef = useRef<HTMLSpanElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEscapeStack(open, () => setOpen(false));
   useEffect(() => {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+      const tgt = e.target as Node;
+      if (menuRef.current?.contains(tgt)) return;
+      if (wrapRef.current && !wrapRef.current.contains(tgt)) setOpen(false);
     };
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
@@ -68,7 +72,9 @@ const AddressMenu: React.FC<AddressMenuProps> = ({ email, name, onViewMail, onCo
       </AddrBtn>
       {copied && <Copied role="status">{t('address.copied', { defaultValue: '복사됨' }) as string}</Copied>}
       {open && (
-        <Menu role="menu" onClick={(e) => e.stopPropagation()}>
+        // 메일 상세·목록 아래쪽 주소에서 열면 아래가 잘렸다 — body 로 띄우고 자리는 공용 placeFloating (2026-11-23)
+        <FloatingMenu anchor={wrapRef.current} onDismiss={() => setOpen(false)}>
+        <Menu ref={menuRef} role="menu" onClick={(e) => e.stopPropagation()}>
           <MenuHead>{name ? `${name} · ${email}` : email}</MenuHead>
           <Item role="menuitem" type="button" onClick={() => pick(() => onViewMail(email))}>
             {t('address.viewMail', { defaultValue: '이 주소의 메일 보기' }) as string}
@@ -95,6 +101,7 @@ const AddressMenu: React.FC<AddressMenuProps> = ({ email, name, onViewMail, onCo
           </Item>
           <Hint>{t('address.blockHint', { defaultValue: '원본은 남습니다. 규칙 설정에서 되돌릴 수 있어요.' }) as string}</Hint>
         </Menu>
+        </FloatingMenu>
       )}
     </Wrap>
   );
@@ -115,7 +122,7 @@ const Copied = styled.span`
   background: #DCFCE7; color: #166534; font-size: 0.625rem; font-weight: 700;
 `;
 const Menu = styled.div`
-  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60;
+  /* 자리는 FloatingMenu(placeFloating) 가 준다 */
   min-width: 210px; padding: 6px;
   background: #fff; border: 1px solid #E2E8F0; border-radius: 10px;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);

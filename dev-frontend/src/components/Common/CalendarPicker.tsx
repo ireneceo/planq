@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { weekStartDay, getDatePrefs } from '../../utils/dateFormat';
+import { placeFloating, anchorStyle, type AnchorPos } from './popoverAnchor';
 
 interface CalendarPickerProps {
   startDate?: string;
@@ -41,25 +42,19 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
   startDate, endDate, onRangeSelect, onClose, isOpen, singleMode = false, anchorRef,
 }) => {
   const { t } = useTranslation('common');
-  const [pos, setPos] = useState<{top:number;left:number}>({top:-9999,left:-9999});
+  const [pos, setPos] = useState<AnchorPos | null>(null);
   useEffect(() => {
     if (!isOpen || !anchorRef?.current) return;
     // 렌더 후 측정 필요 — 다음 프레임에 위치 조정
     const adjust = () => {
       if (!wrapperRef.current || !anchorRef.current) return;
       const a = anchorRef.current.getBoundingClientRect();
-      const w = wrapperRef.current.getBoundingClientRect();
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const margin = 8;
-      let top = a.bottom + 4;
-      let left = a.left;
-      // 우측 넘침 → 앵커 우측 기준으로 왼쪽으로 열기
-      if (left + w.width > vw - margin) left = Math.max(margin, a.right - w.width);
-      if (left < margin) left = margin;
-      // 하단 넘침 → 위로 열기
-      if (top + w.height > vh - margin) top = Math.max(margin, a.top - w.height - 4);
-      setPos({ top, left });
+      // 자리는 공용 placeFloating — 위아래 둘 다 모자라면(작은 데스크탑 앱 창) 넓은 쪽에 높이를 맞춰 안에서 스크롤 (2026-11-23)
+      const el = wrapperRef.current;
+      const prevMax = el.style.maxHeight; el.style.maxHeight = '';
+      const size = { width: el.offsetWidth, height: el.offsetHeight };
+      el.style.maxHeight = prevMax;
+      setPos(placeFloating(a, size, { align: 'start', gap: 4 }));
     };
     // 첫 렌더 후 바로 측정
     const raf = requestAnimationFrame(adjust);
@@ -212,7 +207,7 @@ const CalendarPicker: React.FC<CalendarPickerProps> = ({
   if (!isOpen) return null;
 
   return createPortal((
-    <Wrapper ref={wrapperRef} style={{ top: pos.top, left: pos.left }}
+    <Wrapper ref={wrapperRef} style={anchorStyle(pos)}
       onClick={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}>
       <Layout>

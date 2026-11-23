@@ -20,7 +20,7 @@
 //
 // ★ 전역 컴포넌트는 **두 렌더 트리**에 모두 올라가야 한다(memory `feedback_two_render_trees_global_mount`).
 //   App 루트 한 곳에 두어 탭 모드·미러 모드 양쪽에서 돈다.
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { tabStore } from '../../stores/tabStore';
@@ -416,6 +416,22 @@ const AppContextMenu: React.FC = () => {
       window.removeEventListener('blur', close);
     };
   }, [open, close, linkForm]);
+
+  // 그려진 뒤 실제 높이로 화면 안에 가둔다 — 위 계산은 항목 수로 높이를 짐작한다. 창이 낮으면(데스크탑 앱 작은 창)
+  //   위로 뒤집어도 위가 잘렸다 → 아래 끝을 화면 안으로 올리고, 그래도 크면 높이를 맞춰 안에서 스크롤 (2026-11-23)
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!open || !el) return;
+    el.style.maxHeight = ''; el.style.overflowY = '';
+    const vv = window.visualViewport;
+    const viewTop = vv ? vv.offsetTop : 0;
+    const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+    const h = el.offsetHeight;
+    const room = viewBottom - viewTop - 16;
+    if (h > room) { el.style.maxHeight = `${room}px`; el.style.overflowY = 'auto'; }
+    const top = Math.max(viewTop + 8, Math.min(pos.y, viewBottom - 8 - Math.min(h, room)));
+    el.style.top = `${top}px`;
+  }, [open, pos, items, linkForm]);
 
   if (!open) return null;
   if (linkForm) {

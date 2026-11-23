@@ -307,6 +307,34 @@ function checkPopupTop() {
 }
 
 // ═══════════════════════════════════════════════
+// floatplace — 떠 있는 창 자리를 손으로 «앵커 아래 + N» 으로 계산하는 코드 래칫 (2026-11-23)
+//   Irene: «아이디 누르면 프로필이 아래 잘려. 데스크탑앱에서 어디에서든 클릭 후 뜨는 화면들 잘리는 일 없게 통합 조치».
+//   사람 카드(UserInfoPopover)·도움말(HelpDot)·표 행 메뉴·«/» 명령·달력이 각자 `rect.bottom + 6` 으로 펴서
+//   화면 아래쪽(작은 데스크탑 앱 창)에서 잘렸다. 자리는 popoverAnchor.placeFloating 한 함수
+//   (useFloatingPanel·usePopoverAnchor·FloatingMenu). 이미 뒤집기·높이 맞춤을 손으로 하는 곳은 베이스라인 동결.
+//   정말 손 계산이어야 하면 그 줄에 `// floatplace-ok: <이유>`.
+// ═══════════════════════════════════════════════
+function checkFloatPlace() {
+  const files = walk(`${ROOT}/dev-frontend/src`, ['.ts', '.tsx']);
+  const current = {}; const samples = [];
+  for (const f of files) {
+    const r = rel(f);
+    if (/components\/Common\/popoverAnchor\.ts$/.test(r)) continue;
+    const lines = read(f).split('\n'); let n = 0;
+    lines.forEach((ln, i) => {
+      if (!/\b\w+\.bottom\s*\+\s*[\w(]/.test(ln)) return;
+      if (/floatplace-ok:/.test(ln) || /^\s*(\/\/|\*)/.test(ln)) return;
+      n++;
+      if (samples.length < 12) samples.push(`${r}:${i + 1}`);
+    });
+    if (n) current[r] = n;
+  }
+  const rt = ratchet('floatplace', current, samples);
+  report('floatplace', `떠 있는 창 손 계산 자리 래칫 — 새 것은 placeFloating (현재 ${rt.curTotal} / 베이스 ${rt.baseTotal})`,
+    rt.fails.length === 0, rt.fails.length ? [...rt.fails, ...samples] : (opts.verbose ? samples : []));
+}
+
+// ═══════════════════════════════════════════════
 // dropdownclip — 칸 안에 `position:absolute; top:100%` 로 붙인 메뉴 래칫 (2026-10-27)
 //   Irene: «추진과제 그룹 드롭다운이 업무가 가장 아래에 있으면 잘려버려 … 여기 저기 이런 같은 문제».
 //   목록·패널은 overflow 상자라 그 안에 절대배치로 편 메뉴는 상자 끝에서 잘린다(맨 아래 행·항목이 많을 때).
@@ -4110,6 +4138,7 @@ const CATEGORIES = {
   iosstack: checkIosStack,
   popuptop: checkPopupTop,
   dropdownclip: checkDropdownClip,
+  floatplace: checkFloatPlace,
   enterime: checkEnterIme,
   mailsender: checkMailSender,
   tenant: checkTenant,

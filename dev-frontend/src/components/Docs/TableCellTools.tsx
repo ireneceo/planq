@@ -6,7 +6,8 @@
 //   열 id 는 'c…' 로 시작해 겹치지 않고, 값을 읽는 곳(통계·검색·AI·설문)은 전부 열 id 로 읽으므로 섞이지 않는다.
 //   색 값을 그대로 저장하지 않고 key 로 두는 이유: 문서 편집기와 같은 팔레트(textStylePalette)를 쓰고,
 //   팔레트를 고치면 이미 칠한 칸도 같이 따라온다.
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { placeFloating, anchorStyle, type AnchorPos } from '../Common/popoverAnchor';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
@@ -75,7 +76,7 @@ export const RowMenuButton: React.FC<{
   onDelete: () => void;
 }> = ({ index, onInsert, onDelete }) => {
   const { t } = useTranslation('qtable');
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<AnchorPos | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const open = !!pos;
@@ -97,10 +98,22 @@ export const RowMenuButton: React.FC<{
       window.removeEventListener('resize', follow);
     };
   }, [open]);
-  function placeOf() {
+  // 자리는 공용 placeFloating — 표 맨 아래 줄에서 열면 아래가 잘리던 것(2026-11-23, 아래 모자라면 위로)
+  function placeOf(): AnchorPos | null {
     const r = btnRef.current?.getBoundingClientRect();
-    return r ? { top: r.bottom + 4, left: Math.max(8, Math.min(r.left, window.innerWidth - 188)) } : null;
+    if (!r) return null;
+    const el = menuRef.current;
+    const size = el ? { width: el.offsetWidth, height: el.scrollHeight } : { width: 180, height: 0 };
+    return placeFloating(r, size, { align: 'start', gap: 4 });
   }
+  // 처음 열 때는 메뉴 높이를 모른다 — 그려진 직후 실제 높이로 한 번 더 맞춘다
+  const placedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (!open) { placedRef.current = false; return; }
+    if (placedRef.current) return;
+    placedRef.current = true;
+    const p = placeOf(); if (p) setPos(p);
+  });
   const toggle = () => {
     if (open) { setPos(null); return; }
     setPos(placeOf());
@@ -112,7 +125,7 @@ export const RowMenuButton: React.FC<{
       <NumBtn ref={btnRef} type="button" data-testid="table-row-menu" onClick={toggle}
         aria-haspopup="menu" aria-expanded={open} title={label} aria-label={`${label} ${index}`}>{index}</NumBtn>
       {pos && (
-        <Menu ref={menuRef} role="menu" style={{ top: pos.top, left: pos.left }} data-testid="table-row-menu-pop">
+        <Menu ref={menuRef} role="menu" style={anchorStyle(pos)} data-testid="table-row-menu-pop">
           <MenuItem type="button" role="menuitem" data-testid="table-row-insert-above" onClick={run(() => onInsert('above'))}>
             {t('row.insertAbove', { defaultValue: '위에 행 추가' })}
           </MenuItem>

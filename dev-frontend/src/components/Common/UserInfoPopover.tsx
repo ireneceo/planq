@@ -7,10 +7,12 @@
 //
 // UX:
 //   - 클릭 → 패널 오픈 / 배경 클릭 또는 Esc 닫힘
-//   - portal 없이 anchor 옆 absolute (간단)
+//   - body 로 포털 + 자리는 공용 placeFloating(useFloatingPanel) — 아래가 모자라면 위로, 둘 다 모자라면 높이를 맞춰 안에서 스크롤
+//     (2026-11-23, Irene «아이디 누르면 프로필이 아래 잘려» — 예전엔 anchor 아래 +6 고정이라 화면 아래쪽 이름이면 카드가 잘렸다.
+//      드로어처럼 transform 이 걸린 조상 안에서는 fixed 가 그 조상 기준이 되어 더 어긋났다 → 포털)
 //   - 모바일 (≤640): 화면 중앙 bottom sheet 형태
 import { useHasMemberCard } from '../NameCard/NameCardViewDrawer';
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
@@ -20,6 +22,8 @@ import { tabStore } from '../../stores/tabStore';
 import { onSocket } from '../../services/socket';
 import { useAuth } from '../../contexts/AuthContext';
 import { openDirectConversation } from '../../services/qtalk';
+import { createPortal } from 'react-dom';
+import { useFloatingPanel } from './popoverAnchor';
 
 interface OrgUnit { id: number; name: string; name_en?: string | null }
 interface MemberRow {
@@ -160,7 +164,11 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
       setDmError(t('userInfo.dmFailed', '1:1 대화를 열지 못했어요') as string);
     } finally { setDmBusy(false); }
   };
-  const popoverRef = useRef<HTMLDivElement | null>(null);
+  // 폰(≤640)은 CSS 가 바닥 시트로 그린다 — 앵커 자리를 쓰지 않는다
+  const isPhone = typeof window !== 'undefined' && window.matchMedia?.('(max-width: 640px)').matches;
+  const { ref: popoverRef, style: floatStyle } = useFloatingPanel<HTMLDivElement>(open && !isPhone ? anchorEl ?? null : null, {
+    align: 'start', gap: 6, zIndex: 2001, onDismiss: onClose,
+  });
   const hasCard = useHasMemberCard(businessId, userId, open && !!onOpenCard && info?.scope === 'member');
 
   useEffect(() => {
@@ -196,18 +204,11 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
 
   if (!open) return null;
 
-  // anchor 기준 위치 — desktop: anchor 의 bottom + 6. 모바일은 CSS 가 fixed bottom sheet 처리.
-  let top: number | undefined;
-  let left: number | undefined;
-  if (anchorEl) {
-    const rect = anchorEl.getBoundingClientRect();
-    top = rect.bottom + 6;
-    left = rect.left;
-  }
+  const popStyle = isPhone || !anchorEl ? undefined : floatStyle;
 
-  return (
+  return createPortal(
     <Backdrop>
-      <Popover ref={popoverRef} role="dialog" aria-modal="true" style={{ top, left }}>
+      <Popover ref={popoverRef} role="dialog" aria-modal="true" style={popStyle}>
         {loading ? (
           <LoadingRow>
             <SkeletonAvatar />
@@ -322,7 +323,8 @@ const UserInfoPopover: React.FC<Props> = ({ open, userId, businessId, anchorEl, 
           <NoInfo>{t('userInfo.notFound', '정보를 불러올 수 없습니다')}</NoInfo>
         )}
       </Popover>
-    </Backdrop>
+    </Backdrop>,
+    document.body,
   );
 };
 

@@ -3,15 +3,21 @@
 import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import FloatingMenu from './FloatingMenu';
 
 const CueTip: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
   const { t } = useTranslation('common');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onDoc = (e: MouseEvent) => {
+      const tgt = e.target as Node;
+      if (popRef.current?.contains(tgt)) return;
+      if (ref.current && !ref.current.contains(tgt)) setOpen(false);
+    };
     const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', onDoc);
     document.addEventListener('keydown', onEsc);
@@ -25,7 +31,9 @@ const CueTip: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
         {compact ? '?' : t('cueTip.label', 'Cue?')}
       </TipBtn>
       {open && (
-        <Pop role="dialog" onClick={(e) => e.stopPropagation()}>
+        // 화면 아래쪽 담당자·배지에서 열면 잘렸다 — body 로 띄우고 자리는 공용 placeFloating (2026-11-23)
+        <FloatingMenu anchor={ref.current} onDismiss={() => setOpen(false)}>
+        <Pop ref={popRef} role="dialog" onClick={(e) => e.stopPropagation()}>
           <PopHead>
             <Star aria-hidden>★</Star>
             {t('cueTip.title', 'Cue — 워크스페이스 AI 팀원')}
@@ -37,6 +45,7 @@ const CueTip: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
             <li>{t('cueTip.point3', '자료·회의 내용 요약과 정리')}</li>
           </PopList>
         </Pop>
+        </FloatingMenu>
       )}
     </Wrap>
   );
@@ -51,10 +60,10 @@ const TipBtn = styled.button<{ $active?: boolean }>`
   &:hover{border-color:#F43F5E;background:#FFE4E6;}
 `;
 const Pop = styled.div`
-  position:absolute;top:calc(100% + 6px);left:0;z-index:200;width:260px;max-width:78vw;
+  /* 자리는 FloatingMenu(placeFloating) 가 준다 */
+  width:260px;max-width:78vw;
   background:#FFFFFF;border:1px solid #FECDD3;border-radius:12px;padding:12px 14px;
   box-shadow:0 12px 32px rgba(159,18,57,0.14);
-  @media (max-width:640px){ left:auto; right:0; }
 `;
 const PopHead = styled.div`display:flex;align-items:center;gap:6px;font-size:0.75rem;font-weight:800;color:#9F1239;margin-bottom:6px;`;
 const Star = styled.span`color:#F43F5E;font-size:0.75rem;line-height:1;`;
