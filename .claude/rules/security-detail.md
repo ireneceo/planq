@@ -82,6 +82,10 @@ paths:
   모델 defaultScope 가 참여자만 보이게 해 참여자 목록·@·메시지 알림·읽음 분모·사적 방 접근권에서 빠진다. 쓰는 문은 `services/convParticipants.js` 하나
   (`touchOwnRow` viewer · `joinParticipant` 초대·생성·승격 · `promoteSpeaker` 말하면 참여자 · `removeRows`). 가드 `--category=convparticipants`.
   목록에 보이는 범위: owner/admin 은 프로젝트·고객 방 전부, **멤버(member)는 참여한 방만**(2026-11-06 Irene · Fable — `access_scope.participantOnlyScope` 한 곳, 목록·접근 같이). 운영: `migrate-conv-viewer.js`(배포 슬롯) · 옛 행 `backfill-conv-viewer.js`(dry-run 기본, 수동). 설계 `docs/QTALK_PARTICIPATION_DESIGN.md`.
+- **프로젝트 대화방은 방마다 «프로젝트 멤버 자동 참여» 를 따로 정한다** (2026-11-24, Irene *"같은 프로젝트여도 채팅방에 막 다 들어가면 안돼 … 고객이나 다른 채팅방 만들면 그건 각각 필요해서 만드는 거"* · Fable 설계) —
+  `conversations.project_auto_join`. 프로젝트 멤버가 되는 문(멤버 저장·방 초대·방 만들며 넣기·인수인계)은 **켜진 방에만** 넣는다(`project_channel.joinProjectMemberToChannels` 한 곳). 고객방은 어느 문이든 끔 ·
+  새 고객방 처음 직원 = 만든 사람(없으면 고객을 붙인 사람) + PM (+ 0명이면 대표) — `initialCustomerRoomStaff` 한 함수. 빼기는 계속 모든 프로젝트 방에서. 고객→멤버 전환은 자동 참여 안 함.
+  켜기·끄기 `PUT /api/conversations/:biz/:id/auto-join`(대표·관리자 · 켤 때 명단 확인 409) · 고객 응답엔 칸 없음. 회귀 `--suite qtalkautojoin`. 설계 `docs/PROJECT_ROOM_MEMBERSHIP_DESIGN.md`.
 - **멤버는 참여한 프로젝트 ∪ «전체 공개» 프로젝트만 본다** (2026-10-16, Irene *"관리자 아닌데 모든 프로젝트가 나오고 있어 … 자기가 들어가 있는 프로젝트와 그와 연결된 업무들과 일정들만 … 아니면 전체공개분만"* · Fable 설계) —
   `projects.visibility`(members 기본·기존 행도 / workspace). owner·admin·platform_admin 은 전부. 판정은 `access_scope` **한 곳**:
   `scope.visibleProjectIds`(null=제한 없음) · `canSeeProject` · `projectScopeWhere` · 쓰기 문 `userCanSeeProject` — `visibility` 칸을 다른 곳에서 직접 읽지 않는다.

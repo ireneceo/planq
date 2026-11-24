@@ -8,11 +8,13 @@ import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useAuth } from '../../contexts/AuthContext';
 import { phoneSheetFlow } from '../../components/Common/modalShell';
+import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import {
   updateConversation,
   addConversationParticipant, removeConversationParticipant,
   fetchParticipantPanel,
-  type ApiConversation, type SupportedLang,
+  previewConversationAutoJoin, setConversationAutoJoin, AutoJoinChangedError,
+  type ApiConversation, type SupportedLang, type AutoJoinPerson,
 } from '../../services/qtalk';
 
 interface Participant {
@@ -63,6 +65,12 @@ const ChatSettingsModal: React.FC<Props> = ({
   const [projectNote, setProjectNote] = useState<string | null>(null);
   const isProjectRoom = !!conversation.project_id;
   const canManageProjectMembers = canManageProjectMembersOf(me);   // 서버와 같은 술어(utils/projectMemberPerm)
+  // «프로젝트 멤버 자동 참여» (2026-11-24 Irene «고객이나 다른 채팅방 만들면 그건 각각 필요해서 만드는 거» · Fable 판정 10·11)
+  //   켜면 지금 프로젝트 멤버 중 빠진 사람이 바로 들어간다 → 명단을 먼저 보여 주고 묻는다. 끄면 아무도 안 나간다.
+  const [autoJoin, setAutoJoin] = useState(!!conversation.project_auto_join);
+  const [autoJoinAsk, setAutoJoinAsk] = useState<AutoJoinPerson[] | null>(null);
+  const [autoJoinNote, setAutoJoinNote] = useState<string | null>(null);
+  const isCustomerRoom = conversation.channel_type === 'customer';
 
   // 참여자 — 서버에서 fetch (prop 의존 시 빈 목록 오표시 → #1 fix). 추가/제거 시 로컬 즉시 반영.
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -79,6 +87,7 @@ const ChatSettingsModal: React.FC<Props> = ({
     setError(null);
     setInviteId(null);
     setProjectNote(null);
+    setAutoJoin(!!conversation.project_auto_join);
     // 참여자 패널 데이터 fetch — 현재 참여자 + 멤버/고객 후보 + 미수락 초대고객
     fetchParticipantPanel(businessId, conversation.id).then(panel => {
       setParticipants(panel.participants.map(p => ({ user_id: p.user_id, name: p.name, email: p.email, role: p.role, is_ai: p.is_ai })));
@@ -89,6 +98,13 @@ const ChatSettingsModal: React.FC<Props> = ({
       setPendingClients(panel.pending_clients || []);
     }).catch(() => { setParticipants([]); setCandidates([]); setPendingClients([]); });
   }, [open, conversation, businessId]);
+  // 자동 참여 안내·확인창은 «창을 열 때·다른 방으로 바뀔 때» 만 비운다 — 켜기 뒤 onUpdated 로 conversation 이 새 객체가 되면
+  //   위 효과가 다시 돌아 «N명이 들어왔어요» 가 곧바로 지워졌다(카나리 qtalkautojoin ④ 실측).
+  useEffect(() => {
+    if (!open) return;
+    setAutoJoinAsk(null);
+    setAutoJoinNote(null);
+  }, [open, conversation.id]);
 
   if (!open) return null;
 
@@ -127,7 +143,9 @@ const ChatSettingsModal: React.FC<Props> = ({
     setBusy(true); setError(null); setProjectNote(null);
     try {
       const r = await addConversationParticipant(businessId, conversation.id, inviteId, c.kind);
-      if (r.project_member === 'added') setProjectNote(t('settings.participants.projectAdded', { name: c.name, defaultValue: '{{name}} 님을 프로젝트 멤버로도 추가했어요. 이 프로젝트의 다른 채팅에도 들어갑니다.' }) as string);
+      if (r.project_member === 'added') setProjectNote(r.joined_rooms
+        ? t('settings.participants.projectAddedRooms', { name: c.name, count: r.joined_rooms, defaultValue: '{{name}} 님을 프로젝트 멤버로도 추가했어요. «자동 참여» 가 켜진 채팅 {{count}}개에도 들어갔어요.' }) as string
+        : t('settings.participants.projectAddedOnly', { name: c.name, defaultValue: '{{name}} 님을 프로젝트 멤버로도 추가했어요. 다른 채팅에는 들어가지 않았어요.' }) as string);
       else if (r.project_member === 'not_allowed') setProjectNote(t('settings.participants.projectNotAllowed', { name: c.name, defaultValue: '{{name}} 님은 이 채팅에만 들어갔어요. 프로젝트 멤버 추가는 워크스페이스 대표·관리자만 할 수 있어요.' }) as string);
       // 로컬 즉시 반영 + 후보에서 제거
       setParticipants(prev => [...prev, { user_id: c.user_id, name: c.name, email: c.email, role: c.kind }]);
@@ -136,6 +154,59 @@ const ChatSettingsModal: React.FC<Props> = ({
       window.dispatchEvent(new CustomEvent('qtalk:participants-changed', { detail: { conversation_id: conversation.id } }));
     } catch (e) {
       setError((e as Error).message || (t('settings.errFailed', '저장 실패') as string));
+    } finally { setBusy(false); }
+  };
+
+  const reloadPanel = () => fetchParticipantPanel(businessId, conversation.id).then(panel => {
+    setParticipants(panel.participants.map(p => ({ user_id: p.user_id, name: p.name, email: p.email, role: p.role, is_ai: p.is_ai })));
+    setCandidates([
+      ...panel.member_candidates.map(m => ({ ...m, kind: 'member' as const })),
+      ...panel.client_candidates.map(c => ({ ...c, kind: 'client' as const })),
+    ]);
+  }).catch(() => { /* 다음 열 때 다시 읽는다 */ });
+
+  // autosave-exempt: 켜면 사람이 들어가는 액션이라 확인창을 거친다(끄기는 바로) — 저장 버튼과 따로 즉시 반영
+  const toggleAutoJoin = async (next: boolean) => {
+    if (busy) return;
+    setBusy(true); setError(null); setAutoJoinNote(null);
+    try {
+      if (!next) {
+        await setConversationAutoJoin(businessId, conversation.id, false);
+        setAutoJoin(false);
+        onUpdated({ ...conversation, project_auto_join: false });
+        setAutoJoinNote(t('settings.autoJoin.offDone', { defaultValue: '자동 참여를 껐어요. 지금 참여자는 그대로예요.' }) as string);
+        return;
+      }
+      const pv = await previewConversationAutoJoin(businessId, conversation.id);
+      setAutoJoinAsk(pv.will_join);
+    } catch (e) {
+      setError((e as Error).message || (t('settings.errFailed', '저장 실패') as string));
+    } finally { setBusy(false); }
+  };
+  const confirmAutoJoin = async () => {
+    if (!autoJoinAsk || busy) return;
+    setBusy(true); setError(null);
+    try {
+      const r = await setConversationAutoJoin(businessId, conversation.id, true, autoJoinAsk.map(p => p.user_id));
+      setAutoJoin(true);
+      setAutoJoinAsk(null);
+      onUpdated({ ...conversation, project_auto_join: true });
+      setAutoJoinNote(r.joined_user_ids.length
+        ? t('settings.autoJoin.onDone', { count: r.joined_user_ids.length, defaultValue: '자동 참여를 켰어요. {{count}}명이 들어왔어요.' }) as string
+        : t('settings.autoJoin.onDoneNone', { defaultValue: '자동 참여를 켰어요. 프로젝트 멤버가 모두 이미 참여 중이에요.' }) as string);
+      if (r.joined_user_ids.length) {
+        reloadPanel();
+        window.dispatchEvent(new CustomEvent('qtalk:participants-changed', { detail: { conversation_id: conversation.id } }));
+      }
+    } catch (e) {
+      if (e instanceof AutoJoinChangedError) {
+        // 확인창을 보는 사이 프로젝트 멤버가 바뀌었다 — 새 명단으로 다시 묻는다(아무도 안 들어갔다)
+        setAutoJoinAsk(e.willJoin);
+        setAutoJoinNote(t('settings.autoJoin.changed', { defaultValue: '그 사이 프로젝트 멤버가 바뀌었어요. 새 명단을 확인해 주세요.' }) as string);
+      } else {
+        setAutoJoinAsk(null);
+        setError((e as Error).message || (t('settings.errFailed', '저장 실패') as string));
+      }
     } finally { setBusy(false); }
   };
 
@@ -162,6 +233,7 @@ const ChatSettingsModal: React.FC<Props> = ({
     }));
 
   return (
+    <>
     <Backdrop onClick={onClose}>
       <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('settings.title', '채팅 설정') as string}>
         <Header>
@@ -229,6 +301,28 @@ const ChatSettingsModal: React.FC<Props> = ({
             </ToggleRow>
           </Section>
 
+          {/* 프로젝트 멤버 자동 참여 — 프로젝트 방에서만. 바꾸기는 대표·관리자(서버와 같은 술어), 그 밖에는 읽기만 */}
+          {isProjectRoom && (
+            <Section data-testid="chat-settings-autojoin">
+              <SectionTitle>{t('settings.autoJoin.title', '프로젝트 멤버 자동 참여')}</SectionTitle>
+              <ToggleRow>
+                <ToggleLabel>
+                  <input type="checkbox" role="switch" aria-checked={autoJoin} data-testid="chat-settings-autojoin-toggle"
+                    checked={autoJoin} disabled={!canManageProjectMembers || busy}
+                    onChange={e => toggleAutoJoin(e.target.checked)} />
+                  <span>{t('settings.autoJoin.enable', '이 프로젝트 멤버는 모두 이 채팅에 들어오기')}</span>
+                </ToggleLabel>
+                <ToggleHint>
+                  {autoJoin
+                    ? t('settings.autoJoin.hintOn', '프로젝트에 멤버를 추가하면 이 채팅에도 자동으로 들어옵니다.')
+                    : t('settings.autoJoin.hintOff', '직접 초대한 사람만 들어옵니다. 프로젝트에 멤버를 추가해도 이 채팅에는 들어오지 않아요.')}
+                  {!canManageProjectMembers && ` ${t('settings.autoJoin.adminOnly', '바꾸기는 워크스페이스 대표·관리자만 할 수 있어요.')}`}
+                </ToggleHint>
+              </ToggleRow>
+              {autoJoinNote && <PendingNote role="status">{autoJoinNote}</PendingNote>}
+            </Section>
+          )}
+
           {/* 참여자 */}
           <Section>
             <SectionTitle>{t('settings.participants.title', '참여자')}</SectionTitle>
@@ -272,7 +366,7 @@ const ChatSettingsModal: React.FC<Props> = ({
             {isProjectRoom && memberOptions.length > 0 && (
               <ReadHint>
                 {canManageProjectMembers
-                  ? t('settings.participants.projectLinkHint', { defaultValue: '프로젝트 채팅이라 멤버를 초대하면 프로젝트 멤버로도 추가됩니다.' }) as string
+                  ? t('settings.participants.projectLinkHint2', { defaultValue: '프로젝트 채팅이라 멤버를 초대하면 프로젝트 멤버로도 추가됩니다. 다른 채팅에는 «자동 참여» 가 켜진 곳에만 들어가요.' }) as string
                   : t('settings.participants.projectLinkHintMember', { defaultValue: '프로젝트 채팅이에요. 프로젝트 멤버가 아닌 사람은 이 채팅에만 들어가요(프로젝트 멤버 추가는 대표·관리자만).' }) as string}
               </ReadHint>
             )}
@@ -295,6 +389,23 @@ const ChatSettingsModal: React.FC<Props> = ({
         </Footer>
       </Dialog>
     </Backdrop>
+    {/* 확인창은 Backdrop 밖 — 안에 두면 확인창 클릭이 React 트리로 Backdrop 까지 올라가 설정 창이 닫힌다 */}
+    <ConfirmDialog
+        isOpen={!!autoJoinAsk}
+        onClose={() => setAutoJoinAsk(null)}
+        onConfirm={confirmAutoJoin}
+        variant={isCustomerRoom ? 'warning' : 'info'}
+        title={t('settings.autoJoin.confirmTitle', '자동 참여 켜기') as string}
+        confirmText={t('settings.autoJoin.confirmBtn', '켜기') as string}
+        message={[
+          autoJoinAsk && autoJoinAsk.length
+            ? t('settings.autoJoin.confirmJoin', { count: autoJoinAsk.length, names: autoJoinAsk.map(p => p.name).join(', '), defaultValue: '지금 이 채팅에 없는 프로젝트 멤버 {{count}}명이 바로 들어옵니다.\n{{names}}' }) as string
+            : t('settings.autoJoin.confirmNone', '지금 들어올 사람은 없어요. 앞으로 프로젝트에 추가되는 멤버가 이 채팅에 들어옵니다.') as string,
+          isCustomerRoom ? t('settings.autoJoin.confirmCustomer', '고객 채팅이에요 — 고객이 참여자 목록에서 이 사람들을 봅니다.') as string : '',
+        ].filter(Boolean).join('\n\n')}
+        zIndex={2200}
+      />
+    </>
   );
 };
 

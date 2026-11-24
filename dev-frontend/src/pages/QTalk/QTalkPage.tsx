@@ -1523,6 +1523,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
         auto_extract_enabled: data.auto_extract_enabled,
         translation_enabled: data.translation_enabled,
         translation_languages: data.translation_languages,
+        project_auto_join: data.project_auto_join,
       });
       const mapped = apiConversationToMock(conv);
       setConversations((prev) => [mapped, ...prev.filter((c) => c.id !== mapped.id)]);

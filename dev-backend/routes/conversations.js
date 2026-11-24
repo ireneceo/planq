@@ -242,6 +242,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
       obj.unread_count = unreadMap.get(c.id) || 0;
       obj.last_message_preview = lastMsgMap.get(c.id) || null;
       if (careMap) obj.care = careMap.get(c.id) || null;
+      if (req.scope?.isClient) delete obj.project_auto_join;   // 고객 응답에는 싣지 않는다(Fable 판정 1)
       return obj;
     });
     // 정렬: 핀 우선 (pinned_at NOT NULL DESC), 그 안에서 last_message_at DESC
@@ -463,6 +464,7 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       title, client_id, participant_ids, participant_user_ids,
       project_id, channel_type,
       auto_extract_enabled, translation_enabled, translation_languages,
+      project_auto_join,
     } = req.body;
 
     const business = await Business.findByPk(req.params.businessId);
@@ -517,9 +519,18 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       finalTranslationLanguages = v.normalized;
     }
 
+    // «프로젝트 멤버 모두 자동 참여» — 프로젝트 내부 방 + 프로젝트 멤버 관리 권한(대표·관리자·플랫폼 관리자)일 때만 켠다.
+    //   아니면 조용히 끔(화면도 그 사람에게는 체크를 안 보인다). 고객방은 언제나 끔(2026-11-24 Fable 판정 3·5).
+    let finalAutoJoin = false;
+    if (project_auto_join === true && project_id && finalChannel === 'internal') {
+      const { role: pRole } = await require('../services/projectAccess').loadProjectOrForbidden(Number(project_id), req.user.id);
+      finalAutoJoin = require('../services/projectAccess').canManageProjectMembers(req.user, pRole);
+    }
+
     const conversation = await Conversation.create({
       business_id: req.params.businessId,
       project_id: project_id || null,
+      project_auto_join: finalAutoJoin,
       title: title?.trim() || '새 대화',
       client_id: client_id || null,
       channel_type: finalChannel === 'direct' ? 'internal' : finalChannel,
@@ -574,10 +585,19 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, async (req, 
       }
     }
 
+    // 자동 참여로 만든 방 — 지금 프로젝트 멤버도 그 자리에서 들어간다(켜는 순간 = 들어가는 순간, Fable 판정 2)
+    if (finalAutoJoin) {
+      const pms = await ProjectMember.findAll({ where: { project_id: conversation.project_id }, attributes: ['user_id'] });
+      await require('../services/project_channel').joinUsersToConversations({
+        convIds: [conversation.id], businessId: Number(req.params.businessId), userIds: pms.map((m) => m.user_id),
+        actorUserId: req.user.id, via: 'auto_join_on', io: req.app.get('io'),
+      });
+    }
+
     await createAuditLog({
       user_id: req.user.id, business_id: req.params.businessId,
       action: 'create', entity_type: 'conversation', entity_id: conversation.id,
-      new_value: { title: conversation.title, project_id: conversation.project_id, channel_type: finalChannel },
+      new_value: { title: conversation.title, project_id: conversation.project_id, channel_type: finalChannel, project_auto_join: finalAutoJoin },
     });
 
     successResponse(res, conversation, 'Conversation created', 201);
@@ -713,7 +733,8 @@ async function syncProjectMember(req, conv, bm) {
       }, { transaction: t });
     });
     const io = req.app.get('io');
-    await require('../services/project_channel').joinProjectMemberToChannels({
+    // «자동 참여» 켜진 방에만(2026-11-24 Fable 판정 3) — 몇 개에 들어갔는지 화면이 말한다
+    const joinedRooms = await require('../services/project_channel').joinProjectMemberToChannels({
       projectId: project.id, businessId: project.business_id, userIds: [userId], actorUserId: req.user.id,
       via: 'project_member', io, exceptConversationId: conv.id,
     });
@@ -722,13 +743,72 @@ async function syncProjectMember(req, conv, bm) {
       require('../services/projectRoom').emitBusinessForProject(io, project.business_id, project.id, 'project:updated', payload).catch(() => {});
       require('../services/projectRoom').emitProject(io, project.id, 'project:updated', payload);
     }
-    return { project_member: 'added' };
+    return { project_member: 'added', joined_rooms: joinedRooms.length };
   } catch (e) {
     if (e?.name === 'SequelizeUniqueConstraintError') return { project_member: 'already' };
     console.warn('[conversations.participants] project member sync', e.message);
     return {};
   }
 }
+
+// «프로젝트 멤버 자동 참여» 켜기·끄기 (2026-11-24 docs/PROJECT_ROOM_MEMBERSHIP_DESIGN.md · Fable 판정 10).
+//   권한 = 프로젝트 멤버 관리와 같은 술어(canManageProjectMembers — 대표·관리자·플랫폼 관리자, PM 아님).
+//   켜기: 지금 프로젝트 사람 멤버 중 이 방 참여자가 아닌 사람이 **그 자리에서** 들어간다. 화면이 확인창에서 본 명단(expect_user_ids)과
+//     서버가 계산한 명단이 다르면 409 auto_join_changed + 새 명단(아무도 안 들어감). dry_run:true 면 명단만 돌려준다.
+//   끄기: 아무도 나가지 않는다. 전체 방·안내방·프로젝트 없는 방은 409.
+router.put('/:businessId/:id/auto-join', authenticateToken, checkBusinessAccess, async (req, res, next) => {
+  try {
+    const businessId = Number(req.params.businessId);
+    const conv = await Conversation.findOne({ where: { id: req.params.id, business_id: businessId } });
+    if (!conv) return errorResponse(res, 'Conversation not found', 404);
+    if (!(await canAccessConversation(req.user.id, conv))) return errorResponse(res, 'Conversation not found', 404);
+    if (!conv.project_id || isPlatformConversation(conv) || await isTeamConversation(conv)) return errorResponse(res, 'not_project_room', 409);
+    const pa = require('../services/projectAccess');
+    const { project, role, error } = await pa.loadProjectOrForbidden(Number(conv.project_id), req.user.id);
+    if (error || !project || Number(project.business_id) !== businessId) return errorResponse(res, 'forbidden', 403);
+    if (!pa.canManageProjectMembers(req.user, role)) return errorResponse(res, 'auto_join_forbidden', 403);
+    if (typeof req.body?.on !== 'boolean') return errorResponse(res, 'on_must_be_boolean', 400);   // "true" 문자열이 조용히 «끄기» 가 되지 않게
+    const on = req.body.on;
+    const pc = require('../services/project_channel');
+    // 들어갈 사람 = 지금 프로젝트 사람 멤버(활성) − 이 방 참여자(보는 중은 참여자가 아니므로 들어갈 사람에 든다)
+    const pms = await ProjectMember.findAll({ where: { project_id: project.id }, attributes: ['user_id'] });
+    const staff = await pc.humanMemberIds(businessId, pms.map((m) => m.user_id));
+    const inRoom = new Set((await ConversationParticipant.findAll({ where: { conversation_id: conv.id }, attributes: ['user_id'] })).map((r) => Number(r.user_id)));
+    const toJoin = on ? staff.filter((uid) => !inRoom.has(uid)).sort((a, b) => a - b) : [];
+    const people = async () => {
+      if (!toJoin.length) return [];
+      const rows = await User.findAll({ where: { id: toJoin }, attributes: ['id', 'name'] });
+      const nm = await getMemberNameMap(businessId, toJoin);   // 워크스페이스 표시명이 이긴다
+      return rows.map((u) => ({ user_id: u.id, name: nm.get(u.id)?.name || u.name }));
+    };
+    if (req.body?.dry_run === true) {
+      return successResponse(res, { on, will_join: await people(), channel_type: conv.channel_type });
+    }
+    if (on) {
+      const expect = Array.isArray(req.body?.expect_user_ids) ? [...new Set(req.body.expect_user_ids.map(Number).filter(Boolean))].sort((a, b) => a - b) : null;
+      if (!expect || expect.join(',') !== toJoin.join(',')) {
+        return res.status(409).json({ success: false, message: 'auto_join_changed', data: { will_join: await people() } });
+      }
+    }
+    const before = !!conv.project_auto_join;
+    if (before !== on) await conv.update({ project_auto_join: on });
+    const joined = on ? await pc.joinUsersToConversations({
+      convIds: [conv.id], businessId, userIds: toJoin, actorUserId: req.user.id, via: 'auto_join_on', io: req.app.get('io'),
+    }) : [];
+    if (before !== on || toJoin.length) {
+      require('../services/auditService').logAudit(req, {
+        action: 'conversation.auto_join', targetType: 'conversation', targetId: conv.id, businessId,
+        oldValue: { project_auto_join: before }, newValue: { project_auto_join: on, joined_user_ids: joined.length ? toJoin : [] },
+      });
+    }
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`conv:${conv.id}:staff`).emit('conversation:updated', { id: conv.id, conversation_id: conv.id, business_id: businessId });
+      if (joined.length) io.to(`conv:${conv.id}:staff`).emit('conversation:participants', { conversation_id: conv.id });
+    }
+    return successResponse(res, { id: conv.id, project_auto_join: on, joined_user_ids: joined.length ? toJoin : [] });
+  } catch (error) { next(error); }
+});
 
 // 참여자 개별 추가/제거
 router.post('/:businessId/:id/participants', authenticateToken, checkBusinessAccess, async (req, res, next) => {
@@ -960,6 +1040,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
     const messages = (conversation.messages || []).slice().reverse();
 
     const result = conversation.toJSON();
+    if (req.scope?.isClient) delete result.project_auto_join;   // 고객 응답에는 싣지 않는다(Fable 판정 1)
     // toJSON 직후 — 워크스페이스 표시명을 sender · participants.User 양쪽에 일관 적용
     result.messages = await applyMemberDisplayName(
       messages.map(m => (m.toJSON ? m.toJSON() : m)),

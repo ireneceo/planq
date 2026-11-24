@@ -109,6 +109,8 @@ async function promoteClientToMember({ businessId, userId, transaction }) {
     out.before.projectClients = pcs.map((pc) => {
       const j = pc.get({ plain: true }); delete j.Project; delete j.invite_token; return j;
     });
+    // ★ 프로젝트 멤버로 옮겨도 «자동 참여» 방에 넣지 않는다(2026-11-24 Fable 판정 7) — 어제까지 고객이던 사람이 내부 방에
+    //   저절로 들어가면 가장 나쁜 «깜짝» 이다. 내부 방은 대표가 직접 초대한다. joinProjectMemberToChannels 를 여기서 부르지 않는다.
     for (const pc of pcs) {
       const [, created] = await ProjectMember.findOrCreate({
         where: { project_id: pc.project_id, user_id: userId },

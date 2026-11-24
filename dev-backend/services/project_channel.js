@@ -47,12 +47,16 @@ async function ensureProjectCustomerChannel(project, userId, { createIfMissing =
     cue_enabled: true,
     auto_extract_enabled: true,
   });
-  // 참가자 — 프로젝트 멤버 + 만든 사람. 없으면 아무도 그 방을 못 본다.
-  const members = await ProjectMember.findAll({ where: { project_id: project.id }, attributes: ['user_id'] });
-  const ids = new Set(members.map((m) => m.user_id));
-  ids.add(userId);
+  // 참가자 — 만든 사람 + 프로젝트 PM (+ 사람 0명이면 대표). 프로젝트 멤버 전원이 아니다(2026-11-24 Fable 판정 4 —
+  //   고객방은 필요해서 만드는 방이라 «갑자기 다른 사람이 들어와 고객이 놀라는» 일이 없게). 새 고객방 문은 둘 다 initialCustomerRoomStaff 한 함수.
+  const ids = await initialCustomerRoomStaff(project, userId, null);
   for (const uid of ids) {
     await require('./convParticipants').joinParticipant(conv.id, uid, 'member');
+  }
+  // Cue — 고객방 기본값(ensureClientChannel 과 같다 · Fable 완료 검증 비차단 1)
+  const biz = await Business.findByPk(project.business_id, { attributes: ['cue_user_id'] });
+  if (biz?.cue_user_id && !ids.includes(Number(biz.cue_user_id))) {
+    await require('./convParticipants').joinParticipant(conv.id, biz.cue_user_id, 'member');
   }
   // ★ createAuditLog 는 내부에서 setImmediate 로 던지고 **아무것도 반환하지 않는다**.
   //   `.catch()` 를 붙이면 undefined 에 접근해 500 이 난다 — 실제로 났다.
@@ -77,6 +81,35 @@ async function ensureProjectCustomerChannel(project, userId, { createIfMissing =
 //   그래서 고객을 방에 들이는 문(초대 수락 · 워크스페이스 초대 수락 · 프로젝트에 고객 추가)과
 //   청구서 카드 배달은 전부 아래 두 함수를 쓴다. 다른 고객의 방으로 «대신» 떨어뜨리지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 새 고객방의 처음 직원 참여자 (2026-11-24 Fable 판정 4 — docs/PROJECT_ROOM_MEMBERSHIP_DESIGN.md Q1).
+ *   만든 사람(워크스페이스 활성 직원일 때) — 없으면(초대 수락처럼 actor 없음) 그 고객을 프로젝트에 붙인 사람(project_clients.invited_by,
+ *   지금도 프로젝트 멤버 ∧ 활성 직원일 때만) + 프로젝트 PM(활성 직원) + 사람이 0명이면 워크스페이스 대표 1명(고객 메시지 알림을 받을 사람).
+ *   «다른 고객방 참여자 따라가기» 는 하지 않는다 — A 고객 방에 필요해서 넣은 사람이 B 고객 방에 나타난다.
+ * @returns {Promise<number[]>} 사람 user_id (Cue 제외 — 호출부가 넣는다)
+ */
+async function initialCustomerRoomStaff(project, actorUserId, clientId, { transaction } = {}) {
+  const out = new Set();
+  const isStaff = async (uid) => !!uid && (await humanMemberIds(project.business_id, [uid], { transaction })).length > 0;
+  if (await isStaff(actorUserId)) out.add(Number(actorUserId));
+  else if (clientId) {
+    const pc = await ProjectClient.findOne({
+      where: { project_id: project.id, client_id: clientId, invited_by: { [Op.ne]: null } },
+      attributes: ['invited_by'], order: [['id', 'ASC']], transaction,
+    });
+    const inv = pc ? Number(pc.invited_by) : null;
+    if (inv && await isStaff(inv)
+      && await ProjectMember.findOne({ where: { project_id: project.id, user_id: inv }, attributes: ['id'], transaction })) out.add(inv);
+  }
+  const pms = await ProjectMember.findAll({ where: { project_id: project.id, is_pm: true }, attributes: ['user_id'], transaction });
+  for (const uid of await humanMemberIds(project.business_id, pms.map((m) => m.user_id), { transaction })) out.add(uid);
+  if (!out.size) {
+    const biz = await Business.findByPk(project.business_id, { attributes: ['owner_id'], transaction });
+    if (biz?.owner_id && await isStaff(biz.owner_id)) out.add(Number(biz.owner_id));
+  }
+  return [...out];
+}
 
 /** 이 프로젝트에서 이 고객의 채널 — 살아 있는 방 우선, 없으면 보관된 방. 없으면 null. */
 async function findClientChannel(projectId, clientId, { transaction } = {}) {
@@ -144,15 +177,14 @@ async function ensureClientChannel(project, clientId, actorUserId, { transaction
     cue_enabled: true,
     auto_extract_enabled: true,
   }, { transaction });
-  // 참가자 — 프로젝트 멤버 + 만든 사람 + Cue(프로젝트 생성 때 채널과 같은 기본값). 고객은 호출부가 들인다.
-  const members = await ProjectMember.findAll({ where: { project_id: project.id }, attributes: ['user_id'], transaction });
-  const ids = new Set(members.map((m) => m.user_id));
-  if (actorUserId) ids.add(actorUserId);
+  // 참가자 — 만든 사람(없으면 그 고객을 프로젝트에 붙인 사람) + 프로젝트 PM + Cue. 고객은 호출부가 들인다.
+  //   프로젝트 멤버 전원이 아니다(2026-11-24 Fable 판정 4 · Q1).
+  const ids = await initialCustomerRoomStaff(project, actorUserId, client.id, { transaction });
   for (const uid of ids) {
     await require('./convParticipants').joinParticipant(conv.id, uid, 'member', { transaction });
   }
   const biz = await Business.findByPk(project.business_id, { attributes: ['cue_user_id'], transaction });
-  if (biz?.cue_user_id && !ids.has(biz.cue_user_id)) {
+  if (biz?.cue_user_id && !ids.includes(Number(biz.cue_user_id))) {
     await require('./convParticipants').joinParticipant(conv.id, biz.cue_user_id, 'member', { transaction });
   }
   try {
@@ -193,14 +225,25 @@ async function customerChannelForClient({ businessId, projectId, clientId, trans
  * @returns {Promise<number[]>} 새로 들어간(또는 올라간) 대화방 id
  */
 async function joinProjectMemberToChannels({ projectId, businessId, userIds, actorUserId, via = 'project_member', io, exceptConversationId } = {}) {
-  const ids = await humanMemberIds(businessId, userIds);
-  if (!projectId || !businessId || !ids.length) return [];
+  if (!projectId || !businessId) return [];
+  // ★ «자동 참여» 가 켜진 방만(2026-11-24 Irene «고객이나 다른 채팅방 만들면 그건 각각 필요해서 만드는 거» · Fable 판정 3).
+  //   보관된 방도 켜져 있으면 넣는다 — 되살리면 그 멤버도 그 방 사람이다. 고객방·따로 만든 방은 직접 초대만.
   const convs = await Conversation.findAll({
-    where: { project_id: projectId, business_id: businessId }, attributes: ['id'],
+    where: { project_id: projectId, business_id: businessId, project_auto_join: true }, attributes: ['id'],
   });
+  return joinUsersToConversations({
+    convIds: convs.map((c) => c.id).filter((id) => !(exceptConversationId && Number(id) === Number(exceptConversationId))),
+    businessId, userIds, actorUserId, via, io,
+  });
+}
+
+/** 사람 멤버를 정해진 방들에 참여자로 — 멱등(이미 참여자면 그대로, «보는 중» 이면 올림). 감사·신호 같이. @returns 새로 들어간 방 id */
+async function joinUsersToConversations({ convIds, businessId, userIds, actorUserId, via, io } = {}) {
+  const ids = await humanMemberIds(businessId, userIds);
+  if (!businessId || !ids.length || !convIds?.length) return [];
   const joined = [];
-  for (const cv of convs) {
-    if (exceptConversationId && Number(cv.id) === Number(exceptConversationId)) continue;
+  for (const cvId of convIds) {
+    const cv = { id: cvId };
     for (const uid of ids) {
       const r = await require('./convParticipants').joinParticipant(cv.id, uid, 'member');
       if (!r.created && !r.promoted) continue;
@@ -220,11 +263,11 @@ async function joinProjectMemberToChannels({ projectId, businessId, userIds, act
 }
 
 // 사람 멤버만(owner·admin·member) — Cue(ai)는 방을 만들 때 넣는 규칙이 따로 있어 여기서 넣거나 빼지 않는다
-async function humanMemberIds(businessId, userIds) {
+async function humanMemberIds(businessId, userIds, { transaction, includeRemoved = false } = {}) {
   const ids = [...new Set((userIds || []).map(Number).filter(Boolean))];
   if (!businessId || !ids.length) return [];
   const rows = await require('../models').BusinessMember.findAll({
-    where: { business_id: businessId, user_id: ids, role: ['owner', 'admin', 'member'] }, attributes: ['user_id'], raw: true,
+    where: { business_id: businessId, user_id: ids, role: ['owner', 'admin', 'member'], ...(includeRemoved ? {} : { removed_at: null }) }, attributes: ['user_id'], raw: true, transaction,
   });
   return [...new Set(rows.map((r) => Number(r.user_id)))];
 }
@@ -236,7 +279,7 @@ async function humanMemberIds(businessId, userIds) {
  * @returns {Promise<number[]>} 빠진 대화방 id
  */
 async function leaveProjectMemberFromChannels({ projectId, businessId, userIds, actorUserId, io, req } = {}) {
-  const ids = await humanMemberIds(businessId, userIds);
+  const ids = await humanMemberIds(businessId, userIds, { includeRemoved: true });   // 빼기는 넓게 — 내보낸 멤버도 거둔다
   if (!projectId || !businessId || !ids.length) return [];
   const convs = await Conversation.findAll({
     where: { project_id: projectId, business_id: businessId }, attributes: ['id'],
@@ -272,4 +315,4 @@ async function syncProjectMemberChannels({ project, added = [], removed = [], ac
   try { if (out.length) await leaveProjectMemberFromChannels({ ...base, userIds: out, req }); } catch (e) { console.warn('[project_channel] leave', e.message); }
 }
 
-module.exports = { ensureProjectCustomerChannel, findClientChannel, ensureClientChannel, customerChannelForClient, joinProjectMemberToChannels, leaveProjectMemberFromChannels, syncProjectMemberChannels };
+module.exports = { ensureProjectCustomerChannel, findClientChannel, ensureClientChannel, customerChannelForClient, joinProjectMemberToChannels, joinUsersToConversations, leaveProjectMemberFromChannels, syncProjectMemberChannels, initialCustomerRoomStaff, humanMemberIds };

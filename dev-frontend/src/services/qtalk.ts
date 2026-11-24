@@ -190,6 +190,8 @@ export interface ApiConversation {
   display_name: string | null;
   title: string | null;
   status: string;
+  // 프로젝트 방 «프로젝트 멤버 자동 참여»(직원 응답에만 — 고객 응답엔 없다)
+  project_auto_join?: boolean;
   auto_extract_enabled: boolean;
   cue_enabled: boolean;
   last_extracted_message_id: number | null;
@@ -625,6 +627,8 @@ export interface CreateConversationInput {
   auto_extract_enabled?: boolean;
   translation_enabled?: boolean;
   translation_languages?: SupportedLang[] | null;
+  // 프로젝트 내부 방 — 프로젝트 멤버 모두 자동 참여(대표·관리자만 켜진다, 아니면 서버가 끔)
+  project_auto_join?: boolean;
 }
 export async function createConversation(input: CreateConversationInput): Promise<ApiConversation> {
   const { business_id, ...body } = input;
@@ -646,14 +650,42 @@ export async function openDirectConversation(businessId: number, userId: number)
 }
 
 // 프로젝트 대화방이면 서버가 프로젝트 멤버로도 넣는다 — project_member: 'added'(넣음) · 'already'(이미 멤버) · 'not_allowed'(대표만 가능, 채팅에만 들어감)
-export async function addConversationParticipant(businessId: number, conversationId: number, userId: number, role: 'member' | 'client' = 'member'): Promise<{ project_member?: 'added' | 'already' | 'not_allowed' }> {
+export async function addConversationParticipant(businessId: number, conversationId: number, userId: number, role: 'member' | 'client' = 'member'): Promise<{ project_member?: 'added' | 'already' | 'not_allowed'; joined_rooms?: number }> {
   const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/participants`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ user_id: userId, role }),
   });
-  const data = await handle<{ project_member?: 'added' | 'already' | 'not_allowed' } | null>(res);
+  const data = await handle<{ project_member?: 'added' | 'already' | 'not_allowed'; joined_rooms?: number } | null>(res);
   return data || {};
+}
+
+// 프로젝트 방 «프로젝트 멤버 자동 참여» 켜기·끄기 — dry_run 이면 들어갈 사람 명단만.
+//   켤 때는 확인창에서 본 명단(expect_user_ids)을 같이 보낸다. 그 사이 바뀌면 409 auto_join_changed + 새 명단(AutoJoinChangedError).
+export interface AutoJoinPerson { user_id: number; name: string }
+export class AutoJoinChangedError extends Error {
+  willJoin: AutoJoinPerson[];
+  constructor(willJoin: AutoJoinPerson[]) { super('auto_join_changed'); this.willJoin = willJoin; }
+}
+export async function previewConversationAutoJoin(businessId: number, conversationId: number): Promise<{ will_join: AutoJoinPerson[]; channel_type: string }> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/auto-join`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ on: true, dry_run: true }),
+  });
+  return handle<{ will_join: AutoJoinPerson[]; channel_type: string }>(res);
+}
+export async function setConversationAutoJoin(businessId: number, conversationId: number, on: boolean, expectUserIds: number[] = []): Promise<{ project_auto_join: boolean; joined_user_ids: number[] }> {
+  const res = await apiFetch(`/api/conversations/${businessId}/${conversationId}/auto-join`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ on, expect_user_ids: expectUserIds }),
+  });
+  if (res.status === 409) {
+    let body: { message?: string; data?: { will_join?: AutoJoinPerson[] } } | null = null;
+    try { body = await res.json(); } catch { /* 아래에서 일반 오류 */ }
+    if (body?.message === 'auto_join_changed') throw new AutoJoinChangedError(body.data?.will_join || []);
+    throw new Error(body?.message || 'HTTP 409');
+  }
+  return handle<{ project_auto_join: boolean; joined_user_ids: number[] }>(res);
 }
 
 // 참여자 패널 데이터 — 현재 참여자 + 추가 후보(멤버/고객) + 미수락 초대고객(안내)

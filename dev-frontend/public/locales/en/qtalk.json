@@ -197,7 +197,10 @@
     "newProject": "+ Create new project",
     "newProjectPh": "New project name",
     "privateNote": "Chats not linked to a project or client are visible to participants only — owners and admins included.",
-    "addClient": "+ Add client"
+    "addClient": "+ Add client",
+    "autoJoin": "Auto-join project members",
+    "autoJoinHint": "When on, all current project members — and members added later — join this chat. When off, only the people you pick below join.",
+    "autoJoinEnable": "All project members join"
   },
   "common": {
     "cancel": "Cancel",
@@ -238,7 +241,26 @@
       "projectAdded": "{{name}} was also added to the project and joins its other chats.",
       "projectNotAllowed": "{{name}} joined this chat only. Only workspace owners and admins can add project members.",
       "projectLinkHint": "This is a project chat — inviting a member also adds them to the project.",
-      "projectLinkHintMember": "This is a project chat. People who are not project members join this chat only (only owners and admins can add project members)."
+      "projectLinkHintMember": "This is a project chat. People who are not project members join this chat only (only owners and admins can add project members).",
+      "projectAddedRooms": "{{name}} was also added to the project and joined {{count}} chat(s) with auto-join on.",
+      "projectAddedOnly": "{{name}} was also added to the project. They didn't join any other chat.",
+      "projectLinkHint2": "This is a project chat, so inviting a member also adds them to the project. They join other chats only where auto-join is on."
+    },
+    "autoJoin": {
+      "title": "Auto-join project members",
+      "enable": "Every member of this project joins this chat",
+      "hintOn": "Members added to the project will join this chat automatically.",
+      "hintOff": "Only people invited here directly join. Adding a member to the project won't bring them into this chat.",
+      "adminOnly": "Only workspace owners and admins can change this.",
+      "offDone": "Auto-join is off. Current participants stay.",
+      "onDone": "Auto-join is on. {{count}} people joined.",
+      "onDoneNone": "Auto-join is on. All project members were already here.",
+      "changed": "Project members changed in the meantime. Please check the new list.",
+      "confirmTitle": "Turn on auto-join",
+      "confirmBtn": "Turn on",
+      "confirmJoin": "{{count}} project members who aren't in this chat will join right away.\n{{names}}",
+      "confirmNone": "Nobody joins right now. Members added to the project later will join this chat.",
+      "confirmCustomer": "This is a client chat — the client will see these people in the participant list."
     }
   },
   "modal": {
@@ -417,7 +439,12 @@
       "hint": "Enter to send · Shift+Enter for newline",
       "extractHint": "AI extracts task candidates from this conversation",
       "emoji": "Emoji",
-      "emojiGroup": { "frequent": "Frequent", "face": "Faces", "hand": "Hands & people", "thing": "Objects & symbols" },
+      "emojiGroup": {
+        "frequent": "Frequent",
+        "face": "Faces",
+        "hand": "Hands & people",
+        "thing": "Objects & symbols"
+      },
       "attachPost": "Document card",
       "uploading": "Uploading..."
     },

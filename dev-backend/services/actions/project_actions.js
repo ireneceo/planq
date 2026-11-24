@@ -166,6 +166,16 @@ async function createProject(actor, params = {}, opts = {}) {
       for (const cv of channels) {
         const type = cv.channel_type === 'customer' ? 'customer' : 'internal';
         const title = String(cv.name || '').trim() || `${name} ${type === 'customer' ? '고객' : '내부'}`;
+        // 참여자·«자동 참여» (2026-11-24 Fable 판정 5 — docs/PROJECT_ROOM_MEMBERSHIP_DESIGN.md)
+        //   내부 방: 목록을 안 줬거나 멤버 전원과 같으면 자동 참여 켬, 일부만 골랐으면 끔.
+        //   고객 방: 언제나 끔 · 목록을 안 줬으면 만든 사람 + Cue 만(전원 아님).
+        const allIds = [...new Set(pmRows.map((r) => r.user_id))];
+        const given = Array.isArray(cv.participant_user_ids);
+        let participantIds = given
+          ? cv.participant_user_ids.filter((uid) => validMemberIds.has(uid))
+          : (type === 'customer' ? [] : allIds);
+        const covers = allIds.every((uid) => uid === userId || participantIds.includes(uid));
+        const autoJoin = type === 'internal' && (!given || covers);
         const conv = await Conversation.create({
           business_id: businessId,
           project_id: project.id,
@@ -173,10 +183,8 @@ async function createProject(actor, params = {}, opts = {}) {
           channel_type: type,
           cue_enabled: type === 'customer',
           auto_extract_enabled: type === 'customer',
+          project_auto_join: autoJoin,
         }, { transaction: t });
-        let participantIds = Array.isArray(cv.participant_user_ids)
-          ? cv.participant_user_ids.filter((uid) => validMemberIds.has(uid))
-          : pmRows.map((r) => r.user_id);
         if (!participantIds.includes(userId)) participantIds = [userId, ...participantIds];
         for (const uid of participantIds) {
           await require('../convParticipants').joinParticipant(conv.id, uid, uid === userId ? 'owner' : 'member', { transaction: t });

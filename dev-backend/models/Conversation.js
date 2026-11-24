@@ -54,6 +54,13 @@ Conversation.init({
     allowNull: true
   },
   // 'platform' = PlanQ 안내방(워크스페이스당 하나, 2026-11-04) — 판정은 access_scope.isPlatformConversation 한 곳.
+  // 프로젝트 방에서만 뜻이 있다 — 1 = «이 프로젝트 멤버는 모두 이 방에 들어온다»(멤버가 되는 순간·켜는 순간에만 넣는다).
+  //   0 = 직접 초대한 사람만. 고객방·따로 만든 방은 기본 0 (2026-11-24 docs/PROJECT_ROOM_MEMBERSHIP_DESIGN.md · Fable 판정).
+  project_auto_join: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
+  },
   channel_type: {
     type: DataTypes.ENUM('customer', 'internal', 'group', 'platform'),
     defaultValue: 'internal'

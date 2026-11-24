@@ -1140,7 +1140,7 @@ const QProjectDetailPage: React.FC = () => {
               return addMemberOpen ? (
                 <AddMemberBox>
                   {/* 프로젝트 멤버 = 프로젝트 채팅 참여자(2026-11-16 서버가 같이 넣는다) — 따로 초대할 필요 없다고 알린다 */}
-                  <Dim>{t('members.chatLinkHint', '추가한 멤버는 이 프로젝트의 채팅에도 자동으로 들어갑니다.')}</Dim>
+                  <Dim>{t('members.chatLinkHint', '추가한 멤버는 «자동 참여» 가 켜진 채팅(보통 프로젝트 내부 채팅)에만 들어갑니다. 고객 채팅·따로 만든 채팅은 그 채팅에서 직접 초대하세요.')}</Dim>
                   {/* 20~30명이면 목록만으로는 못 찾는다 — 8명 넘으면 찾기 칸(문서 공동 편집자·메일 담당과 같은 규칙) */}
                   {candidates.length > 8 && (
                     <PickerFilter value={addMemberQuery} onChange={(e) => setAddMemberQuery(e.target.value)} autoFocus

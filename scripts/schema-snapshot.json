@@ -712,7 +712,8 @@
       "translation_enabled",
       "translation_languages",
       "archived_at",
-      "archived_by_user_id"
+      "archived_by_user_id",
+      "project_auto_join"
     ],
     "cue_knowledge": [
       "id",

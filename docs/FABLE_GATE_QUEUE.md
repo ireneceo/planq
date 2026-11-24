@@ -2,6 +2,12 @@
 
 
 
+### 2026-11-24 방 c78c787b — 프로젝트 대화방 «프로젝트 멤버 자동 참여» (방마다) — 설계 **NEEDS-CHANGE → 결정 12개 반영** · 완료 검증 **PASS**
+- Irene «같은 프로젝트여도 채팅방에 막 다 들어가면 안돼 … 고객이나 다른 채팅방 만들면 그건 각각 필요해서 만드는 거 … 깜짝놀랄 일 없게» · 설계 docs/PROJECT_ROOM_MEMBERSHIP_DESIGN.md
+- 설계 지적: 백필 «전원 덮음» 은 오염 신호(고객방 대부분 전원) → 프로젝트당 첫 내부 방 1개만 · 새 고객방 = 만든 사람/invited_by + PM (+0명이면 대표) · 인수인계 문 추가 · 고객→멤버 전환은 자동 참여 안 함 · 스위치 명단 확인 409 · 권한 대표·관리자만(PM 아님) · 고객 응답에 칸 없음
+- 완료 검증: Fable 실HTTP·서비스 58건(56 통과, 실패 2 = 검사 쪽) · 인수인계 실HTTP · 고객→멤버 전환 서비스(되돌림) · 작업 방 실HTTP 35/35 + 서비스 4/4 · 양성 대조군 10 실패 · 브라우저 qtalkautojoin 3폭 20/20 · health 101/101 · guard 86/87 · tenant 0
+- 비차단 반영(자체 검증 3/3): 주인 없는 고객방 Cue · `on` 불리언 아니면 400 · 백필 «한 번만» = 표시 행 ∨ 켜진 방 있음. 남김: 인수인계 뒤 고객방 새 PM 없음(후속 설계) · dev 그림자 게스트 1명
+
 ### 2026-11-24 방 caaeaef5 — 멤버별 «출퇴근 안 함» — 설계 **NEEDS-CHANGE → 6건 반영** · 완료 검증 **PASS**
 - Irene «출퇴근 안하는 그냥 일만 봐주거나 연결되어 있는 경우 … 멤버별로 출퇴근 설정을 다르게 할 수 없어?» · 설계 docs/ATTENDANCE_MEMBER_TRACKING_DESIGN.md
 - 설계 지적 6: ①끄기 닫기가 clockOut 이면 다른 워크스페이스 업무 측정이 끊김 → closeOpenDayQuietly ②다시 켜면 거짓 미출근 → attendance_tracked_since ③presence 행 빼면 «미출근» 점 → tracked:false ④활동 흔적(markSeen·touch·prompt-answer) ⑤Cue 문맥 ⑥관리자 본인 변경 금지

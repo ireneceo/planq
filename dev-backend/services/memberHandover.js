@@ -172,11 +172,19 @@ async function apply({ businessId, fromUserId, toUserId, actor, io }) {
     if (project.default_assignee_user_id === fromUserId) patch.default_assignee_user_id = toUserId;
     if (Object.keys(patch).length) await project.update(patch);
     const wasPm = p.pmProjectIds.includes(pid) || patch.owner_user_id === toUserId;
-    const [pm] = await ProjectMember.findOrCreate({
+    const [pm, pmCreated] = await ProjectMember.findOrCreate({
       where: { project_id: pid, user_id: toUserId },
       defaults: { project_id: pid, user_id: toUserId, is_pm: wasPm },
     });
     if (wasPm && !pm.is_pm) await pm.update({ is_pm: true });
+    // 새로 프로젝트 멤버가 됐으면 «자동 참여» 켜진 방에 — 다른 멤버 추가 문과 같은 규칙(2026-11-24 Fable 판정 6)
+    if (pmCreated) {
+      try {
+        await require('./project_channel').joinProjectMemberToChannels({
+          projectId: pid, businessId, userIds: [toUserId], actorUserId: actor.userId, via: 'handover', io,
+        });
+      } catch (e) { console.warn('[handover] auto-join rooms', e.message); }
+    }
     if (p.pmProjectIds.includes(pid)) await ProjectMember.update({ is_pm: false }, { where: { project_id: pid, user_id: fromUserId } });
     moved.projects += 1;
     require('./auditService').logAudit(actor.req || null, {

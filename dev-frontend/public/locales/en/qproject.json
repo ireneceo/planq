@@ -464,7 +464,7 @@
     "pmOn": "Remove PM",
     "pmOwner": "The project creator is PM automatically",
     "search": "Search by name or email",
-    "chatLinkHint": "Members you add also join this project's chats automatically.",
+    "chatLinkHint": "Added members join only chats with auto-join on (usually the project's internal chat). Invite people to client chats and other chats from that chat.",
     "saveFailed": "Couldn't save the member change. Reverted to the saved list.",
     "ownerOnly": "Only workspace owners and admins can add or remove project members."
   },

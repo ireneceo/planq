@@ -11,6 +11,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/Pla
 import CreateDrawer from '../../components/Common/CreateDrawer';
 import LetterAvatar from '../../components/Common/LetterAvatar';
 import { useAuth } from '../../contexts/AuthContext';
+import { canManageProjectMembers as canManageProjectMembersOf } from '../../utils/projectMemberPerm';
 import { listBusinessMembers, listProjects, listWorkspaceClients, type WorkspaceMemberRow, type WorkspaceClientRow, type ApiProject, type SupportedLang } from '../../services/qtalk';
 import { isEnterAction } from '../../utils/imeKey';
 import { clientOptionLabel } from '../../utils/clientLabel';
@@ -32,6 +33,8 @@ export interface NewChatFormData {
   auto_extract_enabled: boolean;
   translation_enabled: boolean;
   translation_languages: SupportedLang[] | null;
+  // 프로젝트 내부 방 — 프로젝트 멤버 모두 자동 참여(대표·관리자만 고를 수 있다 · 2026-11-24)
+  project_auto_join: boolean;
 }
 
 const LANG_OPTIONS: { value: SupportedLang; label: string }[] = [
@@ -46,6 +49,7 @@ const LANG_OPTIONS: { value: SupportedLang; label: string }[] = [
 export interface NewChatDraft {
   title: string; projectId: number | null; newProjectName: string; participantIds: number[]; guestLinkRoom: boolean;
   autoExtract: boolean; translationOn: boolean; langA: SupportedLang; langB: SupportedLang;
+  autoJoin?: boolean;
 }
 
 interface Props {
@@ -81,6 +85,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
   const [submitting, setSubmitting] = useState(false);
   // 채팅 설정 — 생성 시점에 결정
   const [autoExtract, setAutoExtract] = useState(false);
+  const [autoJoin, setAutoJoin] = useState(false);
   const [translationOn, setTranslationOn] = useState(false);
   const [langA, setLangA] = useState<SupportedLang>('ko');
   const [langB, setLangB] = useState<SupportedLang>('en');
@@ -96,6 +101,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     setGuestLinkRoom(d?.guestLinkRoom ?? false);
     setSubmitting(false);
     setAutoExtract(d?.autoExtract ?? false);
+    setAutoJoin(d?.autoJoin ?? false);
     setTranslationOn(d?.translationOn ?? false);
     setLangA(d?.langA ?? 'ko');
     setLangB(d?.langB ?? 'en');
@@ -155,6 +161,8 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
     setParticipantIds((prev) => prev.filter((x) => x !== userId));
   };
 
+  // «프로젝트 멤버 모두 자동 참여» — 기존 프로젝트의 내부 방 + 대표·관리자(서버와 같은 술어)일 때만 보인다. 고객방은 늘 끔.
+  const showAutoJoin = projectId != null && projectId > 0 && clientId == null && !guestLinkRoom && canManageProjectMembersOf(user);
   const sameLang = langA === langB;
   // 새 프로젝트 모드는 이름 필수
   const newProjectValid = projectId !== -1 || newProjectName.trim().length > 0;
@@ -174,6 +182,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
         auto_extract_enabled: autoExtract,
         translation_enabled: translationOn,
         translation_languages: translationOn ? [langA, langB] : null,
+        project_auto_join: showAutoJoin && autoJoin,
       });
     } finally {
       setSubmitting(false);
@@ -243,7 +252,7 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
             />
             {onAddClient && clientId == null && (
               <AddClientLink type="button" data-testid="newchat-add-client"
-                onClick={() => onAddClient({ title, projectId, newProjectName, participantIds, guestLinkRoom, autoExtract, translationOn, langA, langB })}>
+                onClick={() => onAddClient({ title, projectId, newProjectName, participantIds, guestLinkRoom, autoExtract, translationOn, langA, langB, autoJoin })}>
                 {t('newChat.addClient')}
               </AddClientLink>
             )}
@@ -311,6 +320,20 @@ const NewChatModal: React.FC<Props> = ({ businessId, open, preselectedProjectId,
               </ToggleSwitch>
             </ToggleLine>
           </Field>
+
+          {showAutoJoin && (
+            <Field>
+              <Label>{t('newChat.autoJoin', '프로젝트 멤버 자동 참여')}</Label>
+              <Hint>{t('newChat.autoJoinHint', '켜면 지금 프로젝트 멤버 모두와, 앞으로 프로젝트에 추가되는 멤버가 이 대화에 들어옵니다. 끄면 아래에서 고른 사람만 들어옵니다.')}</Hint>
+              <ToggleLine>
+                <ToggleSwitch>
+                  <input type="checkbox" role="switch" aria-checked={autoJoin} data-testid="newchat-toggle-auto_join"
+                    checked={autoJoin} onChange={(e) => setAutoJoin(e.target.checked)} />
+                  <span>{t('newChat.autoJoinEnable', '프로젝트 멤버 모두 들어오기')}</span>
+                </ToggleSwitch>
+              </ToggleLine>
+            </Field>
+          )}
 
           <Field>
             <Label>{t('newChat.members', '참여자')}</Label>

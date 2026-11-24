@@ -1417,7 +1417,8 @@ router.get('/:id/conversations', authenticateToken, async (req, res, next) => {
     const scope = await getUserScope(req.user.id, project.business_id);
     const ok = await Promise.all(convs.map((c) => canAccessConversation(req.user.id, c, scope)));
     convs = convs.filter((_, i) => ok[i]);
-    return successResponse(res, convs.map((c) => c.toJSON()));
+    // 고객 응답에는 «자동 참여» 칸을 싣지 않는다(2026-11-24 Fable 판정 1)
+    return successResponse(res, convs.map((c) => { const j = c.toJSON(); if (role === 'client') delete j.project_auto_join; return j; }));
   } catch (err) { next(err); }
 });
 
@@ -1438,7 +1439,7 @@ router.post('/conversations/:id/unlink', authenticateToken, async (req, res, nex
     if (role === 'client') return errorResponse(res, 'forbidden', 403);
 
     const prevProjectId = conv.project_id;
-    await conv.update({ project_id: null });
+    await conv.update({ project_id: null, project_auto_join: false });   // 프로젝트 없는 방은 늘 0
     require('../services/auditService').logAudit(req, {
       action: 'conversation.unlink_project',
       targetType: 'conversation',
