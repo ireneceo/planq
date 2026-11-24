@@ -87,7 +87,11 @@ const WorkspaceSyncGuard: React.FC = () => {
     const off = onSocket<{ business_id?: number }>('permissions:updated', (d) => {
       if (Number(d?.business_id) === Number(bizRef.current)) void refreshUserRef.current();
     });
-    return () => { off(); };
+    // 관리자가 내 «출퇴근 기록» 을 켜고 껐다(services/attendanceTracking) — /me 의 attendance_tracked 로 위젯·묻기 창이 따라간다.
+    const offT = onSocket<{ business_id?: number }>('attendance:tracking', (d) => {
+      if (Number(d?.business_id) === Number(bizRef.current)) void refreshUserRef.current();
+    });
+    return () => { off(); offT(); };
   }, [user?.id]);
 
   // ④ 서버가 "이 창은 옛 워크스페이스" 라고 답했다(409 workspace_stale — 전파 이벤트를 놓친 창).

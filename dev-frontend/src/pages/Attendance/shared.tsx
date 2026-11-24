@@ -18,7 +18,7 @@ export interface Balance {
   /** 종류별(2026-10-22) — 서버 getBalance 한 벌 */
   by_type?: import('./LeaveBalanceParts').TypeBalance[];
 }
-export interface PresenceRow { user_id: number; state: string | null; on_leave_today: boolean; /** 관리자 응답에만 — 오늘 지각·미출근 */ punct_today?: 'late' | 'missing' | string | null }
+export interface PresenceRow { user_id: number; state: string | null; on_leave_today: boolean; /** false = 이 워크스페이스에서 «출퇴근 안 함» */ tracked?: boolean; /** 관리자 응답에만 — 오늘 지각·미출근 */ punct_today?: 'late' | 'missing' | string | null }
 export interface StatRow {
   user_id: number; department_id: number | null;
   work_days: number; work_hours: number; break_hours: number; overtime_hours: number;

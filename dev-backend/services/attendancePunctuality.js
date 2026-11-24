@@ -141,15 +141,19 @@ async function judgeDays({ businessId, userIds = null, from, to, now = new Date(
   };
   if (userIds) memberWhere.user_id = { [Op.in]: userIds };
   const members = await BusinessMember.unscoped().findAll({
-    where: memberWhere, attributes: ['user_id', 'joined_at', 'created_at', 'removed_at'],
+    where: memberWhere, attributes: ['user_id', 'joined_at', 'created_at', 'removed_at', 'attendance_tracked_since'],
   });
-  const uids = members.map((m) => m.user_id);
+  // «출퇴근 안 함» 인 사람은 판정하지 않는다 — 지난 날짜까지(설계 D7 · services/attendanceTracking).
+  const untracked = await require('./attendanceTracking').untrackedSet(businessId);
+  const uids = members.map((m) => m.user_id).filter((uid) => !untracked.has(uid));
   if (!uids.length) return { anyFixed: true, results, dayIdOf, tz, today };
   const memberSpan = new Map(members.map((m) => {
     const joined = m.joined_at || m.created_at || m.get?.('created_at');
     return [m.user_id, {
       // 합류한 다음 날부터 판정(합류 당일은 시작 시각을 알 수 없다 · §3.1)
-      from: joined ? addDaysStr(dateStrInTz(joined, tz), 1) : null,
+      //   다시 켠 사람은 켠 다음 날부터(services/attendanceTracking.trackedFromOf · 꺼 둔 동안이 미출근으로 뜨지 않게)
+      from: [joined ? addDaysStr(dateStrInTz(joined, tz), 1) : null, require('./attendanceTracking').trackedFromOf(m)]
+        .filter(Boolean).sort().pop() || null,
       until: m.removed_at ? dateStrInTz(m.removed_at, tz) : null,
     }];
   }));
@@ -251,6 +255,7 @@ module.exports = {
 async function todayView(businessId, userId) {
   const tz = await S.tzOf(businessId);
   const today = dateStrInTz(new Date(), tz);
+  if (!(await require('./attendanceTracking').isTracked(businessId, userId))) return { schedule: null, punct: null };   // 출퇴근 안 함 — 기준 시각도 없다
   const r = S.resolveFrom(await S.loadAll(businessId), userId, today);
   if (r.mode !== 'fixed' || !r.row) return { schedule: null, punct: null };
   const { results } = await judgeDays({ businessId, userIds: [userId], from: today, to: today });

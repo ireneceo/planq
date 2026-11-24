@@ -924,7 +924,9 @@ async function getHrSnapshot({ businessId, userId, scope, businessTimezone }) {
     const today = todayStr(businessTimezone);
     const out = { today, me: {}, team: null };
 
-    const mine = await AttendanceDay.findOne({
+    // «출퇴근 안 함» 인 사람 — 출근 칸 자체를 빼고 그렇다고 적는다(«아직 출근 안 하셨어요» 라고 말하지 않게 · Fable 판정 5).
+    out.me.not_tracked = !(await require('./attendanceTracking').isTracked(businessId, userId));
+    const mine = out.me.not_tracked ? null : await AttendanceDay.findOne({
       where: { business_id: businessId, user_id: userId, work_date: today },
       attributes: ['state', 'clock_in_at', 'clock_out_at', 'work_total_sec', 'break_total_sec'],
     });
@@ -1309,7 +1311,8 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
         });
       } catch { return new Date(v).toISOString().slice(11, 16); }
     };
-    parts.push(at
+    if (hr.me?.not_tracked) parts.push('- 나: 이 워크스페이스에서는 출퇴근을 기록하지 않는 사람이다(대표·관리자가 «출퇴근 안 함» 으로 정함) — 출근 여부를 말하지 않는다');
+    else parts.push(at
       ? `- 나: ${label('attendance', at.state) || at.state} · 출근 ${hhmm(at.clock_in_at)}`
         + `${at.clock_out_at ? ` · 퇴근 ${hhmm(at.clock_out_at)}` : ''}`
         + ` · 근무 ${Math.floor((at.work_minutes || 0) / 60)}시간 ${(at.work_minutes || 0) % 60}분`

@@ -95,6 +95,12 @@ BusinessMember.init({
     type: DataTypes.STRING(50),
     allowNull: true,
   },
+  // 근태 대상 여부 — false = 이 워크스페이스에서 이 사람은 출퇴근을 기록하지 않는다(출근 묻기·자동 출근·위젯·지각/미출근 판정 없음).
+  //   바로 적용(효력일 이력 아님 — 판정 규칙이 아니라 «기록을 만들지 말지»). 읽기·쓰기는 services/attendanceTracking 한 곳.
+  //   운영 칸은 scripts/migrate-attendance-tracked.js(배포 슬롯 — 모델이 SELECT 하므로 코드보다 먼저). docs/ATTENDANCE_MEMBER_TRACKING_DESIGN.md
+  attendance_tracked: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  // 다시 켠 날(워크스페이스 날짜) — 판정은 그 다음 날부터(꺼 둔 동안이 미출근으로 뜨지 않게 · Fable 설계 판정 2). NULL = 처음부터 켜짐.
+  attendance_tracked_since: { type: DataTypes.DATEONLY, allowNull: true },
   // ─── 가용시간 설정 ───
   daily_work_hours: {
     type: DataTypes.DECIMAL(4, 1),

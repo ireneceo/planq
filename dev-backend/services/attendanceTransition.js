@@ -262,6 +262,29 @@ async function clockOut({ businessId, userId, actorUserId, source = 'user', at =
 }
 
 /**
+ * 열린 하루를 닫기만 한다 — 업무 측정(FocusSession)은 건드리지 않는다.
+ *   «출퇴근 안 함» 으로 바꿀 때(services/attendanceTracking.setTracked) 쓴다. clockOut() 은 범위 없이 stopActiveFocus 를 불러
+ *   다른 워크스페이스 업무 측정까지 끊는다(Fable 설계 판정 1). source admin_fix + 고정 사유. 이미 닫혔으면 null.
+ */
+async function closeOpenDayQuietly({ dayId, at, actorUserId, fixReason }) {
+  const t = await sequelize.transaction();
+  try {
+    const day = await AttendanceDay.findByPk(dayId, { transaction: t, lock: t.LOCK.UPDATE });
+    if (!day || (day.state !== 'working' && day.state !== 'on_break')) { await t.rollback(); return null; }
+    const before = { state: day.state, work_total_sec: day.work_total_sec };
+    await appendEvent({ day, kind: 'clock_out', at, source: 'admin_fix', actorUserId, fixReason }, t);
+    if (actorUserId !== day.user_id) await day.update({ admin_fixed: true }, { transaction: t });
+    await recomputeDay(day.id, t);
+    await t.commit();
+    await day.reload();
+    await audit({ action: 'attendance.admin_fix', day, actorUserId, oldValue: before,
+      newValue: { state: day.state, work_total_sec: day.work_total_sec, fix_reason: fixReason, at } });
+    broadcast(day);
+    return day;
+  } catch (err) { await t.rollback().catch(() => null); throw err; }
+}
+
+/**
  * 관리자 정정 — 원장에 admin_fix event 들을 얹고 다시 접는다. 기존 row 는 고치지 않는다.
  * events: [{kind, at}] · fixReason 필수.
  */
@@ -366,6 +389,8 @@ async function autoClockInOnFocus({ businessId, userId }) {
   try {
     // 근태·휴가 기능이 꺼진 워크스페이스는 근무 기록을 만들지 않는다(services/modules).
     if (!(await require('./modules').moduleOnFor(businessId, 'attendance'))) return null;
+    // 이 워크스페이스에서 «출퇴근 안 함» 인 사람은 업무를 시작해도 출근을 찍지 않는다(services/attendanceTracking).
+    if (!(await require('./attendanceTracking').isTracked(businessId, userId))) return null;
     // 자정을 넘겨 일하던 중이면 어제를 24:00 에 닫고 오늘을 00:00 에 연다 — 그 뒤엔 아래가 «이미 근무중» 으로 끝난다.
     await ensureMidnightSplit({ businessId, userId }).catch((e) => console.warn('[attendance midnight split]', e.message));
     const u = await User.findByPk(userId, { attributes: ['id', 'auto_clock_in_on_focus'] });
@@ -440,6 +465,8 @@ async function ensureMidnightSplit({ businessId, userId, now = new Date() }) {
     attributes: ['id', 'state'],
   });
   if (!peek || peek.state !== 'working') return null;
+  // «출퇴근 안 함» 인 사람은 오늘 행을 새로 열지 않는다 — 어제 열린 행은 자동 마감이 닫는다(services/attendanceTracking).
+  if (!(await require('./attendanceTracking').isTracked(businessId, userId))) return null;
   const midnight = startOfDayInTz(today, tz);
   if (!(await stillWorkingAcrossMidnight({ businessId, userId, midnight, now }))) return null;
 
@@ -567,7 +594,7 @@ async function undoAutoClockIn({ businessId, userId }) {
 
 module.exports = {
   AttendanceError,
-  clockIn, breakStart, breakEnd, clockOut, applyAdminFix,
+  clockIn, breakStart, breakEnd, clockOut, applyAdminFix, closeOpenDayQuietly,
   recomputeDay, foldEvents, liveTotals,
   autoClockInOnFocus, stopActiveFocus, pauseActiveFocus,
   autoClockInNotice, undoAutoClockIn,

@@ -2,7 +2,7 @@
 //
 //   결정: 워크스페이스 멤버 전원이 서로의 **상태만** 본다(시각·기록 없음) · 고객에게는 안 보인다.
 //   재는 것:
-//     서버 — 멤버 200 + 응답 키가 정확히 user_id·state·on_leave_today(시각이 섞이면 실패) · 임시 고객 403
+//     서버 — 멤버 200 + 응답 키가 정확히 user_id·state·on_leave_today·tracked(시각이 섞이면 실패 · tracked = 멤버별 «출퇴근 안 함», 2026-11-24) · 임시 고객 403
 //     화면 — 폰·태블릿·데스크탑 3폭: 사이드바 «팀 N명 근무 중» 줄이 **보이고** 누르면 목록이 뜬다(좌표·가시성)
 //     실시간 — 다른 멤버가 출근하면 **새로고침 없이** 목록·숫자가 바뀐다(음성 대조군: 출근 전엔 근무중 아님)
 //     채팅 — 그 멤버 이름 옆 점(고객 화면에는 없음)은 판정이 데이터 의존이라 참고로만 센다
@@ -70,7 +70,10 @@ async function run() {
     // ── 서버
     const m = await call(owner.id, `/api/attendance/presence?business_id=${biz}`);
     const keys = [...new Set((m.body?.data || []).flatMap((r) => Object.keys(r)))].sort().join(',');
-    push('서버: 멤버 200 · 키는 상태뿐(시각 없음)', m.status === 200 && keys === 'on_leave_today,state,user_id', `${m.status} ${keys}`);
+    // 관리자(이 카나리의 계정)는 오늘 지각·미출근 칸 punct_today 를 더 받는다(고정 근무 일정 45ac5f8f · 멤버 응답엔 없음). 그 밖의 키(시각 등)는 실패.
+    const allowed = new Set(['on_leave_today', 'punct_today', 'state', 'tracked', 'user_id']);
+    const keyList = keys.split(',').filter(Boolean);
+    push('서버: 멤버 200 · 키는 상태뿐(시각 없음)', m.status === 200 && ['on_leave_today', 'state', 'tracked', 'user_id'].every((k) => keyList.includes(k)) && keyList.every((k) => allowed.has(k)), `${m.status} ${keys}`);
     if (cli) {
       const c = await call(cli.user_id, `/api/attendance/presence?business_id=${biz}`);
       push('서버: 고객 403', c.status === 403, String(c.status));

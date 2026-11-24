@@ -2,6 +2,12 @@
 
 
 
+### 2026-11-24 방 caaeaef5 — 멤버별 «출퇴근 안 함» — 설계 **NEEDS-CHANGE → 6건 반영** · 완료 검증 **PASS**
+- Irene «출퇴근 안하는 그냥 일만 봐주거나 연결되어 있는 경우 … 멤버별로 출퇴근 설정을 다르게 할 수 없어?» · 설계 docs/ATTENDANCE_MEMBER_TRACKING_DESIGN.md
+- 설계 지적 6: ①끄기 닫기가 clockOut 이면 다른 워크스페이스 업무 측정이 끊김 → closeOpenDayQuietly ②다시 켜면 거짓 미출근 → attendance_tracked_since ③presence 행 빼면 «미출근» 점 → tracked:false ④활동 흔적(markSeen·touch·prompt-answer) ⑤Cue 문맥 ⑥관리자 본인 변경 금지
+- 완료 검증: Fable 실HTTP 39/39 · 작업 방 34/34 + 관리자 본인 403 · health 101/101 · guard 86/87 · build EXIT 0 · e2e attntracking 3폭 21/21 · teampresence 0
+- 비차단 반영: /stats tracked 칸 · dev 시험 잔여 since NULL · D7 문장 정정. 남김: untrackedSet/isTracked 범위 차이(유니크 키라 영향 없음)
+
 ### 2026-11-20 방 b6a57761 — 근태 출근 묻기·본인 수정 표시·관리자 확인/승인 — 설계 **DESIGN-READY** · 완료 검증 1차 **FAIL** → 재판정 **PASS** (e3602efd · 02b6d40e)
 - Irene «그 날 솔루션에서 소통하거나 뭔가 하면 너 출근했냐고 물어보면 안돼? … 몇 시부터인지 표시하고 수정도 … 수정한 거 확인하는 걸 관리자가 체크 … 설정에서 승인할지 말지» · 설계 docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md · Irene «권고대로»
 - 1차 FAIL: B1 승인 대기 값 무검사(승인 불가 요청·40일 전 시각) · B2 fix-close 가 정상 마감 날·다음 날 시각 받음(30.4h) · B3 관리자 자기 «확인함» · 비차단 동시 대기 2건·퇴근 뒤 observed/at

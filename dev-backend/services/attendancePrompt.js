@@ -59,6 +59,7 @@ function touch(businessId, userId, now = new Date()) {
   (async () => {
     const { moduleOnFor } = require('./modules');
     if (!(await moduleOnFor(b, 'attendance'))) return;
+    if (!(await require('./attendanceTracking').isTracked(b, u))) return;   // 출퇴근 안 함 — 활동 흔적도 남기지 않는다(Fable 판정 4)
     const tz = await tzOf(b);
     const workDate = dateStrInTz(now, tz);
     const row = await findOrCreateRow({ businessId: b, userId: u, workDate });
@@ -157,6 +158,10 @@ function snoozed(row, now) {
 async function promptFor({ businessId, userId, day, now = new Date() }) {
   const u = await User.findByPk(userId, { attributes: ['id', 'attendance_prompt_on'] });
   if (!u || u.attendance_prompt_on === false) return { prompt: null, close_check: null, prompt_status: { state: 'off' } };
+  // 이 워크스페이스에서 «출퇴근 안 함» — 출근도 어제 퇴근 확인도 묻지 않는다(services/attendanceTracking).
+  if (!(await require('./attendanceTracking').isTracked(businessId, userId))) {
+    return { prompt: null, close_check: null, prompt_status: { state: 'not_tracked' } };
+  }
   const tz = await tzOf(businessId);
   const workDate = dateStrInTz(now, tz);
   const row = await AttendanceActivity.findOne({

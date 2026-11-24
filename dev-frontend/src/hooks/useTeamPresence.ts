@@ -14,7 +14,8 @@ import { apiFetch } from '../contexts/AuthContext';
 import { onSocket, joinRoom, leaveRoom } from '../services/socket';
 import { ATTENDANCE_REFRESH_EVENT } from './useAttendance';
 
-export type PresenceState = 'working' | 'on_break' | 'done' | 'none' | 'leave';
+// untracked = 이 워크스페이스에서 «출퇴근 안 함» 인 사람(서버 tracked:false) — 미출근이 아니다. 점을 찍지 않는다(휴가는 그대로 leave).
+export type PresenceState = 'working' | 'on_break' | 'done' | 'none' | 'leave' | 'untracked';
 export interface Presence { state: PresenceState }
 
 export type PresenceStore = { map: Map<number, Presence>; loaded: boolean; forbidden: boolean };
@@ -28,9 +29,10 @@ const EMPTY: PresenceStore = { map: new Map(), loaded: false, forbidden: false }
 
 function emit(biz: number) { (subs.get(biz) || new Set()).forEach((f) => f()); }
 
-function toState(row: { state: string | null; on_leave_today: boolean }): PresenceState {
+function toState(row: { state: string | null; on_leave_today: boolean; tracked?: boolean }): PresenceState {
   // 휴가가 근무 기록보다 앞선다 — 휴가인데 실수로 출근이 찍혀도 동료에게 필요한 정보는 «오늘 휴가» 다
   if (row.on_leave_today) return 'leave';
+  if (row.tracked === false) return 'untracked';
   if (row.state === 'working' || row.state === 'on_break' || row.state === 'done') return row.state;
   return 'none';
 }
@@ -123,5 +125,5 @@ export function useTeamPresence(bizId: number | null | undefined): PresenceStore
 
 /** 상태 점 색 — 사이드바 요약(SidebarStatusSummary)의 DOT 과 같은 값 + 휴가 */
 export const PRESENCE_DOT: Record<PresenceState, string> = {
-  working: '#5EEAD4', on_break: '#FCD34D', done: '#94A3B8', none: '#CBD5E1', leave: '#C4B5FD',
+  working: '#5EEAD4', on_break: '#FCD34D', done: '#94A3B8', none: '#CBD5E1', leave: '#C4B5FD', untracked: 'transparent',
 };

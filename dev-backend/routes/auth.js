@@ -196,6 +196,10 @@ const getUserWithBusiness = async (userId, opts = {}) => {
         ? await require('../services/payrollAccess').canManagePayroll(user.id, activeWs_.business_id, user.platform_role, bizRow)
         : false;
     } catch (e) { userData.modules = null; userData.can_manage_payroll = false; console.warn('[auth] modules failed:', e.message); }
+    // 이 워크스페이스에서 출퇴근을 기록하는가(멤버별 «출퇴근 안 함» — services/attendanceTracking). false 면 출퇴근 위젯·묻기 창이 숨는다.
+    try {
+      userData.attendance_tracked = await require('../services/attendanceTracking').isTracked(activeWs_.business_id, user.id);
+    } catch (e) { userData.attendance_tracked = true; console.warn('[auth] attendance_tracked failed:', e.message); }
     userData.workspace_timezone = activeWs_.timezone;
     userData.workspace_reference_timezones = activeWs_.reference_timezones || [];
     // 워크스페이스 컨텍스트의 표시명 — 사이드바 등 UI 가 active workspace 의 이름을 보여주도록.
@@ -212,6 +216,7 @@ const getUserWithBusiness = async (userId, opts = {}) => {
     userData.nav_prefs = null;
     userData.table_prefs = null;
     userData.modules = null;
+    userData.attendance_tracked = true;
     userData.can_manage_payroll = false;
     userData.display_name = user.name;
     userData.display_name_localized = user.name_localized || null;

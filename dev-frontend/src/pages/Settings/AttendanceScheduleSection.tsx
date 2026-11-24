@@ -13,6 +13,7 @@ import SingleDateField from '../../components/Common/SingleDateField';
 import WeekHoursEditor, { DEFAULT_WEEK_HOURS, WEEK_DAYS, readWeekHours, type WeekHours } from '../../components/Common/WeekHoursEditor';
 import { onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
+import MemberTrackingSwitch from './MemberTrackingSwitch';
 
 interface SchedRow {
   id: number; user_id: number | null; effective_from: string; mode: 'flex' | 'fixed' | 'inherit' | string;
@@ -21,7 +22,7 @@ interface SchedRow {
 interface SchedData {
   today: string;
   workspace: { current: SchedRow | null; upcoming?: SchedRow | null };
-  members?: { user_id: number; current: SchedRow | null; upcoming: SchedRow | null; effective: string }[];
+  members?: { user_id: number; current: SchedRow | null; upcoming: SchedRow | null; effective: string; tracked?: boolean }[];
 }
 interface Props { businessId: number; members: { user_id: number; name: string }[] }
 
@@ -199,16 +200,22 @@ export default function AttendanceScheduleSection({ businessId, members }: Props
             <MemberRow key={m.user_id} data-testid={`attn-schedule-member-${m.user_id}`}>
               <MemberHead>
                 <MemberName>{nameOf(m.user_id)}</MemberName>
-                <MemberDesc>
-                  {m.current ? describe(m.current) : t('schedule.member.inherit')}
-                  {m.upcoming && ` → ${t('schedule.upcoming', { date: m.upcoming.effective_from })}: ${describe(m.upcoming)}`}
+                <MemberDesc data-testid="attn-schedule-member-desc">
+                  {m.tracked === false ? t('tracking.offDesc') : <>
+                    {m.current ? describe(m.current) : t('schedule.member.inherit')}
+                    {m.upcoming && ` → ${t('schedule.upcoming', { date: m.upcoming.effective_from })}: ${describe(m.upcoming)}`}
+                  </>}
                 </MemberDesc>
-                <ActionButton tone="secondary" size="sm" onClick={() => setEditMember(editMember === m.user_id ? null : m.user_id)}
-                  data-testid="attn-schedule-member-edit">
-                  {t('schedule.member.change')}
-                </ActionButton>
+                <MemberTrackingSwitch businessId={businessId} userId={m.user_id} name={nameOf(m.user_id)}
+                  tracked={m.tracked !== false} onChanged={() => { if (editMember === m.user_id) setEditMember(null); void load(); }} />
+                {m.tracked !== false && (
+                  <ActionButton tone="secondary" size="sm" onClick={() => setEditMember(editMember === m.user_id ? null : m.user_id)}
+                    data-testid="attn-schedule-member-edit">
+                    {t('schedule.member.change')}
+                  </ActionButton>
+                )}
               </MemberHead>
-              {editMember === m.user_id && (
+              {editMember === m.user_id && m.tracked !== false && (
                 <MemberEditor businessId={businessId} userId={m.user_id} tomorrow={tomorrow}
                   base={m.upcoming || m.current} wsHours={hours}
                   onDone={async () => { setEditMember(null); await load(); }}
@@ -310,7 +317,8 @@ const LinkBtn = styled.button`
 `;
 const Sub = styled.div`margin-top: 6px; font-size: 0.8125rem; font-weight: 700; color: #0F172A;`;
 const MemberRow = styled.div`border: 1px solid #F1F5F9; border-radius: 10px; padding: 8px 12px;`;
-const MemberHead = styled.div`display: flex; align-items: center; gap: 10px; min-height: 36px;`;
+const MemberHead = styled.div`display: flex; align-items: center; gap: 10px; min-height: 36px; flex-wrap: wrap;
+  @media (max-width: 640px) { gap: 6px 10px; }`;
 const MemberName = styled.div`flex: 0 0 auto; font-size: 0.8125rem; font-weight: 600; color: #0F172A;`;
-const MemberDesc = styled.div`flex: 1; min-width: 0; font-size: 0.75rem; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
+const MemberDesc = styled.div`flex: 1 1 160px; min-width: 0; font-size: 0.75rem; color: #64748B; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const Editor = styled.div`display: flex; flex-direction: column; gap: 10px; padding: 10px 0 4px;`;

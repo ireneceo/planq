@@ -6,6 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
+import { attendanceTrackedHere } from '../../utils/workspaceModules';
 import { useAuth } from '../../contexts/AuthContext';
 import { useAttendance } from '../../hooks/useAttendance';
 import { formatClock } from '../../utils/dateFormat';
@@ -24,7 +25,8 @@ const SidebarStatusSummary: React.FC<{ workspaceTz?: string; onOpen: () => void 
   const { t: ta } = useTranslation('attendance');
   const { user } = useAuth();
   const isClient = user?.business_role === 'client';
-  const bizId = (!isClient && user?.business_id) ? Number(user.business_id) : null;
+  // 근태 꺼짐·«출퇴근 안 함» 이면 시계만(근무 상태 칸 없음 — utils/workspaceModules.attendanceTrackedHere)
+  const bizId = (!isClient && attendanceTrackedHere(user)) ? Number(user!.business_id) : null;
   const a = useAttendance(bizId);
   const [now, setNow] = useState(() => hhmm(workspaceTz));
   useEffect(() => {

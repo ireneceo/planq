@@ -9,7 +9,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../contexts/AuthContext';
-import { attendanceOn } from '../../utils/workspaceModules';
+import { attendanceTrackedHere } from '../../utils/workspaceModules';
 import { isPopoutWindow } from '../../utils/popout';
 import { useAttendance } from '../../hooks/useAttendance';
 import StandardModal from '../Common/StandardModal';
@@ -39,7 +39,7 @@ const AttendancePromptHost: React.FC = () => {
   const { t } = useTranslation('attendance');
   const { user } = useAuth();
   const staff = !!user && user.business_role !== 'client';
-  const bizId = (staff && user?.business_id && attendanceOn(user?.modules) && !isPopoutWindow()) ? Number(user.business_id) : null;
+  const bizId = (staff && attendanceTrackedHere(user) && !isPopoutWindow()) ? Number(user!.business_id) : null;   // «출퇴근 안 함» 이면 묻지 않는다
   const a = useAttendance(bizId);
 
   const [inEdit, setInEdit] = useState<string | null>(null);     // 출근 시각 고치기 칸(HH:MM)

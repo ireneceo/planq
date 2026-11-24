@@ -1884,7 +1884,7 @@ const ChatPanel: React.FC<Props> = ({
                   {(m.sender_role === 'owner' || m.sender_role === 'member') && (() => {
                     const st = presence.map.get(Number(m.sender_id))?.state;
                     // 미출근은 점을 찍지 않는다 — 근태를 안 쓰는 워크스페이스에선 모두가 회색 점이 되어 소음이다
-                    if (!st || st === 'none') return null;
+                    if (!st || st === 'none' || st === 'untracked') return null;   // «출퇴근 안 함» 도 점 없음
                     const label = tAtt(`state.${st}`) as string;
                     return <PresenceDot data-testid="chat-presence-dot" style={{ background: PRESENCE_DOT[st] }} title={label} aria-label={label} role="img" />;
                   })()}

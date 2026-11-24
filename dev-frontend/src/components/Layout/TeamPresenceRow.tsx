@@ -13,7 +13,7 @@ import { listMembers, type WorkspaceMember } from '../../services/workspace';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import LetterAvatar from '../Common/LetterAvatar';
 
-const ORDER: Record<PresenceState, number> = { working: 0, on_break: 1, leave: 2, done: 3, none: 4 };
+const ORDER: Record<PresenceState, number> = { working: 0, on_break: 1, leave: 2, done: 3, none: 4, untracked: 5 };
 
 function memberName(m: WorkspaceMember, lang: string): string {
   const u = m.user;
@@ -101,7 +101,7 @@ const TeamPresenceRow: React.FC = () => {
               <Item key={m.id} data-testid="team-presence-item">
                 <LetterAvatar name={memberName(m, i18n.language)} src={m.user?.avatar_url || undefined} size={24} />
                 <Name>{memberName(m, i18n.language)}</Name>
-                <St><Dot style={{ background: PRESENCE_DOT[st] }} aria-hidden="true" />{t(`state.${st}`) as string}</St>
+                <St data-state={st}>{st !== 'untracked' && <Dot style={{ background: PRESENCE_DOT[st] }} aria-hidden="true" />}{t(`state.${st}`) as string}</St>
               </Item>
             ))}
           </List>

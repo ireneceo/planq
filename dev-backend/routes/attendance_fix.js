@@ -124,6 +124,7 @@ router.post('/prompt-answer', authenticateToken, fixLimiter, async (req, res, ne
     const businessId = Number(req.body.business_id);
     const scope = await requireMember(req, res, businessId);
     if (!scope) return;
+    if (!(await require('../services/attendanceTracking').isTracked(businessId, req.user.id))) return errorResponse(res, 'attendance_not_tracked', 403);
     const r = await P.answerPrompt({ businessId, userId: req.user.id, answer: req.body.answer });
     pingSelf(req.user.id);
     return successResponse(res, r);

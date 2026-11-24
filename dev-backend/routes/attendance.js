@@ -17,6 +17,7 @@ const { AttendanceDay, AttendanceEvent, User, BusinessMember, LeaveRequest } = r
 const A = require('../services/attendanceTransition');
 const F = require('../services/attendanceFix');
 const PU = require('../services/attendancePunctuality');   // 고정 근무 지각·미출근 판정(유연이면 null) — docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md
+const TR = require('../services/attendanceTracking');   // 멤버별 «출퇴근 안 함» — docs/ATTENDANCE_MEMBER_TRACKING_DESIGN.md
 const { ymd } = require('../utils/datetime');
 
 const clockLimiter = rateLimit({
@@ -39,6 +40,8 @@ router.get('/today', authenticateToken, async (req, res, next) => {
     const scope = await requireMember(req, res, businessId);
     if (!scope) return;
     const workDate = await A.todayFor(businessId);
+    // «출퇴근 안 함» — 자정 분할·첫 진입·묻기·판정 전에 끝낸다(활동 흔적도 남기지 않는다 · Fable 판정 4).
+    if (!(await TR.isTracked(businessId, req.user.id))) return successResponse(res, TR.notTrackedToday(workDate));
     let day = await AttendanceDay.findOne({
       where: { business_id: businessId, user_id: req.user.id, work_date: workDate },
     });
@@ -58,7 +61,8 @@ router.get('/today', authenticateToken, async (req, res, next) => {
     // 화면이 정정 창 안내 문구(«바로 반영» / «승인 뒤 반영»)를 고르는 값 — 설정 «본인 수정은 승인 후 반영».
     const fixApproval = await require('../services/attendanceFix').approvalOn(businessId);
     const punctView = await PU.todayView(businessId, req.user.id);   // { schedule, punct } — 본인 응답에만
-    if (!day) return successResponse(res, { work_date: workDate, state: null, day: null, fix_approval: fixApproval, ...punctView, ...asks });
+    const tracked = true;   // «출퇴근 안 함» 은 위에서 이미 돌려보냈다
+    if (!day) return successResponse(res, { work_date: workDate, state: null, day: null, tracked, fix_approval: fixApproval, ...punctView, ...asks });
     const live = await A.liveTotals(day);
     // #208 — 자동으로 출근 처리된 경우 그 사실을 화면에 알린다.
     //   시스템이 사용자 대신 상태를 바꿨으면 **말없이 두지 않는다** — 나중에 기록을 보고
@@ -72,12 +76,14 @@ router.get('/today', authenticateToken, async (req, res, next) => {
     }
     return successResponse(res, {
       work_date: workDate, state: day.state, day: { ...serializeDay(day, live), self_fix: (await F.selfFixOf([day.id])).get(day.id) || null },
-      auto_notice: auto, fix_approval: fixApproval, ...punctView, ...asks,
+      auto_notice: auto, tracked, fix_approval: fixApproval, ...punctView, ...asks,
     });
   } catch (err) { next(err); }
 });
 
 // ─── 전이 4종 ───────────────────────────────────────────────────
+// «출퇴근 안 함» 은 새 근무를 여는 두 전이(출근·휴게 시작)만 막는다 — 퇴근·휴게 끝은 열린 행을 닫는 길이라 둔다(설계 D6).
+const opensWork = (fn) => fn === A.clockIn || fn === A.breakStart;
 // 본문은 한 벌이지만 **등록은 네 줄 그대로** 쓴다. 래퍼 안에 경로를 숨기면
 //   grep 으로도 정적 검사(scripts/guard-invariants spalink)로도 이 경로가 보이지 않는다.
 function clockHandler(fn) {
@@ -86,6 +92,7 @@ function clockHandler(fn) {
       const businessId = Number(req.body.business_id);
       const scope = await requireMember(req, res, businessId);
       if (!scope) return;
+      if (opensWork(fn) && !(await TR.isTracked(businessId, req.user.id))) return errorResponse(res, 'attendance_not_tracked', 403);
       const day = await fn({ businessId, userId: req.user.id, actorUserId: req.user.id });
       const live = await A.liveTotals(day);
       return successResponse(res, serializeDay(day, live));
@@ -106,6 +113,7 @@ router.post('/clock-in', authenticateToken, clockLimiter, async (req, res, next)
     const businessId = Number(req.body.business_id);
     const scope = await requireMember(req, res, businessId);
     if (!scope) return;
+    if (!(await TR.isTracked(businessId, req.user.id))) return errorResponse(res, 'attendance_not_tracked', 403);
     const P = require('../services/attendancePrompt');
     const now = new Date();
     // observed/at 는 **오늘 행이 없을 때만**(묻는 창의 조건) — 퇴근 뒤 재출근에 과거 시각을 붙이면 «원래 값» 이 거짓이 된다(Fable 비차단).
@@ -221,7 +229,9 @@ router.get('/presence', authenticateToken, async (req, res, next) => {
     });
     // 관리자만 오늘 지각·미출근 표시(§6 — 멤버 응답에는 칸 자체가 없다)
     const flags = isManager(scope) ? await PU.todayFlags(businessId) : null;
-    const out = members.map((m) => ({ ...serializePresence(m.user_id, byUser.get(m.user_id) || null, onLeave.has(m.user_id)), ...(flags ? { punct_today: flags.get(m.user_id) || null } : {}) }));
+    const untracked = await TR.untrackedSet(businessId);   // 행은 남기되 tracked:false(상태·판정 없음, 휴가만) — 빼면 화면이 «미출근» 점(Fable 판정 3)
+    const out = members.map((m) => (untracked.has(m.user_id) ? { ...serializePresence(m.user_id, null, onLeave.has(m.user_id)), tracked: false }
+      : { ...serializePresence(m.user_id, byUser.get(m.user_id) || null, onLeave.has(m.user_id)), tracked: true, ...(flags ? { punct_today: flags.get(m.user_id) || null } : {}) }));
     return successResponse(res, out);
   } catch (err) { next(err); }
 });
@@ -320,7 +330,7 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
     if (!manager) memberWhere.user_id = req.user.id;
     const members = await BusinessMember.findAll({
       where: memberWhere,
-      attributes: ['user_id', 'daily_work_hours', 'department_id'],
+      attributes: ['user_id', 'daily_work_hours', 'department_id', 'attendance_tracked'],
     });
     const byUser = new Map(members.map((m) => [m.user_id, m]));
 
@@ -414,7 +424,7 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
       overtime_hours: round1(r.overtime_sec / 3600),
       avg_clock_in: avg(r.in_minutes),
       avg_clock_out: avg(r.out_minutes),
-      auto_closed_count: r.auto_closed_count,
+      auto_closed_count: r.auto_closed_count, tracked: byUser.get(r.user_id)?.attendance_tracked !== false,   // false = «출퇴근 안 함»(지각 칸 null 과 구별)
       leave_used_paid: round1(r.leave_used_paid),
       leave_used_unpaid: round1(r.leave_used_unpaid),
       ...PU.statsOf(pj.results, r.user_id, from, to),   // 고정 근무 지각·조퇴·미출근(유연이면 null)

@@ -37,7 +37,8 @@
     "on_break": "On break",
     "done": "Clocked out",
     "none": "Not clocked in",
-    "leave": "On leave"
+    "leave": "On leave",
+    "untracked": "No check-in"
   },
   "my": {
     "weekSummary": "This week {{work}} · break {{brk}} · leave {{leave}}d",
@@ -166,7 +167,8 @@
       "before": "Today we ask when you first come in between {{from}} and {{until}} (from 2 hours before work starts).",
       "after": "Today's asking window ({{from}}–{{until}}) has passed.",
       "error": "Couldn't check whether to ask right now. Please reopen in a moment.",
-      "askAgain": "Ask again"
+      "askAgain": "Ask again",
+      "not_tracked": "You don't clock in at this workspace, so we won't ask."
     }
   },
   "error": {
@@ -182,7 +184,8 @@
     "events_required": "Add at least one time.",
     "invalid_at": "That time is not valid.",
     "timeline_must_start_with_clock_in": "A clock-in time is required — the corrected record must start with one.",
-    "no_workdays_in_range": "There are no workdays in the selected dates (only weekends or holidays)."
+    "no_workdays_in_range": "There are no workdays in the selected dates (only weekends or holidays).",
+    "attendance_not_tracked": "You don't clock in or out at this workspace."
   },
   "stats": {
     "title": "Team stats",
@@ -354,8 +357,8 @@
     "current": "Now",
     "upcoming": "From {{date}}",
     "cancelUpcoming": "Cancel scheduled change",
-    "memberTitle": "Per-person schedule",
-    "memberHint": "Change only people who work differently (owner, staggered hours). Everyone else follows the workspace schedule.",
+    "memberTitle": "Per-person schedule & check-in",
+    "memberHint": "Change only people who work differently (owner, staggered hours). For people who only help out, turn off \"Clock in/out\" — they leave check-in prompts, auto clock-in and late/no-show checks.",
     "member": {
       "inherit": "Follows workspace",
       "flex": "Not applied (flexible)",
@@ -407,6 +410,20 @@
       "out_of_window": "You can add a reason only within 14 days.",
       "self_excuse_not_allowed": "Another admin must excuse your own record.",
       "forbidden": "You don't have permission."
+    }
+  },
+  "tracking": {
+    "label": "Clock in/out",
+    "offDesc": "No check-in — no prompts, auto clock-in or late/no-show checks (leave unchanged)",
+    "selfLocked": "Only the owner can change your own clock in/out setting.",
+    "offConfirmTitle": "Turn off clock in/out for {{name}}?",
+    "offConfirmMsg": "Check-in prompts, auto clock-in, the clock widget and late/no-show marks disappear in this workspace. If they are working now, they are clocked out at the current time. While off, they are left out of late/no-show stats; if turned back on, checks start the next day. Leave and past records stay.",
+    "offConfirm": "Turn off",
+    "myNotice": "You don't clock in or out at this workspace. Leave requests and past records still work.",
+    "error": {
+      "self_change_not_allowed": "Only the owner can change your own clock in/out setting.",
+      "member_not_found": "Not a member of this workspace.",
+      "generic": "Couldn't save. Please try again."
     }
   }
 }

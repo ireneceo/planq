@@ -206,6 +206,7 @@ const SUITES = {
   // 폰 전 화면 — 상단 헤더 통일 · 크롬(헤더+서브헤더+필터) 비율 · 입력 누르기 전/중/후 복원 (2026-09-30)
   mobilesweep: () => require('./canary-mobile-sweep'),
   teampresence: () => require('./canary-team-presence'),   // #429 동료 오늘 상태 — 고객 403·3폭·실시간
+  attntracking: () => require('./canary-attn-tracking'),   // 멤버별 «출퇴근 안 함» — 설정 스위치·확인창·멤버 화면 3폭(2026-11-24)
   landingfirst: () => require('./canary-landing-firstvisit'),   // 공개 페이지 캐시 없는 첫 방문 크래시(returnObjects 레이스)
   marketingtags: () => require('./canary-marketingtags'),   // 랜딩 마케팅 측정(GTM) — 랜딩·가입만 싣기·동의(한국 기본/그 밖 허용 전 0)·범위 밖 새로 읽기·가입 전환 1회·ID 스위치
   landinggnb: () => require('./canary-landing-gnb'),   // 랜딩 상단 메뉴 정리(2026-10-12 Fable) — 메뉴 5·리소스·문의 버튼·시트·소개 순서 4폭 (LGNB_CONTROL=1 대조군)

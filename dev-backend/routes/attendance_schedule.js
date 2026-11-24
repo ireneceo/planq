@@ -15,6 +15,7 @@ const { AttendanceException, Business, BusinessMember } = require('../models');
 const { requireMember, isManager } = require('../services/attendanceAccess');
 const S = require('../services/attendanceSchedule');
 const P = require('../services/attendancePunctuality');
+const TR = require('../services/attendanceTracking');
 const { addDaysStr, dateStrInTz } = require('../utils/datetime');
 
 const writeLimiter = rateLimit({
@@ -75,12 +76,13 @@ router.get('/schedule', authenticateToken, async (req, res, next) => {
     const mine = { mode: r.mode, source: r.source, ...(r.row ? {
       schedule: r.row.schedule, grace_min: r.row.grace_min, half_day_at: r.row.half_day_at, effective_from: r.row.effective_from,
     } : { schedule: null, grace_min: 0, half_day_at: null, effective_from: null }) };
+    mine.tracked = await TR.isTracked(businessId, req.user.id);
     const data = { today, mine, workspace: { current: S.currentOf(rows, null, today) } };
     if (isManager(scope)) {
       data.workspace.upcoming = S.upcomingOf(rows, null, today);
       const members = await BusinessMember.findAll({
         where: { business_id: businessId, removed_at: null, role: { [Op.in]: ['owner', 'admin', 'member'] }, user_id: { [Op.ne]: null } },
-        attributes: ['user_id'],
+        attributes: ['user_id', 'attendance_tracked'],
         limit: 2000,   // 워크스페이스 멤버 수 상한 — 목록이 아니라 설정 화면 한 벌
       });
       data.members = members.map((m) => ({
@@ -88,6 +90,7 @@ router.get('/schedule', authenticateToken, async (req, res, next) => {
         current: S.currentOf(rows, m.user_id, today),
         upcoming: S.upcomingOf(rows, m.user_id, today),
         effective: S.resolveFrom(rows, m.user_id, today).mode,
+        tracked: m.attendance_tracked !== false,   // «출퇴근 기록» 스위치(services/attendanceTracking)
       }));
     }
     return successResponse(res, data);
@@ -125,6 +128,33 @@ router.put('/schedule/members/:userId', authenticateToken, writeLimiter, async (
     audit('attendance.schedule_member_change', { businessId, actorUserId: req.user.id, targetId: row.id, oldValue: prev, newValue: row });
     emitSchedule(businessId);
     return successResponse(res, row);
+  } catch (err) { return sendErr(res, next, err); }
+});
+
+// ─── PUT /members/:userId/tracking — 이 사람 «출퇴근 기록» 켜기/끄기 (관리자 · 바로 적용) ─────
+//   docs/ATTENDANCE_MEMBER_TRACKING_DESIGN.md — 쓰는 문은 services/attendanceTracking.setTracked 한 곳.
+router.put('/members/:userId/tracking', authenticateToken, writeLimiter, async (req, res, next) => { // audit-exempt: 감사는 아래 audit('attendance.tracking_change')
+  try {
+    const businessId = await managerOnly(req, res);
+    if (!businessId) return;
+    const userId = Number(req.params.userId);
+    if (!userId) return errorResponse(res, 'invalid_user', 400);
+    if (typeof req.body?.tracked !== 'boolean') return errorResponse(res, 'invalid_tracked', 400);
+    const scope = await require('../middleware/access_scope').getUserScope(req.user.id, businessId, req.user.role);
+    const r = await TR.setTracked({
+      businessId, userId, tracked: req.body.tracked, actorUserId: req.user.id,
+      actorIsOwner: !!scope.isOwner, actorIsPlatformAdmin: !!scope.isPlatformAdmin,
+    });
+    if (r.changed) {
+      audit('attendance.tracking_change', {
+        businessId, actorUserId: req.user.id, targetId: userId,
+        oldValue: { user_id: userId, tracked: r.prev }, newValue: { user_id: userId, tracked: r.tracked, closed_day_ids: r.closedDayIds },
+      });
+      emitSchedule(businessId);
+      const s = io();
+      if (s) { try { s.to(`user:${userId}`).emit('attendance:tracking', { business_id: businessId }); } catch { /* 신호만 */ } }
+    }
+    return successResponse(res, { user_id: userId, tracked: r.tracked, closed_day_ids: r.closedDayIds });
   } catch (err) { return sendErr(res, next, err); }
 });
 

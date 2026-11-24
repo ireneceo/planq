@@ -108,11 +108,11 @@ export const TeamTab: React.FC<{
         </SectionTitle>
         <PresenceWrap>
           {presence.map((p) => (
-            <PresenceChip key={p.user_id} $state={p.on_leave_today ? 'leave' : p.state}>
-              <Dot $state={p.on_leave_today ? 'leave' : p.state} />
+            <PresenceChip key={p.user_id} data-testid={`attn-presence-${p.user_id}`} data-tracked={p.tracked === false ? '0' : '1'} $state={p.on_leave_today ? 'leave' : p.state}>
+              {p.tracked !== false || p.on_leave_today ? <Dot $state={p.on_leave_today ? 'leave' : p.state} /> : null}
               {nameOf(p.user_id)}
               <PresenceState>
-                {p.on_leave_today ? t('widget.onLeaveToday') : t(`state.${p.state || 'none'}`)}
+                {p.on_leave_today ? t('widget.onLeaveToday') : p.tracked === false ? t('state.untracked') : t(`state.${p.state || 'none'}`)}
               </PresenceState>
               {p.punct_today === 'late' && <PresencePunct $tone="bad">{t('punct.lateShort')}</PresencePunct>}
               {p.punct_today === 'missing' && <PresencePunct $tone="warn">{t('punct.missing')}</PresencePunct>}

@@ -1,5 +1,5 @@
 {
-  "_generated": "2026-11-20",
+  "_generated": "2026-11-24",
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
@@ -92,6 +92,20 @@
       "updated_at",
       "superseded_at"
     ],
+    "attendance_exceptions": [
+      "id",
+      "business_id",
+      "user_id",
+      "work_date",
+      "reason",
+      "reason_at",
+      "excused",
+      "excused_by",
+      "excused_at",
+      "excuse_note",
+      "created_at",
+      "updated_at"
+    ],
     "attendance_fix_requests": [
       "id",
       "business_id",
@@ -106,6 +120,19 @@
       "decided_by",
       "decided_at",
       "decide_note",
+      "created_at",
+      "updated_at"
+    ],
+    "attendance_schedules": [
+      "id",
+      "business_id",
+      "user_id",
+      "effective_from",
+      "mode",
+      "schedule",
+      "grace_min",
+      "half_day_at",
+      "created_by",
       "created_at",
       "updated_at"
     ],
@@ -226,7 +253,9 @@
       "onboarding_dismissed_at",
       "nav_prefs",
       "default_card_id",
-      "table_prefs"
+      "table_prefs",
+      "attendance_tracked",
+      "attendance_tracked_since"
     ],
     "business_plan_history": [
       "id",

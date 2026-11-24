@@ -269,7 +269,11 @@ const AttendancePage: React.FC = () => {
       {tab === 'my' && (
         <>
           <TopRow>
-            <WidgetSlot><AttendanceWidget variant="card" /></WidgetSlot>
+            <WidgetSlot>
+              {user?.attendance_tracked === false
+                ? <NotTracked data-testid="attn-not-tracked">{t('tracking.myNotice')}</NotTracked>
+                : <AttendanceWidget variant="card" />}
+            </WidgetSlot>
             <SummaryChip>
               {t('my.weekSummary', {
                 work: formatHours(weekSummary.work),
@@ -537,4 +541,10 @@ const SettingText = styled.div`
   display: flex; flex-direction: column; gap: 2px; cursor: pointer;
   b { font-size: 0.8125rem; font-weight: 600; color: #0F172A; }
   span { font-size: 0.6875rem; color: #64748B; line-height: 1.45; }
+`;
+
+// «출퇴근 안 함» 안내 — 위젯 자리에 한 줄(휴가 탭·지난 기록은 그대로)
+const NotTracked = styled.div`
+  padding: 14px 16px; border: 1px solid #E2E8F0; border-radius: 12px; background: #F8FAFC;
+  font-size: 0.8125rem; color: #475569; line-height: 1.5;
 `;
