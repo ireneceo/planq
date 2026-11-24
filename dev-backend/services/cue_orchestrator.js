@@ -572,7 +572,33 @@ const SUMMARY_LABELS = {
 
 // N+87 Phase C — 메일 스레드 AI 요약. on-demand. 긴 스레드를 3~5줄 핵심으로.
 //   사실만 요약(날조 금지), 결정·요청·다음 액션 위주. 워크스페이스 언어.
-async function summarizeThread(businessId, { subject, threadText, language = 'ko', lastFrom = null }) {
+// 할 일 줄 안전망 — 마지막 메일이 **받은** 메일이고 메일 분류가 «답장 필요» 인데 모델이 «없음 — (상대 답을) 기다림» 으로
+//   뒤집은 경우 그 줄을 «<보낸 사람> 메일에 답장» 으로 바꾼다(2026-11-24 Irene: 박고객이 견적서 질문을 보냈는데
+//   «없음 — 박고객이 질문을 했으므로 답변을 기다리고 있습니다»). 반대 방향(우리가 마지막인데 «답장»)은 약속 이행 할 일과
+//   구분이 안 돼 지시문으로만 다룬다. 분류(reply_needed) 판정은 읽기만 한다 — 바꾸지 않는다.
+function fixTodoDirection(content, { lastFrom = null, lastDirection = null, replyNeeded = false, language = 'ko' } = {}) {
+  const text = String(content || '');
+  if (lastDirection !== 'inbound' || !replyNeeded) return text;
+  const labels = SUMMARY_LABELS[language === 'en' ? 'en' : 'ko'];
+  const heads = Object.values(SUMMARY_LABELS).map((l) => l.todo);
+  const nones = Object.values(SUMMARY_LABELS).map((l) => l.none);
+  const who = String(lastFrom || '').trim() || (language === 'en' ? 'them' : '상대');
+  const fixed = language === 'en' ? `Reply to ${who}'s latest email` : `${who} 메일에 답장`;
+  let hadTodo = false;
+  const out = text.split('\n').map((line) => {
+    const bare = line.replace(/^\s*[-•*]\s*/, '').replace(/\*\*/g, '').trim();
+    const head = heads.find((h) => bare.startsWith(`${h}:`));
+    if (!head) return line;
+    hadTodo = true;
+    const v = bare.slice(head.length + 1).trim();
+    if (!v || nones.some((n) => v.toLowerCase().startsWith(n.toLowerCase()))) return `${labels.todo}: ${fixed}`;
+    return line;
+  });
+  if (!hadTodo) out.push(`${labels.todo}: ${fixed}`);
+  return out.join('\n');
+}
+
+async function summarizeThread(businessId, { subject, threadText, language = 'ko', lastFrom = null, lastDirection = null, replyNeeded = false }) {
   const usage = await checkUsageLimit(businessId);
   if (usage.over) return { error: 'usage_limit_exceeded', usage };
   const lang = language === 'en' ? 'English' : 'Korean';
@@ -606,9 +632,15 @@ async function summarizeThread(businessId, { subject, threadText, language = 'ko
     + `3) A line "${labels.todo}: " with the concrete thing OUR SIDE should do next (reply about what, send what, decide what, `
     + `and by when if a date is stated). Check every message written by "우리 팀": a commitment we made there `
     + `("we will send …", "1-2일 내로 … 공유하겠습니다", "보내 드리겠습니다") that the thread does not show as done IS our to-do — `
-    + `write it (with its time frame) instead of "${labels.none}". If nothing is required from us, write "${labels.none} — " followed by a few words `
-    + `saying why, consistent with who wrote the LAST message (given below): if WE wrote last, we are waiting for their reply; `
-    + `if they wrote last, say what they settled and that they asked nothing of us. Never write that it is the other side's turn.\n\n`
+    + `write it (with its time frame) instead of "${labels.none}". `
+    + `Decide by the LAST message (its writer and direction are given below):\n`
+    + `   - If the LAST message was RECEIVED from them (not "우리 팀") and it asks us a question, asks for something, or expects an answer, `
+    + `our to-do is to answer it — say concretely what to answer or send. In that case NEVER write "${labels.none}" and NEVER say we are waiting: `
+    + `a question they sent us is waiting for OUR answer, not theirs.\n`
+    + `   - Write "${labels.none} — " plus a few words ONLY when nothing is required from us: if "우리 팀" wrote the last message, we are waiting for their reply; `
+    + `if they wrote last, say what they settled and that they asked nothing of us. Never write that it is the other side's turn.\n`
+    + `   Bad (last message received from 박고객 asking about the quote): "${labels.todo}: ${labels.none} — 박고객이 질문을 했으므로 답변을 기다리고 있습니다"\n`
+    + `   Good: "${labels.todo}: 박고객의 견적서 질문에 답장"\n\n`
     + `Hard rules:\n`
     + `- Refer to each side ONLY by the label used in the transcript ("우리 팀" / the sender's name). `
     + `NEVER assign a role such as "고객", "customer", "vendor", or "the client". The transcript does not `
@@ -617,14 +649,15 @@ async function summarizeThread(businessId, { subject, threadText, language = 'ko
     + `written in the thread, even if they would make the story coherent.\n`
     + `- No greeting, no preamble, no closing remark, no markdown headings or bold.`;
   // 본문 길이는 부르는 쪽(mailBrief.threadTextFor)이 최신 메일 우선으로 맞춰 온다 — 여기서 앞부터 자르면 최신 메일이 잘린다.
-  const userPrompt = `Email thread${subject ? ` (subject: ${subject})` : ''}:\n\n${String(threadText || '').slice(-14000)}\n\n${lastFrom ? `The LAST message was written by: ${String(lastFrom).slice(0, 120)}\n\n` : ''}Summarize.`;
+  const userPrompt = `Email thread${subject ? ` (subject: ${subject})` : ''}:\n\n${String(threadText || '').slice(-14000)}\n\n${lastFrom ? `The LAST message was written by: ${String(lastFrom).slice(0, 120)}${lastDirection === 'inbound' ? ' (RECEIVED from them — not written by us)' : lastDirection === 'outbound' ? ' (SENT by us)' : ''}\n${lastDirection === 'inbound' && replyNeeded ? 'Our mail triage marked this thread as needing OUR reply.\n' : ''}\n` : ''}Summarize.`;
   const result = await callLLM(MODEL_MINI, [
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt },
   ], { temperature: 0.2, maxTokens: 800 });
   if (result.fallback) return { error: 'llm_unavailable', fallback: true };
   await recordUsage(businessId, 'thread_summary', MODEL_MINI, result.input_tokens, result.output_tokens);
-  return { content: (result.content || '').trim(), usage: await checkUsageLimit(businessId) };
+  const content = fixTodoDirection((result.content || '').trim(), { lastFrom, lastDirection, replyNeeded, language });
+  return { content, usage: await checkUsageLimit(businessId) };
 }
 
 module.exports = {
@@ -635,6 +668,7 @@ module.exports = {
   looksLikeEcho,
   generateEmailComposeDraft,
   summarizeThread,
+  fixTodoDirection,
   SUMMARY_LABELS,
   checkUsageLimit,
   recordUsage,

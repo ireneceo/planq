@@ -261,7 +261,8 @@ function collectSituation(thread, messages, message) {
 //   2026-10-30 (Irene: *"매번 ai 토큰 쓰는 거 아니야? … 매번 다시 생성하는 것 중 저장하면 되는 것"*) — 브리프·[요약] 이 같이 쓴다.
 //   messages 는 created_at 을 가진 행이어야 한다(가져온 시각 — 옛 날짜 메일이 늦게 들어와도 잡힌다).
 // 요약 지시문 판 — 판이 바뀌면 저장본을 다시 만든다(2026-11-18 «내용 요약» 판: 옛 판은 «보냈다» 만 적은 두루뭉술한 요약).
-const SUMMARY_MODEL_TAG = 'gpt-4o-mini@2';
+//   @3 (2026-11-24): 받은 질문 메일의 할 일을 «없음 — 답변을 기다림» 으로 뒤집던 것 — 마지막 메일 방향·답장 필요를 넘기고 안전망.
+const SUMMARY_MODEL_TAG = 'gpt-4o-mini@3';
 function savedSummaryFresh(thread, messages) {
   if (!thread.ai_summary || !thread.ai_summary_at) return false;
   if (thread.ai_summary_model !== SUMMARY_MODEL_TAG) return false;
@@ -311,6 +312,14 @@ function lastFromOf(messages) {
   const m = messages[messages.length - 1];
   if (!m) return null;
   return m.direction === 'outbound' ? '우리 팀' : (m.from_name || m.from_email || '상대');
+}
+// 마지막 메일의 보낸 쪽·방향·«답장 필요» — 요약의 «우리가 할 일» 주체를 정한다.
+//   ★ thread.last_message_direction 은 쓰지 않는다 — 비어 있는 스레드가 있다(9497). 메시지 배열 마지막 행으로.
+function lastTurnOf(messages, thread) {
+  const m = messages[messages.length - 1];
+  if (!m) return { lastFrom: null, lastDirection: null, replyNeeded: false };
+  const lastDirection = m.direction === 'outbound' ? 'outbound' : 'inbound';
+  return { lastFrom: lastFromOf(messages), lastDirection, replyNeeded: !!(thread && thread.reply_needed) && lastDirection === 'inbound' };
 }
 function threadTextFor(messages, { latestChars = 8000, otherChars = 1500, total = 14000 } = {}) {
   const parts = [];
@@ -362,7 +371,7 @@ async function buildBrief({ businessId, thread, language = 'ko', reuse = true })
     const threadText = threadTextFor(messages);
     const cueOrch = require('./cue_orchestrator');
     const out = await cueOrch.summarizeThread(businessId, {
-      subject: thread.subject, threadText, language, lastFrom: lastFromOf(messages),
+      subject: thread.subject, threadText, language, ...lastTurnOf(messages, thread),
     });
     if (out.error) ai_error = out.error;
     else { ({ summary, suggestions } = summaryLines(out.content)); summary_content = out.content; }
@@ -380,6 +389,6 @@ async function buildBrief({ businessId, thread, language = 'ko', reuse = true })
 }
 
 module.exports = {
-  buildBrief, savedSummaryFresh, threadTextFor, lastFromOf, summaryLines, SUMMARY_MODEL_TAG, collectTrustSignals, collectLinks, collectSituation,
+  buildBrief, savedSummaryFresh, threadTextFor, lastFromOf, lastTurnOf, summaryLines, SUMMARY_MODEL_TAG, collectTrustSignals, collectLinks, collectSituation,
   findLinkMismatches, readAuthResult, domainOf, RISKY_EXT,
 };

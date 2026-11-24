@@ -2300,7 +2300,7 @@ router.post('/:businessId/email-threads/:id/summarize', // audit-exempt: AI ìš”ì
       const biz = await Business.findByPk(businessId, { attributes: ['default_language'] });
       const language = (req.body || {}).language || biz?.default_language || 'ko';
       const cueOrch = require('../services/cue_orchestrator');
-      const out = await cueOrch.summarizeThread(businessId, { subject: thread.subject, threadText, language, lastFrom: require('../services/mailBrief').lastFromOf(msgs) });
+      const out = await cueOrch.summarizeThread(businessId, { subject: thread.subject, threadText, language, ...require('../services/mailBrief').lastTurnOf(msgs, thread) });
       if (out.error === 'usage_limit_exceeded') return errorResponse(res, 'cue_usage_limit_exceeded', 429);
       if (out.error === 'llm_unavailable') return errorResponse(res, 'ai_unavailable', 503);
       const now = await saveThreadSummary(req, businessId, thread, out.content);
