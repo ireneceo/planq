@@ -383,7 +383,7 @@ const GnbInner = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   gap: 24px;
   /* 1024~1279 — «브랜드스토리» 라벨(«소개» 보다 길다)까지 한 줄에 들도록 간격만 줄인다. 항목은 숨기지 않는다 */
-  @media (max-width: 1279px) { gap: 12px; padding: 0 20px; }
+  @media (max-width: 1279px) { gap: 8px; padding: 0 20px; }
   @media (max-width: 640px) { padding: 0 16px; height: 56px; }
 `;
 const Brand = styled(Link)`
@@ -419,14 +419,18 @@ const NavItem = styled(NavLink)<{ $light: boolean }>`
     color: ${p => p.$light ? '#5EEAD4' : '#0D9488'};
   }
 `;
+// ★ 2026-11-24 — 영어 «Start free» 가 1024~1920 모든 폭에서 두 줄로 떨어졌다(버튼에 nowrap 이 없어 flex 가 버튼을 눌렀다).
+//   CTA 묶음은 줄지 않게(flex-shrink 0) 두고, 1279 이하는 간격만 줄여 메뉴 자리를 지킨다.
 const DesktopCta = styled.div`
-  display: flex; gap: 8px; align-items: center;
+  display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+  @media (max-width: 1279px) { gap: 4px; }
   @media (max-width: 1023px) { display: none; }
 `;
 // #196 — KO·EN 토글 (LegalPage 와 같은 형태). GNB 가 hero 위에서 transparent(다크 배경) 일 때는
 //   글자를 밝게 뒤집어야 읽힌다 — $light 가 그 분기.
 const Lang = styled.div`
   display: flex; align-items: center; margin-right: 4px;
+  @media (max-width: 1279px) { margin-right: 0; }
   /* 모바일 시트에서 KO 글자 시작점이 MobileNavItem(padding-left 14px)과 맞도록 6px 보정 */
   padding-left: 6px;
 `;
@@ -444,8 +448,8 @@ const LangDiv = styled.span<{ $light: boolean }>`
 `;
 const PrimaryBtn = styled(Link)`
   height: 36px; padding: 0 18px;
-  display: inline-flex; align-items: center;
-  @media (max-width: 1279px) { padding: 0 14px; }
+  display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0;
+  @media (max-width: 1279px) { padding: 0 12px; }
   background: #14B8A6; color: #FFFFFF;
   border: none; border-radius: 999px;
   font-size: 0.8125rem; font-weight: 500;
@@ -456,8 +460,8 @@ const PrimaryBtn = styled(Link)`
 `;
 const SecondaryBtn = styled(Link)<{ $light: boolean }>`
   height: 36px; padding: 0 16px;
-  display: inline-flex; align-items: center;
-  @media (max-width: 1279px) { padding: 0 12px; }
+  display: inline-flex; align-items: center; white-space: nowrap; flex-shrink: 0;
+  @media (max-width: 1279px) { padding: 0 10px; }
   background: transparent;
   color: ${p => p.$light ? 'rgba(255,255,255,0.85)' : '#0F172A'};
   border: 1px solid ${p => p.$light ? 'rgba(255,255,255,0.18)' : '#E2E8F0'};
@@ -477,6 +481,7 @@ const TextBtn = styled(Link)<{ $light: boolean }>`
   color: ${p => p.$light ? 'rgba(255,255,255,0.85)' : '#475569'};
   font-size: 0.8125rem; font-weight: 500; text-decoration: none; white-space: nowrap;
   border-radius: 8px;
+  @media (max-width: 1279px) { padding: 0 6px; }
   &:hover { color: ${p => p.$light ? '#FFFFFF' : '#0F172A'}; }
 `;
 const AppIcon = styled.svg`margin-right: 6px; flex-shrink: 0;`;
