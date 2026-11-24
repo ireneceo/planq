@@ -200,6 +200,11 @@ const ARTICLES = [
         'The first time you open PlanQ each day, it asks «Did you start work?». If you actually started earlier, use «From what time ✎» to set the real time. The day after you forget to clock out, it asks «Is this clock-out time right?».'),
       note('직접 고친 시각에는 «본인 수정» 표시가 붙고 관리자가 확인합니다. 대표가 설정 > 근태 관리에서 «본인 수정은 승인 후 반영» 을 켜면 승인된 뒤에만 반영됩니다. 묻는 창이 필요 없으면 근태 화면 아래 개인 설정에서 끌 수 있습니다.',
         'Times you change yourself are marked «Self-edited» and an admin reviews them. If the owner turns on «Self-edits apply after approval» in Settings > Attendance, they apply only once approved. You can turn the prompts off in your personal setting at the bottom of the Attendance page.'),
+      // 2026-11-24 45ac5f8f — 고정 출퇴근 시간 · 103a0972 — 멤버별 «출퇴근 안 함»
+      s('출퇴근 시간이 정해져 있으면 대표·관리자가 설정 > 근태 관리 «근무 일정» 에서 «고정» 과 요일별 시간을 정합니다. 정한 시간보다 늦으면 지각, 기록이 없으면 미출근으로 표시되고 사유를 남기거나 관리자가 인정할 수 있습니다. 바꾼 일정은 내일부터 적용됩니다.',
+        'If your team has fixed hours, an owner or admin sets «Fixed» and the hours for each day in Settings > Attendance > «Work schedule». Arriving after that time shows as late, and no record shows as no-show; people can leave a reason or an admin can excuse it. Changes apply from tomorrow.'),
+      note('일만 도와주거나 연결만 된 사람처럼 출퇴근을 하지 않는 멤버는 «사람별 일정·출퇴근» 줄에서 «출퇴근 기록» 을 끄면 됩니다. 그 워크스페이스에서만 출근 묻기·자동 출근·출퇴근 카드·지각/미출근 표시가 빠지고, 휴가와 지난 기록은 그대로입니다. 다른 워크스페이스의 출퇴근에는 영향이 없습니다.',
+        'For members who do not clock in — for example people who only help out or are just connected — turn off «Clock in/out» on their row under «Per-person schedule & check-in». Only in that workspace, check-in prompts, auto clock-in, the clock card and late/no-show marks go away; leave and past records stay. Other workspaces are not affected.'),
     ] },
   { cat: 'attendance', slug: 'request-leave', visibility: 'public', linked_route: '/attendance', est: 2,
     title: t('휴가 신청하고 승인받기', 'Request and approve leave'),

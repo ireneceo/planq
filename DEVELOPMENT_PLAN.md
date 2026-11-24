@@ -1,5 +1,7 @@
 # PlanQ - 개발 진행 현황
 
+> **최종 업데이트:** 2026-11-24 ([Opus] Opus 5.5, 방 caaeaef5 · 개발완료) — 11/23~24 작업 기록(멤버별 «출퇴근 안 함» 103a0972 Fable 설계 NEEDS-CHANGE→반영·완료 PASS · 근태 고정 출퇴근·지각 45ac5f8f Fable 설계+완료 PASS · 일정 장소 구글 Places·가까운 곳 b076f2bc·c877140a·8f81f2db · 메일 AI 답장 최신 메일 a5db695f · 탭 이동 우측 패널 유지 481064b6 · 방문 컨설팅 080e5a30 · 출근 묻기 c89c66f1·92e80487 · Q note 표 5590a5bb · 뜨는 창 자리 2c60ba56). Q위키 2줄(근무 일정·출퇴근 안 함). 운영 미반영 — 다음 배포 때.
+> ── 이전 ──
 > **최종 업데이트:** 2026-11-22 ([Opus] Opus 5.5, 방 c6af099e) — Q task 진행 버튼 열 정렬(56d5a498) · 11-20 밤 검사 검사기 3건(b120653e) · 운영 배포 v1.70.18(11-22 12:40 UTC, 범위 ~b120653e — 진행 버튼 정렬은 다음 배포). Q위키 불필요(화면 정렬·검사기).
 > ── 이전 ──
 > **최종 업데이트:** 2026-11-21 ([Opus] Opus 5.5, 방 3f60bc2c · 정기 점검 11/21 00:15) — 개발완료: 11/20 작업 기록(ChatGPT 업무 그룹 배정 8081ac2c Fable PASS · 프로젝트 히스토리 메일·이슈 6b08bf6f Fable 설계+완료 PASS · 워크스페이스 공개 페이지 P1~P3 3e2e08e1·8fb0ddf8·1397e649·ccba7f49·29ecb62e Fable 1차 FAIL→2차 PASS · 약관·개인정보 조항 f4536aef · 근태 출근 묻기 e3602efd·02b6d40e Fable 설계+완료 1차 FAIL→PASS · Q note AI 추가 요청 399ce934 · Q note 받아쓰기 숫자 58faf91f · 배포.md 배포 전 검사 937a7511) + 밤 검사 mailpin 검사기 안정화. Q위키 3줄. 미커밋 0.
@@ -111,6 +113,26 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-11-23~24 [Opus](+[Fable]) — 멤버별 «출퇴근 안 함» · 근태 고정 출퇴근·지각 · 일정 장소 · 메일 AI 답장 외 (기록 caaeaef5)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 멤버별 «출퇴근 안 함» (103a0972) | `business_members.attendance_tracked`·`attendance_tracked_since` · 설정 › 근태 관리 사람별 줄 «출퇴근 기록» 스위치 · 끄면 그 워크스페이스에서만 출근·묻기·자동 출근·위젯·지각/미출근 판정 없음(휴가·지난 기록 그대로) · 열린 하루는 업무 측정 안 끊고 닫음 · 다시 켜면 다음 날부터 판정. 실HTTP 34/34 · e2e attntracking 3폭 21/21 | ✅ 완료 (Fable 설계 NEEDS-CHANGE 6건 반영 · 완료 PASS) |
+| 근태 고정 출퇴근·지각 (45ac5f8f) | 근무 일정(유연/고정·내일부터 이력) · 지각/조퇴/미출근 조회 때 판정 · 사유/인정 | ✅ 완료 (Fable 설계+완료 PASS) |
+| 일정 장소 (b076f2bc·c877140a·8f81f2db) | 해외는 구글 Places(키 없으면 카카오만) · 가까운 곳·최근 장소 먼저 · «내 주변» · 위치 권한 헤더 | ✅ 완료 (구글 키는 Irene 할 일) |
+| 메일 AI 답장 (a5db695f) | 마지막 받은 메일에 답하게 · 초안 있을 때 빈 Enter 안내 | ✅ 완료 |
+| 탭 이동 우측 패널 유지 (481064b6) · 방문 컨설팅 15만원 (080e5a30) · 출근 묻기 (c89c66f1·92e80487) · Q note 표 (5590a5bb) · 뜨는 창 자리 한 벌 (2c60ba56) | — | ✅ 완료 |
+
+### 수정된 파일 (멤버별 «출퇴근 안 함»)
+- `dev-backend/services/attendanceTracking.js`(신규) · `scripts/migrate-attendance-tracked.js`(신규, 배포 슬롯) · `models/BusinessMember.js`
+- `dev-backend/routes/{attendance,attendance_schedule,attendance_fix,auth}.js` · `services/{attendanceTransition,attendancePrompt,attendancePunctuality,cue_context}.js`
+- `dev-frontend/src/pages/Settings/{MemberTrackingSwitch(신규),AttendanceScheduleSection}.tsx` · `pages/Attendance/{AttendancePage,TeamTab,shared}.tsx` · `components/Attendance/*` · `components/Layout/{SidebarStatusSummary,TeamPresenceRow}.tsx` · `hooks/useTeamPresence.ts` · `utils/workspaceModules.ts` · `contexts/AuthContext.tsx` · `components/Common/WorkspaceSyncGuard.tsx` · `pages/QTalk/ChatPanel.tsx` · locales attendance ko/en
+- `scripts/e2e/canary-attn-tracking.js`(신규) · `canary-team-presence.js` · `run.js` · `scripts/deploy-planq.sh` · `docs/ATTENDANCE_MEMBER_TRACKING_DESIGN.md`
 
 ---
 
