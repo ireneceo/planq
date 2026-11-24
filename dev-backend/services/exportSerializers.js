@@ -29,6 +29,17 @@ const notPrivateConversation = {
   ],
 };
 
+// 쓰기 버퍼가 빌 때까지 — 이미 비었으면 바로 끝난다(지나간 drain 을 기다리지 않는다). 스트림 오류도 기다림을 끝낸다.
+function drained(stream) {
+  if (!stream.writableNeedDrain) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const done = () => { stream.off('error', fail); resolve(); };
+    const fail = (e) => { stream.off('drain', done); reject(e); };
+    stream.once('drain', done);
+    stream.once('error', fail);
+  });
+}
+
 // 표(엑셀) 한 장 = 같은 행을 CSV + JSON 두 파일로
 class TableWriter {
   constructor(dir, name, headers) {
@@ -48,8 +59,10 @@ class TableWriter {
     const okA = this.csv.write(line + '\n');
     const okB = this.json.write((this.count ? ',\n' : '') + JSON.stringify(obj));
     this.count += 1;
-    if (!okA) await new Promise((r) => this.csv.once('drain', r));
-    if (!okB) await new Promise((r) => this.json.once('drain', r));
+    // ★ 두 스트림을 차례로 기다리면 멈춘다(2026-11-24 — 배포 게이트 health-check 가 120초 넘게 멈춰 배포 중단).
+    //   CSV drain 을 기다리는 동안 JSON 이 먼저 비면 그 drain 은 이미 지나가 버려, 뒤에 거는 once('drain') 가 영영 안 온다.
+    //   그래서 «지금도 비우는 중인가(writableNeedDrain)» 를 기다리기 직전에 다시 보고, 둘을 함께 기다린다.
+    if (!okA || !okB) await Promise.all([this.csv, this.json].map(drained));
   }
   close() {
     this.json.write('\n]\n');
