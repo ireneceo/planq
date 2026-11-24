@@ -62,6 +62,9 @@ async function run() {
         const dlg = await page.evaluate(() => !!document.querySelector('[aria-modal="true"]'));
         const beforeConfirm = await dbTracked();
         push(`${v.key} · 끄기는 확인창 먼저(아직 저장 안 함)`, dlg && beforeConfirm === 1, `dialog ${dlg} · db ${beforeConfirm}`);
+        // 확인창 버튼은 화면 언어를 따른다 — 한국어 화면에 «Cancel» 이 나왔다(2026-11-24 Irene 실사용)
+        const btnTexts = await page.evaluate(() => { const d = document.querySelector('[aria-modal="true"]'); return d ? [...d.querySelectorAll('button')].map((x) => (x.textContent || '').trim()).filter(Boolean) : []; });
+        push(`${v.key} · 확인창 취소 버튼이 «취소»(영어 «Cancel» 아님)`, btnTexts.includes('취소') && !btnTexts.includes('Cancel'), btnTexts.join('|'));
         // 확인 버튼 — 확인창 안의 마지막 버튼(variant warning 의 확인)
         await page.evaluate(() => {
           const d = document.querySelector('[aria-modal="true"]');
@@ -93,10 +96,12 @@ async function run() {
             const w = [...document.querySelectorAll('[data-testid="attn-widget"]')].filter((x) => x.getBoundingClientRect().width > 0).length;
             let hit = false;
             if (n) { n.scrollIntoView({ block: 'center' }); const r = n.getBoundingClientRect(); const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); hit = !!h && n.contains(h); }
-            return { notice: !!n, hit, widgets: w };
+            // 꺼진 워크스페이스에서는 자동 출근·출근 묻기 스위치도 없어야 한다(2026-11-24 Irene 실사용)
+            const sw = document.querySelectorAll('#attn-auto-clockin, [data-testid="attn-prompt-toggle"]').length;
+            return { notice: !!n, hit, widgets: w, sw };
           });
-          if (!on) push(`${v.key} · 멤버(꺼짐): 위젯 0 · 안내 보임`, st.notice && st.hit && st.widgets === 0, JSON.stringify(st));
-          else push(`${v.key} · 멤버(켜짐, 대조군): 위젯 보임 · 안내 없음`, !st.notice && st.widgets >= 1, JSON.stringify(st));
+          if (!on) push(`${v.key} · 멤버(꺼짐): 위젯 0 · 안내 보임 · 스위치 0`, st.notice && st.hit && st.widgets === 0 && st.sw === 0, JSON.stringify(st));
+          else push(`${v.key} · 멤버(켜짐, 대조군): 위젯 보임 · 안내 없음 · 스위치 2`, !st.notice && st.widgets >= 1 && st.sw === 2, JSON.stringify(st));
         } catch (e) { push(`${v.key} · 멤버 오류`, false, e.message.slice(0, 160)); } finally { await page.close().catch(() => {}); await ctx.close().catch(() => {}); }
       }
       void i;

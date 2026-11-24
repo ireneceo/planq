@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Modal, ModalButton as Button } from '../UI/Modal';
 
 interface ConfirmDialogProps {
@@ -21,8 +22,13 @@ interface ConfirmDialogProps {
 
 const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isOpen, onClose, onConfirm, title, message,
-  confirmText = 'Confirm', cancelText = 'Cancel', secondaryText, onSecondary, variant = 'info', zIndex = 2100
+  confirmText, cancelText, secondaryText, onSecondary, variant = 'info', zIndex = 2100
 }) => {
+  // ★ 기본 버튼 글은 화면 언어를 따른다 (2026-11-24, Irene «한국어 화면인데 Cancel») — 영어 리터럴 기본값이던
+  //   탓에 cancelText 를 안 넘긴 확인창 19곳이 한국어 화면에서 «Cancel»/«Confirm» 이었다. 호출부마다 넘기지 말고 여기 한 곳.
+  const { t } = useTranslation('common');
+  const cancelLabel = cancelText ?? t('button.cancel', { defaultValue: 'Cancel' });
+  const confirmLabel = confirmText ?? t('button.confirm', { defaultValue: 'Confirm' });
   const getConfirmButtonVariant = () => {
     switch (variant) {
       case 'danger':
@@ -35,11 +41,11 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   const footer = (
     <>
-      <Button variant="secondary" onClick={onClose}>{cancelText}</Button>
+      <Button variant="secondary" onClick={onClose}>{cancelLabel}</Button>
       {secondaryText && onSecondary && (
         <Button variant="secondary" onClick={onSecondary}>{secondaryText}</Button>
       )}
-      <Button variant={getConfirmButtonVariant()} onClick={onConfirm}>{confirmText}</Button>
+      <Button variant={getConfirmButtonVariant()} onClick={onConfirm}>{confirmLabel}</Button>
     </>
   );
 

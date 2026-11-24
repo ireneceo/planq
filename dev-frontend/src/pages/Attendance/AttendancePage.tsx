@@ -336,7 +336,9 @@ const AttendancePage: React.FC = () => {
               </Table>
             </TableWrap>
           )}
-          {autoClockIn !== null && (
+          {/* ★ 이 워크스페이스에서 출퇴근을 안 하면 자동 출근·출근 묻기 스위치도 숨긴다 (2026-11-24 Irene 실사용 —
+              «기록하지 않아요» 줄 아래 두 스위치가 그대로 보였다). 두 설정은 계정 전체 값이라 출퇴근하는 다른 워크스페이스에서 바꾼다. */}
+          {autoClockIn !== null && user?.attendance_tracked !== false && (
             <SettingRow>
               {/* ★ 네이티브 체크박스(16px)였다 — ✓ 뱃지(22px)가 컨트롤을 통째로 덮어
                   "저장됨" 을 보여주려다 무엇을 켰는지 안 보이는 상태가 된다.
@@ -361,7 +363,7 @@ const AttendancePage: React.FC = () => {
               </SettingText>
             </SettingRow>
           )}
-          {promptOn !== null && (
+          {promptOn !== null && user?.attendance_tracked !== false && (
             <SettingRow>
               <AutoSaveField type="toggle" onSave={persistPromptOn}>
                 <SettingSwitch
