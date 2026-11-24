@@ -1,5 +1,7 @@
 # PlanQ - 개발 진행 현황
 
+> **최종 업데이트:** 2026-11-25 ([Opus] Opus 5.5, 방 18563636 · 정기 점검 11/25 00:15 개발완료) — 11/24 오후 작업 기록(메일 요약 «우리가 할 일» 방향 b3ed35ee · 프로젝트 방 «자동 참여» dfd8f9a7 Fable 설계+완료 PASS · AI 도구 멱등 A→B→A 13406c40 Fable 설계+완료 PASS · 백업 내보내기 멈춤 65115d02 · 채팅 이모지 a9cce238 Fable PASS · 근태 스위치 숨김·확인창 버튼 글 be38aea3). 전부 운영 v1.70.19 에 반영됨. Q위키 2곳 갱신(반응 14종·프로젝트 멤버 자동 참여).
+> ── 이전 ──
 > **최종 업데이트:** 2026-11-24 ([Opus] Opus 5.5, 방 caaeaef5 · 개발완료) — 11/23~24 작업 기록(멤버별 «출퇴근 안 함» 103a0972 Fable 설계 NEEDS-CHANGE→반영·완료 PASS · 근태 고정 출퇴근·지각 45ac5f8f Fable 설계+완료 PASS · 일정 장소 구글 Places·가까운 곳 b076f2bc·c877140a·8f81f2db · 메일 AI 답장 최신 메일 a5db695f · 탭 이동 우측 패널 유지 481064b6 · 방문 컨설팅 080e5a30 · 출근 묻기 c89c66f1·92e80487 · Q note 표 5590a5bb · 뜨는 창 자리 2c60ba56). Q위키 2줄(근무 일정·출퇴근 안 함). 운영 미반영 — 다음 배포 때.
 > ── 이전 ──
 > **최종 업데이트:** 2026-11-22 ([Opus] Opus 5.5, 방 c6af099e) — Q task 진행 버튼 열 정렬(56d5a498) · 11-20 밤 검사 검사기 3건(b120653e) · 운영 배포 v1.70.18(11-22 12:40 UTC, 범위 ~b120653e — 진행 버튼 정렬은 다음 배포). Q위키 불필요(화면 정렬·검사기).
@@ -113,6 +115,32 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-11-24 오후 [Opus](+[Fable]) — 프로젝트 방 자동 참여 · AI 도구 멱등 · 백업 멈춤 · 채팅 이모지 · 메일 요약 방향 (기록 18563636 · 정기 점검 11/25)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 프로젝트 방 «프로젝트 멤버 자동 참여» (dfd8f9a7) | `conversations.project_auto_join` · 멤버가 되는 문은 켜진 방에만 · 새 고객방 = 만든 사람+PM+Cue · 채팅 설정 스위치(켤 때 명단 확인) · 옛 데이터 아무도 안 뺌 | ✅ 완료 (Fable 설계 NEEDS-CHANGE 반영 + 완료 PASS) |
+| AI 도구 멱등 (13406c40) | 쓰기 도구마다 `dedupe:'args'`/`'state'` — 상태 지정 A→B→A 마지막 A 가 삼켜지던 것 | ✅ 완료 (Fable 설계+완료 PASS) |
+| 백업 내보내기 멈춤 (65115d02) | `exportSerializers` CSV·JSON drain 함께 기다림 — 옛 코드 5/5 멈춤 → 10/10 완료 | ✅ 완료 |
+| 채팅 이모지 (a9cce238) | 반응 8→14(👌🆗 등) · 입력창 88개 묶음 · 반응 칸 정렬 규칙 bin(여러 반응이 서로 지우던 것) | ✅ 완료 (Fable PASS) |
+| 근태 스위치 숨김·확인창 버튼 글 (be38aea3) | 출퇴근 꺼진 워크스페이스 개인 스위치 숨김 · ConfirmDialog 기본 버튼 화면 언어 | ✅ 완료 |
+| 메일 요약 «우리가 할 일» 방향 (b3ed35ee) | 받은 질문을 «없음 — 기다림» 으로 뒤집던 것 · 요약 판 @3 | ✅ 완료 |
+| Q위키 | 메시지 반응 14종·여러 개 · 프로젝트 멤버 자동 참여 안내 | ✅ 완료 |
+
+운영: 위 전부 v1.70.19(11-24 09:18 UTC) 에 반영됨.
+
+### 수정된 파일
+- `dev-backend/{models/Conversation.js,routes/conversations.js,routes/projects.js,services/project_channel.js,services/memberHandover.js,services/clientToMember.js,services/actions/project_actions.js,scripts/migrate-project-auto-join.js}`
+- `dev-backend/services/agent/{execute,registry}.js` · `services/agent/tools/tasks.js` · `scripts/guard-invariants.js`
+- `dev-backend/services/exportSerializers.js` · `routes/message_reactions.js` · `scripts/migrate-reaction-emoji-collation.js`
+- `dev-backend/services/{cue_orchestrator,mailBrief}.js` · `routes/email_threads.js` · `seed-wiki-content.js`
+- `dev-frontend/src/pages/QTalk/{ChatSettingsModal,NewChatModal,QTalkPage,EmojiPickerButton,ReactionPickerPopover}.tsx` · `services/qtalk.ts` · `components/Common/ConfirmDialog.tsx` · `pages/Attendance/AttendancePage.tsx` · locales qtalk·qproject
+- `scripts/e2e/{canary-qtalk-autojoin,canary-chat-emoji,canary-attn-tracking,run}.js` · `scripts/deploy-planq.sh` · `docs/PROJECT_ROOM_MEMBERSHIP_DESIGN.md`
 
 ---
 
