@@ -1205,15 +1205,29 @@ function checkAgentSurface() {
   if (!fs.existsSync(reg)) bad.push('services/agent/registry.js 없음');
   else {
     const src = read(reg);
-    const tools = [...src.matchAll(/name:\s*'([a-z_]+)',\s*risk:\s*'(LOW|MEDIUM|HIGH)',\s*write:\s*(true|false),\s*scopes:\s*\[([^\]]*)\]/g)];
-    if (!tools.length) bad.push('registry.js: 도구 선언을 찾지 못함(name·risk·write·scopes 한 줄 규약)');
-    for (const [, name, risk, write, scopes] of tools) {
+    const tools = [...src.matchAll(/name:\s*'([a-z_]+)',\s*risk:\s*'(LOW|MEDIUM|HIGH)',\s*write:\s*(true|false),(?:\s*dedupe:\s*'([a-z]+)',)?\s*scopes:\s*\[([^\]]*)\]/g)];
+    if (!tools.length) bad.push('registry.js: 도구 선언을 찾지 못함(name·risk·write·[dedupe]·scopes 한 줄 규약)');
+    // 멱등 방식(2026-11-24 Fable 설계) — 쓰기 도구는 dedupe 'args'(같은 인자 두 번 = 하나 더 생김) | 'state'(목표 상태).
+    //   이름 규칙으로 대조하고, 규칙 밖 이름은 아래 명시 표에 있어야 통과한다(새 이름은 표에 넣으며 분류를 정한다).
+    const DEDUPE_EXPLICIT = {
+      add_task_reviewers: 'state', add_task_watchers: 'state', attach_files_to_task: 'state', attach_files_to_document: 'state',
+      add_meeting_to_event: 'args', submit_review: 'state',   // 회의 추가는 부를 때마다 새 회의·새 링크(2026-11-24 감사) → args
+    };
+    const dedupeByName = (n) => (DEDUPE_EXPLICIT[n]
+      || (/^(create_|append_|upload_)|^add_[a-z_]*_note$|^add_client_interaction$/.test(n) ? 'args'
+        : /^(set_|update_|move_|reschedule|assign_|complete_|cancel_|link_)/.test(n) ? 'state' : null));
+    if (!/tool\.write && !\['args', 'state'\]\.includes\(tool\.dedupe\)\) throw/.test(src)) bad.push('registry.js: 쓰기 도구 dedupe 선언 필수 throw 가 없음');
+    for (const [, name, risk, write, dedupe, scopes] of tools) {
       if (risk === 'HIGH') bad.push(`registry.js: HIGH 도구 ${name}`);
       if (/^(delete|remove|send|bulk)_|invoice|payment|contract|refund|permission|role/.test(name)) bad.push(`registry.js: 고위험 이름 ${name}`);
       if (write === 'true') {
         if (!/:write'/.test(scopes)) bad.push(`registry.js: 쓰기 도구 ${name} 에 쓰기 scope 없음`);
         const body = src.slice(src.indexOf(`name: '${name}'`), src.indexOf('handler:', src.indexOf(`name: '${name}'`)));
         if (!/idempotency_key/.test(body)) bad.push(`registry.js: 쓰기 도구 ${name} 에 idempotency_key 없음`);
+        const want = dedupeByName(name);
+        if (!dedupe) bad.push(`registry.js: 쓰기 도구 ${name} 에 dedupe 선언 없음('args'|'state')`);
+        else if (!want) bad.push(`registry.js: 쓰기 도구 ${name} — 이름 규칙 밖, guard DEDUPE_EXPLICIT 표에 분류를 넣을 것`);
+        else if (dedupe !== want) bad.push(`registry.js: 쓰기 도구 ${name} dedupe '${dedupe}' ≠ 이름 규칙 '${want}'`);
       }
     }
     const declared = (src.match(/^\s+name: '/gm) || []).length;

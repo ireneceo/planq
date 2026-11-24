@@ -66,7 +66,7 @@ const TOOLS = [
     handler: (p, a) => t.getTask(p, a),
   },
   {
-    name: 'create_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
+    name: 'create_task', risk: 'LOW', write: true, dedupe: 'args', scopes: ['tasks:write'],
     description: 'Create one new task in PlanQ. Only adds — never edits or deletes existing data. If assignee_user_id is omitted, the task is assigned to the user themselves (a project\'s default assignee is not applied). To give it to a colleague, pass their user_id from search_members — by default it becomes their plain assigned task (they are notified and can finish it themselves). Pass as_request: true only when the user explicitly asks to REQUEST it from that colleague: then the user automatically becomes a reviewer and the colleague must get the user\'s sign-off before it is complete. The result says is_request. If the task comes from a mail thread or chat you read, pass source — the task is then linked to it (and inherits the thread\'s client/project when you give none). Project groups: if the task belongs to a project that has groups (workstreams — 추진과제 / 업무그룹, listed by get_project), put it in the right one with workstream_id. If the user names a group that does not exist yet, create it first with create_workstream, then pass its workstream_id. To move an existing task into a group use set_task_workstream.'
       + " Files: to attach files already in PlanQ (file_id from list_files or a mail attachment) pass file_ids — then confirmation is required (the first call returns a preview). A file the user attached in this ChatGPT conversation: create first, then upload_file with attach_to. If you cannot pass a file (Claude, or a file you generated), give the user upload_url from the result to add it in PlanQ. Never say a file is attached unless the result lists it in attached_files.",
     input: {
@@ -115,7 +115,7 @@ const TOOLS = [
     handler: (p, a) => t.getTaskNotes(p, a),
   },
   {
-    name: 'add_task_note', risk: 'LOW', write: true, scopes: ['notes:write'],
+    name: 'add_task_note', risk: 'LOW', write: true, dedupe: 'args', scopes: ['notes:write'],
     description: 'Add a note (comment) to a task. Only adds — never edits or deletes. Visibility "internal" (team only, default) or "shared" (also visible to the client).',
     input: {
       task_id: z.number().int().positive(),
@@ -127,7 +127,7 @@ const TOOLS = [
   },
   // ── 2026-10-07 Fable B 판정 3 — 컨펌자 지정(MEDIUM: 지정된 사람에게 알림이 간다) ──
   {
-    name: 'add_task_reviewers', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    name: 'add_task_reviewers', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Add reviewers (people who must sign off) to a task. Find user_id with search_members. Each reviewer is notified and the task cannot be completed until they approve. Only the assignee, the requester or a workspace owner can do this. Requires confirmation: the first call only returns a preview with the reviewers\' names.',
     input: {
       task_id: z.number().int().positive(),
@@ -139,7 +139,7 @@ const TOOLS = [
   },
   // ── 2026-11-18 Fable 설계 — 참조(watcher) 추가·빼기(MEDIUM: 추가는 알림 + 볼 권한, 빼기는 볼 권한 회수) ──
   {
-    name: 'add_task_watchers', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    name: 'add_task_watchers', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Add watchers (참조 — people who should be kept informed) to an existing task. Find user_id with search_members. Watchers are notified and can see the task (even in a hidden project or a private task) but do NOT need to sign off — for sign-off use add_task_reviewers. Removing a watcher is done in PlanQ. Internal members only (not clients). People already on the task are skipped. Only the assignee, the requester or a workspace owner/admin can do this. For a recurring task it applies to this task only (see series_note in the result). Requires confirmation: the first call only returns a preview with their names.',
     input: {
       task_id: z.number().int().positive(),
@@ -152,7 +152,7 @@ const TOOLS = [
   // 참조 빼기는 도구로 두지 않는다 — 남의 볼 권한 회수 = HIGH «권한»(2026-11-18 Fable 판정 A). 화면에서만.
   // ── #453 «2번» — 대화 결과를 PlanQ 에 기록(상담·프로젝트 메모). 추가만 한다 ─────────
   {
-    name: 'add_client_interaction', risk: 'LOW', write: true, scopes: ['notes:write'],
+    name: 'add_client_interaction', risk: 'LOW', write: true, dedupe: 'args', scopes: ['notes:write'],
     description: 'Save a record of a conversation with a client (call, meeting, visit or memo) to that client\'s history in PlanQ — e.g. "save what we discussed today as a consultation". Find client_id with search_clients first. Only adds — never edits or deletes. Team-only; the client does not see it.',
     input: {
       client_id: z.number().int().positive(),
@@ -168,7 +168,7 @@ const TOOLS = [
     handler: (p, a, actor) => notes.addClientInteraction(p, a, actor),
   },
   {
-    name: 'add_project_note', risk: 'LOW', write: true, scopes: ['notes:write'],
+    name: 'add_project_note', risk: 'LOW', write: true, dedupe: 'args', scopes: ['notes:write'],
     description: 'Add a note to a PlanQ project — e.g. decisions or a summary of a discussion. Find project_id with search_projects first. Only adds — never edits or deletes. Visibility "internal" (project team, default) or "personal" (only the user).',
     input: {
       project_id: z.number().int().positive(),
@@ -225,7 +225,7 @@ const TOOLS = [
     handler: (p, a) => cal.listEvents(p, a),
   },
   {
-    name: 'create_event', risk: 'LOW', write: true, scopes: ['schedule:write'],
+    name: 'create_event', risk: 'LOW', write: true, dedupe: 'args', scopes: ['schedule:write'],
     description: 'Create one calendar event. Only adds — never edits or deletes. Private to the user unless visibility is "team". You can set its type, reminder, a linked task, an existing meeting link, attendees (workspace members / clients — they are notified) and create_meeting (PlanQ creates a Google Meet link, like the app\'s Meet button; only for team-visible events). With attendees or create_meeting it requires confirmation: the first call only returns a preview naming who is notified and where the meeting is created.',
     input: {
       title: z.string().trim().min(1).max(300),
@@ -254,7 +254,7 @@ const TOOLS = [
   },
   // ── 2026-10-12 Cue 범위 확장(docs/CUE_REGISTRY_FOLD_DESIGN.md C) — 일정 수정·Meet 추가·여러 건 옮기기 ──
   {
-    name: 'update_event', risk: 'MEDIUM', write: true, scopes: ['schedule:write'],
+    name: 'update_event', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['schedule:write'],
     description: 'Edit an existing calendar event (find event_id with list_events): title, description, location, type, reminder, time, or an existing meeting link. Only the fields you pass change. If the time or place changes, its attendees are notified. Recurring events and client bookings cannot be changed here (use the PlanQ calendar). Requires confirmation: the first call only returns a preview.',
     input: {
       event_id: z.number().int().positive(),
@@ -274,14 +274,14 @@ const TOOLS = [
     handler: (p, a, actor) => cal.updateEventTool(p, a, actor),
   },
   {
-    name: 'add_meeting_to_event', risk: 'MEDIUM', write: true, scopes: ['schedule:write'],
+    name: 'add_meeting_to_event', risk: 'MEDIUM', write: true, dedupe: 'args', scopes: ['schedule:write'],
     description: 'Create a Google Meet link for an existing event (same as the Meet button in the PlanQ calendar). Uses the event creator\'s connected Google Calendar, or the workspace calendar. Replaces an existing Meet link. Requires confirmation: the first call only returns a preview.',
     input: { event_id: z.number().int().positive(), confirmation_token: confirm, idempotency_key: idem },
     preview: (p, a) => cal.previewAddMeeting(p, a),
     handler: (p, a, actor) => cal.addMeetingTool(p, a, actor),
   },
   {
-    name: 'reschedule_events', risk: 'MEDIUM', write: true, scopes: ['schedule:write'],
+    name: 'reschedule_events', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['schedule:write'],
     description: 'Move one or more existing events (up to 20; find event_id with list_events) to another date, keeping each event\'s length — e.g. "move Thursday\'s events except X to next Monday". Leave start_time empty to keep the original time. Attendees are notified. Recurring events and client bookings are not moved. Requires confirmation: the first call only returns a preview of old and new times.',
     input: {
       moves: z.array(z.object({
@@ -465,7 +465,7 @@ const TOOLS = [
   },
   // ── M3-c — 답장 «초안»(설계 §3.4). 발송 도구는 없다(HIGH) — 사람이 PlanQ 에서 받는 주소를 보고 보낸다 ──
   {
-    name: 'create_mail_reply_draft', risk: 'LOW', write: true, scopes: ['mail:read', 'mail_drafts:write'],
+    name: 'create_mail_reply_draft', risk: 'LOW', write: true, dedupe: 'args', scopes: ['mail:read', 'mail_drafts:write'],
     description: 'Save a reply draft (plain text, optionally with PlanQ files attached) for a mail thread in PlanQ. Nothing is sent: the user opens the returned url, checks the recipients PlanQ fills in from the thread, and sends it themselves. You cannot set recipients, sender or subject. If a draft already exists for the thread it is never overwritten (CONFLICT draft_exists).',
     input: {
       thread_id: z.number().int().positive(),
@@ -477,7 +477,7 @@ const TOOLS = [
   },
   // ── 2026-11-08 — 새 메일 «초안»(Irene «AI 가 내용 써서 보내고 서명 붙고» · Fable decision C 의 A). 여전히 보내지 않는다(HIGH) ──
   {
-    name: 'create_mail_draft', risk: 'LOW', write: true, scopes: ['mail:read', 'mail_drafts:write'],
+    name: 'create_mail_draft', risk: 'LOW', write: true, dedupe: 'args', scopes: ['mail:read', 'mail_drafts:write'],
     description: 'Save a NEW mail draft (not a reply) in PlanQ: recipients, subject and plain-text body, optionally with PlanQ files attached. Nothing is sent: the user opens the returned url, checks the recipients and the sender address, and sends it themselves; PlanQ adds the signature configured for that sender. To reply to an existing mail use create_mail_reply_draft instead. If the user already has an unsent new-mail draft it is never overwritten (CONFLICT draft_exists).',
     input: {
       to: z.array(z.string().trim().min(3).max(254)).min(1).max(10).describe('Recipient email addresses (plain addresses like name@example.com). Only "To" — no Cc/Bcc.'),
@@ -492,7 +492,7 @@ const TOOLS = [
   // ── 2026-10-05 — Q docs 문서 쓰기 · 파일 올리기 (Irene: "문서도 작성할 수 있어야지. 파일도 보낼 수 있어야 하고.") ──
   //   문서는 services/actions/post_actions(화면과 같은 함수), 파일은 driveImport.ingestDownloadedFile.
   {
-    name: 'create_document', risk: 'LOW', write: true, scopes: ['docs:write'],
+    name: 'create_document', risk: 'LOW', write: true, dedupe: 'args', scopes: ['docs:write'],
     description: 'Create a document in PlanQ Q docs (title + content written in Markdown: headings, lists, bold, links, tables as GitHub pipe tables). Optionally put it in a project (find project_id with search_projects) and link related documents (two-way). Visible to the project members, or to the whole workspace when no project — same as creating it in the app.'
       + " Files: to attach files already in PlanQ (file_id from list_files or a mail attachment) pass file_ids — then confirmation is required (the first call returns a preview). A file the user attached in this ChatGPT conversation: create first, then upload_file with attach_to. If you cannot pass a file (Claude, or a file you generated), give the user upload_url from the result to add it in PlanQ. Never say a file is attached unless the result lists it in attached_files.",
     input: {
@@ -510,13 +510,13 @@ const TOOLS = [
     handler: (p, a, actor) => docsw.createDocument(p, a, actor),
   },
   {
-    name: 'append_to_document', risk: 'LOW', write: true, scopes: ['docs:write'],
+    name: 'append_to_document', risk: 'LOW', write: true, dedupe: 'args', scopes: ['docs:write'],
     description: 'Add content (Markdown) to the end of an existing Q docs document. Never removes what is there. Fails if the document has a signature request (signed documents cannot change).',
     input: { document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'), content: z.string().trim().min(1).max(50000), idempotency_key: idem },
     handler: (p, a, actor) => docsw.appendToDocument(p, a, actor),
   },
   {
-    name: 'update_document', risk: 'MEDIUM', write: true, scopes: ['docs:write'],
+    name: 'update_document', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['docs:write'],
     description: 'Replace the title and/or the whole content (Markdown) of a Q docs document. The previous version stays in the document history. Requires confirmation: the first call only returns a preview. To add without replacing, use append_to_document.',
     input: {
       document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'),
@@ -528,7 +528,7 @@ const TOOLS = [
     handler: (p, a, actor) => docsw.updateDocument(p, a, actor),
   },
   {
-    name: 'link_documents', risk: 'LOW', write: true, scopes: ['docs:write'],
+    name: 'link_documents', risk: 'LOW', write: true, dedupe: 'state', scopes: ['docs:write'],
     description: 'Link (or unlink) other documents as related documents of a Q docs document. Links are two-way. Only documents the user can read are linked.',
     input: {
       document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'),
@@ -539,14 +539,14 @@ const TOOLS = [
     handler: (p, a, actor) => docsw.linkDocuments(p, a, actor),
   },
   {
-    name: 'move_document_to_project', risk: 'MEDIUM', write: true, scopes: ['docs:write'],
+    name: 'move_document_to_project', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['docs:write'],
     description: 'Put an existing Q docs document into a project (or take it out with project_id omitted). Who can see a project-level document changes with the project, so this requires confirmation: the first call only returns a preview.',
     input: { document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'), project_id: z.number().int().positive().optional(), confirmation_token: confirm, idempotency_key: idem },
     preview: (p, a) => docsw.previewMove(p, a),
     handler: (p, a, actor) => docsw.moveDocument(p, a, actor),
   },
   {
-    name: 'upload_file', risk: 'LOW', write: true, scopes: ['files:write'],
+    name: 'upload_file', risk: 'LOW', write: true, dedupe: 'args', scopes: ['files:write'],
     description: 'ChatGPT only: save a file the user attached in this ChatGPT conversation into PlanQ, optionally into a folder (folder_id from list_folders/create_folder) and/or attached to a document, a task or a project. Files you generated in the chat (docx/xlsx/pdf/images) cannot be passed through this connection — use create_document for formatted text, create_text_file for plain text, otherwise create the folder and ask the user to upload the file in PlanQ. Allowed types: jpg, jpeg, png, gif, pdf, doc, docx, xls, xlsx, ppt, pptx, hwp, hwpx, zip, txt. Plan size and storage limits apply. Nothing is sent to anyone.',
     input: {
       file: z.object({
@@ -566,7 +566,7 @@ const TOOLS = [
   // ── 2026-11-19 이미 있는 파일을 업무·문서에 붙이기 (Fable 설계 DESIGN-READY) — 고른 기존 파일의 청중을 넓히므로 MEDIUM ──
   //   scope 는 kind 별로 달라 도구를 둘로 나눴다(실행기 scope 는 정적). projects:read = list_files 와 같은 읽기(쓰기로 읽기 우회 방지).
   {
-    name: 'attach_files_to_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write', 'projects:read'],
+    name: 'attach_files_to_task', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write', 'projects:read'],
     description: 'Attach files that are already in PlanQ (file_id from list_files, a mail attachment, or upload_file) to an existing task. Everyone who can see the task — including clients of its project — can then download them. Files marked internal/confidential cannot go on a task clients can see. Files already on the task are skipped (already_attached). All files are attached or none. Requires confirmation: the first call only returns a preview with the file names and the clients who will see them. For a file the user attached in this ChatGPT conversation use upload_file with attach_to instead.',
     input: {
       task_id: z.number().int().positive(),
@@ -577,7 +577,7 @@ const TOOLS = [
     handler: (p, a) => filesa.attachToTask(p, a),
   },
   {
-    name: 'attach_files_to_document', risk: 'MEDIUM', write: true, scopes: ['docs:write', 'projects:read'],
+    name: 'attach_files_to_document', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['docs:write', 'projects:read'],
     description: 'Attach files that are already in PlanQ (file_id from list_files, a mail attachment, or upload_file) to an existing Q docs document the user can edit. Everyone who can read the document can then see them. Not possible for documents with a signature request or documents shared by public link. Files already attached are skipped (already_attached). All files are attached or none. Requires confirmation: the first call only returns a preview.',
     input: {
       document_id: z.number().int().positive().describe('The post_id from search_documents / get_document'),
@@ -598,7 +598,7 @@ const TOOLS = [
     handler: (p, a) => filesw.listFolders(p, a),
   },
   {
-    name: 'create_folder', risk: 'LOW', write: true, scopes: ['files:write'],
+    name: 'create_folder', risk: 'LOW', write: true, dedupe: 'args', scopes: ['files:write'],
     description: 'Create a folder in Q file — in a project (project_id) or, without project_id, a workspace folder — optionally inside another folder (parent_folder_id, same project). If a folder with the same name already exists in that place, it is returned instead of a duplicate. Folders cannot be deleted or renamed through this connection (do that in PlanQ). Nothing is sent to anyone.',
     input: {
       name: z.string().trim().min(1).max(100),
@@ -609,7 +609,7 @@ const TOOLS = [
     handler: (p, a, actor) => filesw.createFolder(p, a, actor),
   },
   {
-    name: 'move_files_to_folder', risk: 'LOW', write: true, scopes: ['files:write'],
+    name: 'move_files_to_folder', risk: 'LOW', write: true, dedupe: 'state', scopes: ['files:write'],
     description: 'Put existing PlanQ files (file_id from list_files) into a folder, or take them out of folders (omit folder_id). The folder must belong to the same project as the files (or be a workspace folder for files without a project) — this never changes who can see a file. Folders shared by public link cannot receive files here. Only the uploader, the workspace owner or the project PM can move a file. All files move or none.',
     input: {
       file_ids: z.array(z.number().int().positive()).min(1).max(20),
@@ -619,7 +619,7 @@ const TOOLS = [
     handler: (p, a, actor) => filesw.moveFilesToFolder(p, a, actor),
   },
   {
-    name: 'create_text_file', risk: 'LOW', write: true, scopes: ['files:write'],
+    name: 'create_text_file', risk: 'LOW', write: true, dedupe: 'args', scopes: ['files:write'],
     description: 'Save text you wrote in this conversation as a file in PlanQ (works in Claude and ChatGPT) — e.g. a final schedule, notes or a list — optionally into a folder and/or attached to a document, task or project. Plain text only (.txt); the file name must end in .txt. For formatted documents use create_document. Plan size and storage limits apply. Nothing is sent to anyone.',
     input: {
       file_name: z.string().trim().min(1).max(255).describe('Name with extension, e.g. "final-schedule.txt"'),
@@ -632,7 +632,7 @@ const TOOLS = [
   },
   // ── 2026-10-07 Fable B 판정 2·3 — 프로젝트 만들기(MEDIUM) · Q note 메모 · Q info 항목 ──
   {
-    name: 'create_project', risk: 'MEDIUM', write: true, scopes: ['projects:write'],
+    name: 'create_project', risk: 'MEDIUM', write: true, dedupe: 'args', scopes: ['projects:write'],
     description: 'Create a new project in PlanQ. You can add existing workspace members (member_user_ids from search_members) and link existing clients of this workspace (client_ids from search_clients). PlanQ does not create or invite new clients or members here and sends no email. Clients that have a PlanQ account will see the project (and the client chat, if one is created) right away. By default an internal chat is created, plus a client chat for client projects; pass chats to change this — chats:"none" when the user does not want any chat rooms. Requires confirmation: the first call only returns a preview with the names of the members and clients that will be connected. To organize the new project\'s tasks into groups (workstreams, 추진과제), use create_workstream after it is created.',
     input: {
       name: z.string().trim().min(1).max(200),
@@ -652,7 +652,7 @@ const TOOLS = [
   // 2026-10-27 (Fable 설계 PASS — docs/AGENT_WORKSTREAM_DESIGN.md) — 추진과제(그룹). 같은 프로젝트 안 묶음이라 보는 사람·알림 없음 → LOW.
   //   만드는 것은 프로젝트 구조라 scope 는 projects:write(업무에 그룹 지정은 tasks:write 그대로). 삭제·이름 바꾸기는 두지 않는다.
   {
-    name: 'create_workstream', risk: 'LOW', write: true, scopes: ['projects:write'],
+    name: 'create_workstream', risk: 'LOW', write: true, dedupe: 'args', scopes: ['projects:write'],
     description: 'Create a group (workstream, 추진과제 / 그룹) inside a project, to organize its tasks. If the project already has a group with the same name (spaces and case ignored), that group is returned instead of a duplicate (matched_existing). Only adds — never renames, deletes or moves anything, and notifies no one. Then put tasks in it with create_task (workstream_id) or, for existing tasks, set_task_workstream. Existing groups are listed by get_project.',
     input: {
       project_id: z.number().int().positive(),
@@ -663,7 +663,7 @@ const TOOLS = [
     handler: (p, a, actor) => proj.createWorkstream(p, a, actor),
   },
   {
-    name: 'create_memo', risk: 'LOW', write: true, scopes: ['notes:write'],
+    name: 'create_memo', risk: 'LOW', write: true, dedupe: 'args', scopes: ['notes:write'],
     description: 'Save a private text memo in PlanQ Q note (title + body in Markdown; tables as GitHub pipe tables), optionally linked to a project or client. Only the user can see it until they share it in PlanQ. Only adds. Write what the user said — do not add follow-ups, advice or items they did not mention.',
     input: {
       title: z.string().trim().min(1).max(200),
@@ -675,7 +675,7 @@ const TOOLS = [
     handler: (p, a) => notes.createMemo(p, a),
   },
   {
-    name: 'create_knowledge_item', risk: 'LOW', write: true, scopes: ['docs:write'],
+    name: 'create_knowledge_item', risk: 'LOW', write: true, dedupe: 'args', scopes: ['docs:write'],
     description: 'Add an item to PlanQ Q info (the workspace information DB — information the team keeps reusing, stored as an item with named fields: accounts, contacts, pricing, policies, checklists, FAQs). Use Q docs for documents to read (contracts, reports, minutes) and Q note for meeting notes or personal memos. Give a title, a body and a category, and optionally named fields (e.g. {"Service": "…", "URL": "…"}). Passwords, tokens or keys are not accepted. Who can see it: "private" (only the user, default), "project" (that project\'s members), "workspace" (all members) or "client" (team members, and Cue may use it when answering that client — the client has no Q info screen).',
     input: {
       title: z.string().trim().min(1).max(300),
@@ -691,7 +691,7 @@ const TOOLS = [
   },
   // ── M2-a — MEDIUM(확인 2단계): 첫 호출은 미리보기만, 동의 후 confirmation_token 으로 실행 ──
   {
-    name: 'reschedule_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    name: 'reschedule_task', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Change a task\'s due date and/or start date. Requires confirmation: the first call only returns a preview; nothing changes until called again with the confirmation_token after the user agrees.',
     input: {
       task_id: z.number().int().positive(),
@@ -702,7 +702,7 @@ const TOOLS = [
     handler: (p, a, actor) => t.rescheduleTask(p, a, actor),
   },
   {
-    name: 'complete_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    name: 'complete_task', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Mark a task as completed (only its assignee can, and only when no reviewer sign-off is pending). Requires confirmation: the first call only returns a preview.',
     input: { task_id: z.number().int().positive(), confirmation_token: confirm, idempotency_key: idem },
     preview: (p, a) => t.previewComplete(p, a),
@@ -710,7 +710,7 @@ const TOOLS = [
   },
   // #463 — 삭제 대신 «취소»(되돌릴 수 있음). 권한은 화면 상태 변경과 같다(Fable 설계 2026-10-29). 삭제 도구는 두지 않는다(HIGH)
   {
-    name: 'cancel_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    name: 'cancel_task', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Cancel a task — sets its status to "canceled". The task is NOT deleted: it stays in PlanQ with its full history and can be restored there (open the task → revert, or change its status). Allowed for the task\'s assignee, its creator (requester) or a workspace owner/admin; refused for completed or already-canceled tasks. The assignee and requester are notified (and the reviewers, if a review round is in progress). If the task is the origin of a recurring series, only this occurrence is canceled and the series keeps generating — to stop the series, change its recurrence in PlanQ. There is no delete tool: when the user asks to delete or remove a task, offer to cancel it with this tool and tell them permanent deletion is only possible in PlanQ. Requires confirmation: the first call only returns a preview (who will be notified, whether reviewers are waiting, whether it is a recurring origin).',
     input: {
       task_id: z.number().int().positive(),
@@ -721,7 +721,7 @@ const TOOLS = [
     handler: (p, a, actor) => t.cancelTask(p, a, actor),
   },
   {
-    name: 'submit_review', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    name: 'submit_review', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Submit a task for review — sends it to its reviewers for sign-off (only the assignee, and only when reviewers are set). Requires confirmation: the first call only returns a preview.',
     input: { task_id: z.number().int().positive(), note: z.string().max(2000).optional().describe('Message to the reviewers (optional)'), confirmation_token: confirm, idempotency_key: idem },
     preview: (p, a) => t.previewSubmitReview(p, a),
@@ -729,7 +729,7 @@ const TOOLS = [
   },
   // ── M2-b — 담당자 변경(MEDIUM) · 제목/설명/중요도 수정(LOW). 규칙은 PUT /tasks/:id 와 같은 행동 계층 함수 ──
   {
-    name: 'assign_task', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    name: 'assign_task', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Change who a task is assigned to (use search_members for the user_id). The new assignee is notified. Requires confirmation: the first call only returns a preview.',
     input: { task_id: z.number().int().positive(), assignee_user_id: z.number().int().positive(), confirmation_token: confirm, idempotency_key: idem },
     preview: (p, a) => t.previewAssign(p, a),
@@ -737,14 +737,14 @@ const TOOLS = [
   },
   // #463 — 프로젝트 옮기기(MEDIUM). 그 프로젝트의 고객이 업무를 보게 되므로 확인 2단계. 삭제는 도구로 두지 않는다(HIGH)
   {
-    name: 'move_task_to_project', risk: 'MEDIUM', write: true, scopes: ['tasks:write'],
+    name: 'move_task_to_project', risk: 'MEDIUM', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Move an existing task into another project of this workspace (find project_id with search_projects), or take it out of its project with project_id omitted. Clients of a project can see its tasks, so who can see the task changes: this requires confirmation and the first call only returns a preview listing which clients gain or lose access. Upcoming occurrences of a recurring task move with it. Never deletes.',
     input: { task_id: z.number().int().positive(), project_id: z.number().int().positive().optional(), confirmation_token: confirm, idempotency_key: idem },
     preview: (p, a) => t.previewMoveTask(p, a),
     handler: (p, a, actor) => t.moveTask(p, a, actor),
   },
   {
-    name: 'update_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
+    name: 'update_task', risk: 'LOW', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Edit a task\'s title, description, result, priority, category, estimated hours, tags, expected outputs or group (workstream). Only the fields you pass change. description and body REPLACE the whole field with what you send: take the Markdown from get_task, edit it (delete, change or keep lines) and send the complete new text back — repeating the same call gives the same result. An empty string clears the field. Changing description or body requires confirmation (the first call returns a preview of what is replaced and which lines are removed). Send Markdown only — HTML is refused. To add to the end without replacing, use append_to_task. If get_task marked the field description_lossy/body_lossy (formatting Markdown cannot carry) or it was truncated, it cannot be replaced — use append_to_task or ask the user to edit it in PlanQ. The description (the request) can only be edited by the person who created the task. The body (the result / deliverable) can only be edited by the assignee, and only while the task is being worked on (it is locked during review and after the task is closed). Estimated hours only by the assignee. If you may not edit a field, add the content as a note with add_task_note instead. Tags must already exist in the workspace (the list replaces the task\'s tags). For dates use reschedule_task.',
     input: {
       task_id: z.number().int().positive(),
@@ -770,7 +770,7 @@ const TOOLS = [
   //   그 칸만 «숫자|null» 두 모양(anyOf)이라 ChatGPT 가 인자 목록에서 못 봤다. 이름으로 찾히는 도구 + 한 모양(정수, 0=빼기).
   //   실행은 update_task 와 같은 길(updateTask → task_actions.updateFields — 같은 프로젝트만·FIELD_RULES.workstream_id).
   {
-    name: 'set_task_workstream', risk: 'LOW', write: true, scopes: ['tasks:write'],
+    name: 'set_task_workstream', risk: 'LOW', write: true, dedupe: 'state', scopes: ['tasks:write'],
     description: 'Put an existing task into a group (workstream — 추진과제 / 업무그룹) of its own project, or take it out of its group (workstream_id 0). Get group ids from get_project (workstreams); if the group does not exist yet, create it with create_workstream first. Same project only — to change the project use move_task_to_project. Changes nothing else and notifies no one. One task per call.',
     input: {
       task_id: z.number().int().positive(),
@@ -781,7 +781,7 @@ const TOOLS = [
   },
   // 덧붙이기 — update_task 에서 뗐다(2026-10-27 Fable, Q docs append_to_document 와 같은 모양). 지우는 것이 없어 LOW.
   {
-    name: 'append_to_task', risk: 'LOW', write: true, scopes: ['tasks:write'],
+    name: 'append_to_task', risk: 'LOW', write: true, dedupe: 'args', scopes: ['tasks:write'],
     description: 'Add content (Markdown) to the END of a task\'s description (the request — creator only) and/or body (the result — assignee only, and only while the task is being worked on). Never removes or changes what is there. If the field already ends with exactly this content it is not added again (skipped_duplicate). Send Markdown only — HTML is refused. To change or delete existing text, use update_task. If you may not edit a field, add the content as a note with add_task_note instead.',
     input: {
       task_id: z.number().int().positive(),
@@ -802,7 +802,10 @@ for (const tool of TOOLS) {
   if (HIGH_PATTERNS.some((re) => re.test(tool.name))) throw new Error(`agent registry: HIGH 위험 도구는 등록할 수 없다 — ${tool.name}`);
   if (!['LOW', 'MEDIUM'].includes(tool.risk)) throw new Error(`agent registry: risk 선언 필수 — ${tool.name}`);
   if (tool.write && !tool.scopes.some((s) => s.endsWith(':write'))) throw new Error(`agent registry: 쓰기 도구는 쓰기 scope 필수 — ${tool.name}`);
-  if ((tool.risk === 'MEDIUM' || tool.riskOf) && (typeof tool.preview !== 'function' || !tool.input.confirmation_token)) throw new Error(`agent registry: MEDIUM 도구는 preview + confirmation_token 필수 — ${tool.name}`);
+  // 멱등 방식 선언 필수 — 기본값 없음(2026-11-24 Fable 설계). «같은 인자로 연달아 두 번 실행하면 무언가 하나 더 생기는가?»
+  //   예 = 'args'(인자 지문 10분 replay) · 아니오 = 'state'(목표 상태 — 지문은 실행 중 잠금으로만, A→B→A 가 삼켜지지 않게)
+  if (tool.write && !['args', 'state'].includes(tool.dedupe)) throw new Error(`agent registry: 쓰기 도구는 dedupe 선언 필수('args'|'state') — ${tool.name}`);
+  if ((tool.risk === 'MEDIUM' || tool.riskOf) &&(typeof tool.preview !== 'function' || !tool.input.confirmation_token)) throw new Error(`agent registry: MEDIUM 도구는 preview + confirmation_token 필수 — ${tool.name}`);
 }
 
 const byName = new Map(TOOLS.map((x) => [x.name, x]));

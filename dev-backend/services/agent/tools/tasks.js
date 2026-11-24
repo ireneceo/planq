@@ -791,6 +791,9 @@ async function previewSubmitReview(p, a) {
   const t = await loadTask(p, a.task_id, await scopeOf(p));
   if (t.assignee_id !== p.userId) throw err('PERMISSION_DENIED', 'only_assignee');
   if (['completed', 'canceled'].includes(t.status)) throw err('CONFLICT', 'task_closed');
+  // 이미 컨펌 중이면 다시 올리지 않는다 — 다시 올리면 회차 +1·받은 승인 초기화·컨펌자 알림이 또 나간다.
+  //   submit_review 는 dedupe:'state'(같은 인자 두 번째 = 변경 없음 또는 정직한 오류, 2026-11-24 Fable 설계)
+  if (require('../../reviewStage').inStage(t, 'reviewing')) throw err('CONFLICT', 'already_in_review');
   const { TaskReviewer } = require('../../../models');
   if (!(await TaskReviewer.count({ where: { task_id: t.id } }))) throw err('CONFLICT', 'no_reviewers_add_first');
   return { task: { task_id: t.id, title: t.title }, before: { status: t.status }, after: { status: 'reviewing' } };
@@ -798,6 +801,7 @@ async function previewSubmitReview(p, a) {
 async function submitReviewTool(p, a, actor) {
   await assertMenu(p, 'qtask', 'write');
   const t = await loadTask(p, a.task_id, await scopeOf(p));
+  if (require('../../reviewStage').inStage(t, 'reviewing')) throw err('CONFLICT', 'already_in_review');
   const taskActions = require('../../actions/task_actions');
   const r = await taskActions.submitReview(t, actor, { note: a.note || null });
   if (!r.ok) throw fromActionFailure(r);

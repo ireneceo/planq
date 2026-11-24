@@ -12,6 +12,7 @@ const grants = require('../agent_oauth/grants');
 
 const IDEM_TTL_MS = 10 * 60 * 1000;
 const CONFIRM_TTL_MS = 5 * 60 * 1000;   // MEDIUM 미리보기 → 동의 → 재호출까지
+const LOCK_TTL_MS = 60 * 1000;          // 상태 지정 도구의 실행 중 잠금(dedupe:'state', 키·토큰 없음)
 
 function stableStringify(v) {
   if (Array.isArray(v)) return `[${v.map(stableStringify).join(',')}]`;
@@ -89,6 +90,8 @@ async function runTool(p0, name, rawArgs, opts = {}) {
   if (!tool) return envelope(err('NOT_FOUND', 'unknown_tool'));
   let args = rawArgs || {};
   let idemKey = null;
+  let lockOnly = false;
+  let execFp = null;
   // 외부 앱만 — 호출마다 대상 워크스페이스(docs/AI_AGENT_MULTI_WORKSPACE_DESIGN.md). Cue 는 workspace_id 를 떼지 않는다 —
   //   도구 입력에 그 칸이 없으므로 아래 .strict() 가 거절한다(Cue 는 로그인 세션의 워크스페이스뿐, Fable 2).
   const external = !!p && p.provider !== 'cue';
@@ -149,6 +152,7 @@ async function runTool(p0, name, rawArgs, opts = {}) {
 
       const { idempotency_key: k, confirmation_token: ct, ...rest } = args;
       const fp = crypto.createHash('sha256').update(`${p.grantId}|${p.businessId}|${name}|${stableStringify(rest)}`).digest('hex');
+      execFp = fp;
 
       // MEDIUM — 확인 2단계(설계 §7, provider 와 무관). 토큰 없이 오면 **실행하지 않고** 미리보기 + 1회용 토큰을 준다.
       //   토큰은 (연결·도구·인자 지문)에 묶인다 — 다른 업무·다른 날짜에 쓰면 거절한다.
@@ -164,12 +168,22 @@ async function runTool(p0, name, rawArgs, opts = {}) {
       //   MEDIUM 은 확인 토큰이 곧 키다 — 같은 토큰으로 재시도하면 이미 한 결과를 돌려준다(토큰을 다시 소비하지 않는다).
       //   ★ 확인 토큰을 키로 쓸 때는 인자 지문도 묶는다 — 토큰만 키로 두면, 쓴 토큰을 **다른 인자**로 다시 보냈을 때
       //     앞 결과를 «replayed» 로 돌려줘 모델이 다른 대상도 처리된 줄 안다(2026-10-07 create_project 검증 실측).
+      // ★ 상태 지정 도구(dedupe:'state')가 키도 확인 토큰도 없이 오면 지문 자리는 **실행 중 잠금**(60초)으로만 쓴다 —
+      //   결과를 기억하면 A→B→A 의 마지막 A 가 실행 안 되고 «성공» 으로 돌아온다(2026-11-20 실측, 11-24 Fable 설계).
+      //   순차 재호출은 다시 실행된다(같은 값이면 핸들러가 변경 없음으로 끝난다). 동시 두 번은 in_progress 로 막힌다.
+      lockOnly = tool.dedupe === 'state' && !k && !ct;
       idemKey = crypto.createHash('sha256').update(`${p.grantId}|${p.businessId}|${name}|${k || (ct ? `${ct}|${fp}` : stableStringify(rest))}`).digest('hex');
-      const fresh = await store.setIfAbsent('agent_idem', idemKey, { status: 'pending' }, IDEM_TTL_MS);
+      const fresh = await store.setIfAbsent('agent_idem', idemKey, { status: 'pending', fp }, lockOnly ? LOCK_TTL_MS : IDEM_TTL_MS);
       if (!fresh) {
         const row = await store.get('agent_idem', idemKey);
+        // 같은 키 + 다른 인자 = 다른 요청이다 — 앞 결과를 replayed 로 돌려주면 모델이 이번 것도 된 줄 안다(ct 10-07 과 같은 계열)
+        if (k && row?.payload?.fp && row.payload.fp !== fp) {
+          idemKey = null;   // 남의 자리 — 아래 catch 가 지우지 않게
+          throw err('CONFLICT', 'idempotency_key_reused', { hint: 'This idempotency_key was already used for a different request. Nothing was done. Use a new idempotency_key.' });
+        }
         if (row?.payload?.status === 'done') {
           const out = { ok: true, ...row.payload.result, created: false, replayed: true };
+          if (!k && !ct) out.hint = 'Nothing new was done (same request within 10 minutes). To do it again on purpose, pass a new idempotency_key.';
           if (external && !out.workspace) out.workspace = await grants.workspaceLabel(p.businessId).catch(() => null);
           audit(p, name, args, { ok: true, replayed: true, target_type: row.payload.target_type, target_id: row.payload.target_id });
           return out;
@@ -204,7 +218,8 @@ async function runTool(p0, name, rawArgs, opts = {}) {
                       : data?.knowledge_item?.kb_id ? { target_type: 'KbDocument', target_id: data.knowledge_item.kb_id } : {};
 
     if (tool.write) {
-      await store.update('agent_idem', idemKey, { status: 'done', result: data, ...target }).catch(() => {});
+      if (lockOnly) await store.del('agent_idem', idemKey).catch(() => {});
+      else await store.update('agent_idem', idemKey, { status: 'done', fp: execFp, result: data, ...target }).catch(() => {});
       // Cue 카드·업무 묶음 실행(p.meter === false, provider cue 한정)은 계량하지 않는다 — 카드를 낸 /help 턴이 1회 계량했다.
       if (!(p.provider === 'cue' && p.meter === false)) {
         const { recordUsage } = require('../cue_orchestrator');

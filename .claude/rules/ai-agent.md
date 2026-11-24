@@ -21,6 +21,9 @@ paths:
 - **신원·범위는 토큰에서만** — grant = 사람 × **워크스페이스 하나** × scopes. 도구 입력에 workspace/user 칸이 없다(`.strict()` 로 거절). 업무는 `business_id: p.businessId` 로 묶어 찾는다 — 이 한 줄을 빼면 `canAccessTask` 가 «내 워크스페이스 scope» 로 남의 업무를 통과시킨다(양성 대조군 실측).
 - **누가 연결할 수 있나는 `services/agent_oauth/grants.canConnect` 한 곳** — 동의할 때와 **매 호출** 같은 판정(멤버 이상, 고객·AI·정지 불가). 멤버십이 끊기면 grant 를 지우지 않아도 닫힌다.
 - **도구는 `services/agent/registry.js` 한 벌, 실행은 `execute.runTool` 하나** — scope → 계량(`use_cue` 1회) → 멱등(키 또는 파라미터 지문 10분) → 행동 계층 → 감사(`agent.<tool>` + 행동 계층 행에 `via: agent:<provider>`).
+- **쓰기 도구는 멱등 방식 `dedupe` 를 선언한다** (2026-11-24 Fable 설계 — 상태 지정 도구가 10분 안 A→B→A 의 마지막 A 를 실행 안 하고 «성공» 으로 돌려주던 것) —
+  `'args'`(같은 인자 두 번 = 하나 더 생김 → 지문 10분 replay) / `'state'`(목표 상태 → 키·토큰 없으면 60초 실행 잠금만, 순차 재호출은 실행). 기본값 없음(registry throw + 가드 agentsurface 이름 대조).
+  새 state 도구는 «같은 인자 두 번째 = 변경 없음 또는 정직한 오류, 알림·이력·새 행 0» 을 실호출로 재고 올린다. 같은 키 + 다른 인자 = `idempotency_key_reused`. 설계서 §8.
 - **MEDIUM(마감 변경·완료 — 2026-10-02 M2-a)은 확인 2단계** — 첫 호출은 실행하지 않고 `CONFIRMATION_REQUIRED{preview, confirmation_token}`
   (5분·1회·연결×도구×인자 지문에 묶임), 사용자가 동의하면 같은 인자+토큰으로 다시 부른다. 같은 토큰 재시도는 `replayed`.
   도구 45개(2026-10-08 기준 — 정본은 `services/agent/registry.js`, 설계서 §6.3 표). 업무 프로젝트 옮기기(`move_task_to_project`, #463)는

@@ -338,6 +338,11 @@ MCP `inputSchema` 는 이 zod 에서 생성(SDK 가 한다). Cue 가 같은 레�
 - **쓰기 툴 공통**: `key = idempotency_key ?? sha256(grant_id + tool + 정규화 파라미터)`. 실행 전 `EphemeralToken.setIfAbsent('agent_idem', key, {status:'pending'}, 10분)` — 이미 있으면 ①`done` 이면 저장된 결과를 `replayed:true` 로 반환 ②`pending` 이면 `CONFLICT{code:'IN_PROGRESS', retry_after_sec:2}`. 실행 후 결과 스냅샷(id·제목 등 작은 것)을 `update`.
 - 왜 지문도 받나: 호스트가 같은 인자로 재시도하면 키가 같고, 모델이 다시 부르면 키를 새로 만들 수 있다. 지문은 모델의 협조 없이 «같은 요청» 을 잡는다. 10분 뒤 같은 제목 업무를 **일부러** 두 개 만드는 것은 허용(`title` 외에 설명·마감이 같아야 지문이 같다).
 - 확인 토큰(MEDIUM)은 그 자체가 1회용이라 2차 호출의 멱등을 겸한다.
+- **도구별 멱등 방식 `dedupe` (2026-11-24 Fable 설계 — A→B→A 삼킴 수정)** — 쓰기 도구는 `registry.js` 에 `dedupe:'args'|'state'` 를 **반드시** 선언한다(없으면 서버가 안 뜬다 · 가드 agentsurface 가 이름 규칙과 대조, 규칙 밖 이름은 가드의 명시 표).
+  - 가르는 질문 하나: «같은 인자로 연달아 두 번 실행하면 무언가 하나 더 생기는가?» 예 = `args`(만들기·덧붙이기·메모·업로드·회의 추가) — 위 지문 10분 replay 그대로, replay 응답에 `hint`(일부러 다시 하려면 새 키).
+  - 아니오 = `state`(update_*·set_*·move_*·reschedule*·assign·complete·cancel·submit_review·참여자/첨부 추가·link) — 키도 확인 토큰도 없이 오면 지문 자리는 **실행 중 잠금(60초)** 으로만 쓰고 성공 뒤 지운다. 순차 재호출은 다시 실행되므로 A→B→A 의 마지막 A 가 실제로 실행된다. 동시 두 건은 `CONFLICT in_progress`.
+  - state 도구 핸들러 요건: 같은 인자 두 번째 = 변경 없음 또는 정직한 오류(already_reviewer·nothing_to_add·task_closed·already_in_review) — 알림·상태 이력·새 행 0. (`submit_review` 는 컨펌 중이면 `already_in_review` — 다시 올리면 회차·승인 초기화·알림이 났다.)
+  - 명시 `idempotency_key` 는 두 방식 모두 replay. 단 **같은 키 + 다른 인자 → `CONFLICT idempotency_key_reused`**(멱등 행에 인자 지문 `fp` 를 같이 저장).
 - 트랜잭션 경계는 행동 계층 것을 그대로 쓴다. 멱등 행 쓰기는 **행동 계층 밖**(실패해도 본 작업과 무관, 가드 `auditentry` 와 같은 원칙).
 
 ### 8.5 Cue 와의 관계 — 카탈로그는 한 벌
