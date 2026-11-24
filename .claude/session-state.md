@@ -8,6 +8,8 @@
 - 입력창 이모지 32 → 88, 묶음 4개(자주 쓰는·표정·손·사람·사물·기호) 스크롤 판 · 폰에서 판이 오른쪽 2px 넘던 것 당김
 - 찾은 버그: dev DB `message_reactions.emoji` 가 utf8mb4_unicode_ci(모델은 07-11 에 bin 으로 고쳤는데 DB 에 안 들어감) → 이모지끼리 «같은 값» 이라 👍 뒤 🎉 를 누르면 👍 가 지워졌다. `scripts/migrate-reaction-emoji-collation.js`(멱등) dev 적용 + 배포 슬롯 등록
 - 검증: 실HTTP 👌🆗💯👍 4개 동시 저장·각각 취소·😺 400 (고치기 전엔 서로 지움) · build EXIT 0·error TS 0 · guard 86/87 · chatreaction 3폭 실패 0(14/14 보임) · canary-chat-emoji 폰·데스크탑 실패 0(88개·👌·묶음 4·맨 끝 그려짐 — 폰 넘침은 고치기 전 실패로 대조)
+- Fable 완료 검증 PASS(차단 0) — 옛 정렬 규칙 모사표 20만 행 ALTER 2.6초·값 보존 · 14종 실HTTP · 권한 401/403/404 · health 101/101
+- 다음 할 일(비차단): 반응 라우트 `String(req.body.emoji)` → typeof string 검사(배열 ["👍"] 가 통과 — 이전부터 · 저장값 오염 없음) · 배포 로그에서 «unicode_ci → utf8mb4_bin» 줄 확인
 - 운영: 다음 배포 때(슬롯 migrate-reaction-emoji-collation.js)
 
 ### ✅ 멤버별 «출퇴근 안 함» 보완 2건 (방 bd06638e · 2026-11-24 · [Opus] · Fable 안 씀 — 화면 숨김·문구, 기계 검사로 갈림)
