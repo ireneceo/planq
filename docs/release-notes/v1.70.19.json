@@ -1,0 +1,122 @@
+{
+  "version": "1.70.19",
+  "date": "2026-11-24",
+  "_auto": true,
+  "_range": "b120653e..eae49a29",
+  "summary": {
+    "ko": "근태·Q talk·일정·메일에서 자동화와 편의 기능이 크게 좋아졌어요.",
+    "en": "Attendance, Q talk, schedule, and mail automations and usability have been significantly improved."
+  },
+  "items": [
+    {
+      "ko": {
+        "title": "Q talk 프로젝트 방에 프로젝트 멤버만 자동 참여",
+        "body": "Q talk 프로젝트 방마다 «프로젝트 멤버 자동 참여»를 켤 수 있어요. 고객방이나 따로 만든 방에는 프로젝트 멤버가 자동으로 들어오지 않게 설정해, 방 구성을 더 안전하게 관리할 수 있습니다."
+      },
+      "en": {
+        "title": "Auto-join only project members in Q talk project rooms",
+        "body": "You can now enable “auto-join project members” per Q talk project room. Project members will no longer join customer rooms or separate rooms automatically, so you can keep each room’s participants under tighter control."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q talk 이모지 반응·입력 이모지 대폭 확장",
+        "body": "Q talk에서 쓸 수 있는 이모지 반응이 14개로 늘고, 입력창 이모지도 더 많이 고를 수 있게 정리했어요. 반응 칸 정렬도 보기 좋게 맞춰 빠르게 감정을 표현할 수 있습니다."
+      },
+      "en": {
+        "title": "More emoji reactions and better emoji picker in Q talk",
+        "body": "Q talk now supports 14 reaction emojis and a larger, better-organized emoji set in the input area. Reaction layouts are also cleaned up so you can express feedback and emotions more quickly and clearly."
+      }
+    },
+    {
+      "ko": {
+        "title": "멤버별 «출퇴근 안 함» 설정으로 근태 대상 관리",
+        "body": "근태에서 멤버마다 «출퇴근 안 함»을 설정해, 그 워크스페이스에서 출퇴근 기록을 아예 끌 수 있어요. 실제 근무 인원만 근태에 보이게 정리할 수 있습니다."
+      },
+      "en": {
+        "title": "Per-member “no clock-in/out” setting in attendance",
+        "body": "In Attendance, you can now set “no clock-in/out” per member to disable time tracking for that workspace. This lets you keep attendance views focused only on people who actually need to record working hours."
+      }
+    },
+    {
+      "ko": {
+        "title": "고정 출퇴근 시간으로 지각·조퇴 자동 판정",
+        "body": "근태에서 멤버의 고정 출퇴근 시간을 설정해 둘 수 있어요. 설정한 시간에 맞춰 지각·조퇴·미출근 여부를 자동으로 판정하고, 사유·인정 처리까지 한눈에 관리할 수 있습니다."
+      },
+      "en": {
+        "title": "Fixed work hours with automatic late/early leave detection",
+        "body": "You can now set fixed clock-in/out times in Attendance. Based on these times, PlanQ automatically detects late arrivals, early leaves, and absences, and helps you manage reasons and approvals in one place."
+      }
+    },
+    {
+      "ko": {
+        "title": "일정 장소 검색에 «내 주변»과 가까운·최근 장소 우선",
+        "body": "일정에서 장소를 검색할 때, 한글이 없으면 먼저 구글을 쓰고 가까운 곳과 최근에 쓴 장소를 위에 보여줘요. «내 주변» 버튼으로 지금 위치 근처 장소도 바로 찾을 수 있습니다."
+      },
+      "en": {
+        "title": "Smarter schedule place search with nearby & recent locations",
+        "body": "When searching for places in schedules, PlanQ now prefers Google if there’s no Korean text and prioritizes nearby and recently used locations. A “Near me” button lets you quickly find places around your current location."
+      }
+    },
+    {
+      "ko": {
+        "title": "해외 일정 장소, 구글 자동완성으로 더 쉽게 입력",
+        "body": "해외 장소를 일정에 입력할 때 구글 Places 자동완성을 사용해 더 정확하게 찾을 수 있어요. 상황에 따라 서버가 카카오·구글 순서를 골라 더 잘 맞는 검색 결과를 보여줍니다."
+      },
+      "en": {
+        "title": "Easier overseas schedule locations with Google Places autocomplete",
+        "body": "When adding overseas locations to schedules, PlanQ now uses Google Places autocomplete for more accurate suggestions. The service automatically chooses between Kakao and Google to provide better search results by region."
+      }
+    },
+    {
+      "ko": {
+        "title": "Q mail 요약·AI 답장이 마지막 메일 기준으로 동작",
+        "body": "Q mail에서 «우리가 할 일» 요약이 받은 질문 메일을 잘못 뒤집던 문제를 고쳤어요. AI 답장도 항상 마지막 받은 메일을 기준으로 문맥을 잡아, 반송 메일·우리 주소를 빼고 더 정확한 초안을 만듭니다."
+      },
+      "en": {
+        "title": "Q mail summary and AI replies now follow the latest message",
+        "body": "In Q mail, “Our tasks” summaries no longer flip incoming question mails incorrectly. AI replies now always use the latest received mail as context, excluding bounces and your own addresses, for more accurate draft suggestions."
+      }
+    },
+    {
+      "ko": {
+        "title": "탭을 옮겨도 우측 패널·작성 중 내용이 그대로 유지",
+        "body": "업무나 일정을 보다가 다른 탭으로 옮겨도 우측 패널과 입력 중이던 내용이 유지돼요. 새 업무·일정 추가 중이었더라도 임시저장되어, 실수로 탭을 옮겨도 다시 처음부터 쓰지 않아도 됩니다."
+      },
+      "en": {
+        "title": "Right panel and drafts stay intact when switching tabs",
+        "body": "When you switch to another tab while viewing tasks or schedules, the right-side panel and anything you were typing are preserved. Drafts for new tasks or events are temporarily saved, so you don’t have to retype if you move away."
+      }
+    },
+    {
+      "ko": {
+        "title": "근태 자동 출근 알림이 언제·왜 안 뜨는지 확인 가능",
+        "body": "근태에서 출근 여부를 묻는 창이 왜 안 뜨는지 근태 페이지에서 바로 볼 수 있고, «다시 묻기»로 재요청할 수 있어요. 열어 둔 탭도 5분마다 다시 확인해, 출근 알림이 빠지는 일을 줄였습니다."
+      },
+      "en": {
+        "title": "See why auto clock-in prompts didn’t show and ask again",
+        "body": "In Attendance, you can now see directly on the page why the clock-in prompt didn’t appear and trigger “Ask again” if needed. Open tabs are rechecked every 5 minutes to reduce missed clock-in prompts."
+      }
+    },
+    {
+      "ko": {
+        "title": "그 밖의 개선: 팝업 위치·표 생성·백업 안정성",
+        "body": "클릭하면 뜨는 창이 화면 아래에서 잘리던 문제를 고쳤고, Q note에서 «표로» 요청 시 실제 표로 만들어지도록 손봤어요. 워크스페이스 내보내기(백업)가 중간에 멈추던 현상도 줄였습니다."
+      },
+      "en": {
+        "title": "Other improvements: popup positioning, tables, and backups",
+        "body": "Popups that opened partially off-screen are now correctly positioned. In Q note, “as a table” requests now produce real tables. Workspace export (backup) has also been stabilized to prevent occasional stalls."
+      }
+    },
+    {
+      "ko": {
+        "title": "보안과 안정성 강화",
+        "body": "데이터를 더 안전하게 지키도록 보안과 안정성을 강화했습니다."
+      },
+      "en": {
+        "title": "Security and stability improvements",
+        "body": "We strengthened security and stability to keep your data safer."
+      }
+    }
+  ]
+}
