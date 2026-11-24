@@ -27,7 +27,23 @@ export interface AttendanceDay {
   note: string | null;
   /** 그날 가장 최근 «본인 수정» 요청(거둔 것 제외) — docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §5 */
   self_fix?: SelfFix | null;
+  /** 고정 근무 지각·조퇴·미출근 판정 — 유연 근무면 null (docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §3.4) */
+  punct?: Punct | null;
 }
+
+/** 서버 services/attendancePunctuality.judgeOne 모양. 값 이름은 화면이 모르면 그대로 보인다(status-values 규약). */
+export interface Punct {
+  applicable: boolean;
+  why?: string;
+  expected_in?: string; expected_out?: string; grace_min?: number;
+  in_status?: 'on_time' | 'late' | 'not_yet' | 'missing' | 'no_show' | string | null;
+  out_status?: 'ok' | 'early' | 'open' | 'unverified' | string | null;
+  late_min?: number; early_min?: number;
+  excused?: boolean; reason?: string | null; excuse_note?: string | null;
+  flags?: { self_fix_unconfirmed?: boolean; self_fix_pending?: boolean; midnight_tail?: boolean };
+}
+/** /today 의 내 오늘 기준 시각 — 유연이면 null */
+export interface TodaySchedule { mode: 'fixed'; source: string; expected_in: string | null; expected_out: string | null; grace_min: number; day_off: boolean }
 
 export type SelfFixStatus = 'applied' | 'pending' | 'confirmed' | 'approved' | 'rejected' | 'withdrawn';
 export interface SelfFix {
@@ -64,6 +80,8 @@ export function useAttendance(businessId: number | null) {
   const [closeCheck, setCloseCheck] = useState<CloseCheck | null>(null);
   const [promptStatus, setPromptStatus] = useState<PromptStatus | null>(null);
   const [fixApproval, setFixApproval] = useState(false);
+  const [schedule, setSchedule] = useState<TodaySchedule | null>(null);
+  const [todayPunct, setTodayPunct] = useState<Punct | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   // 초 카운터의 기준점 — 서버에서 받은 값과 그 시각. 매초 state 를 갱신하지 않고
@@ -88,6 +106,8 @@ export function useAttendance(businessId: number | null) {
       setCloseCheck(j.data?.close_check || null);
       setPromptStatus(j.data?.prompt_status || null);
       setFixApproval(!!j.data?.fix_approval);
+      setSchedule(j.data?.schedule || null);
+      setTodayPunct(j.data?.punct || null);
       baseRef.current = j.data?.day
         ? { work: j.data.day.work_sec, brk: j.data.day.break_sec, at: Date.now() }
         : null;
@@ -111,7 +131,10 @@ export function useAttendance(businessId: number | null) {
     const off = onSocket('attendance:updated', () => { void load(); });
     // 본인 수정 요청·묻기 답(내 다른 기기 포함) — 개인 방 신호. 묻는 창이 다른 기기에서 답하면 여기서도 닫힌다.
     const offFix = onSocket('attendance:fix_updated', () => { void load(); });
-    return () => { off(); offFix(); leaveRoom(room); };
+    // 근무 일정 변경(워크스페이스 방)·사유/인정(개인 방) — 오늘 기준 시각·판정을 다시 읽는다
+    const offSched = onSocket('attendance:schedule', () => { void load(); });
+    const offExc = onSocket('attendance:exception', () => { void load(); });
+    return () => { off(); offFix(); offSched(); offExc(); leaveRoom(room); };
   }, [businessId, load]);
 
   // 같은 탭의 다른 표면(위젯 ↔ 카드 ↔ 페이지)
@@ -228,6 +251,8 @@ export function useAttendance(businessId: number | null) {
   return {
     day, state, loading, submitting, live, reload: load,
     prompt, closeCheck, promptStatus, fixApproval, answerPrompt, answerClose,
+    /** 고정 근무 — 내 오늘 기준 시각·판정(유연이면 null) */
+    schedule, todayPunct,
     /** 묻는 창 «09:12 부터 출근»(observed) · «시각 고치기»(at) */
     clockInObserved: () => act('clock-in', { observed: true }),
     clockInAt: (at: string) => act('clock-in', { at }),

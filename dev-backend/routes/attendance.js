@@ -16,6 +16,7 @@ const { parsePagination, paginatedResponse } = require('../middleware/errorHandl
 const { AttendanceDay, AttendanceEvent, User, BusinessMember, LeaveRequest } = require('../models');
 const A = require('../services/attendanceTransition');
 const F = require('../services/attendanceFix');
+const PU = require('../services/attendancePunctuality');   // 고정 근무 지각·미출근 판정(유연이면 null) — docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md
 const { ymd } = require('../utils/datetime');
 
 const clockLimiter = rateLimit({
@@ -56,7 +57,8 @@ router.get('/today', authenticateToken, async (req, res, next) => {
       .catch((e) => { console.warn('[attendance prompt]', e.message); return { prompt: null, close_check: null, prompt_status: { state: 'error' } }; });
     // 화면이 정정 창 안내 문구(«바로 반영» / «승인 뒤 반영»)를 고르는 값 — 설정 «본인 수정은 승인 후 반영».
     const fixApproval = await require('../services/attendanceFix').approvalOn(businessId);
-    if (!day) return successResponse(res, { work_date: workDate, state: null, day: null, fix_approval: fixApproval, ...asks });
+    const punctView = await PU.todayView(businessId, req.user.id);   // { schedule, punct } — 본인 응답에만
+    if (!day) return successResponse(res, { work_date: workDate, state: null, day: null, fix_approval: fixApproval, ...punctView, ...asks });
     const live = await A.liveTotals(day);
     // #208 — 자동으로 출근 처리된 경우 그 사실을 화면에 알린다.
     //   시스템이 사용자 대신 상태를 바꿨으면 **말없이 두지 않는다** — 나중에 기록을 보고
@@ -70,7 +72,7 @@ router.get('/today', authenticateToken, async (req, res, next) => {
     }
     return successResponse(res, {
       work_date: workDate, state: day.state, day: { ...serializeDay(day, live), self_fix: (await F.selfFixOf([day.id])).get(day.id) || null },
-      auto_notice: auto, fix_approval: fixApproval, ...asks,
+      auto_notice: auto, fix_approval: fixApproval, ...punctView, ...asks,
     });
   } catch (err) { next(err); }
 });
@@ -167,7 +169,8 @@ router.get('/my', authenticateToken, async (req, res, next) => {
       where, order: [['work_date', 'DESC']], limit, offset,
     });
     const fixes = await F.selfFixOf(rows.map((d) => d.id));   // «본인 수정» 표시(원래 → 고친 값 · 확인 상태)
-    return paginatedResponse(res, rows.map((d) => ({ ...serializeDay(d), self_fix: fixes.get(d.id) || null })), count, { limit, page, offset });
+    const list = await PU.attachToDays(businessId, rows.map((d) => ({ ...serializeDay(d), self_fix: fixes.get(d.id) || null })));
+    return paginatedResponse(res, list, count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
@@ -186,7 +189,8 @@ router.get('/team', authenticateToken, async (req, res, next) => {
       where, order: [['work_date', 'DESC'], ['user_id', 'ASC']], limit, offset,
     });
     const fixes = await F.selfFixOf(rows.map((d) => d.id));
-    return paginatedResponse(res, rows.map((d) => ({ ...serializeDay(d), self_fix: fixes.get(d.id) || null })), count, { limit, page, offset });
+    const list = await PU.attachToDays(businessId, rows.map((d) => ({ ...serializeDay(d), self_fix: fixes.get(d.id) || null })));
+    return paginatedResponse(res, list, count, { limit, page, offset });
   } catch (err) { next(err); }
 });
 
@@ -215,7 +219,9 @@ router.get('/presence', authenticateToken, async (req, res, next) => {
       where: { business_id: businessId, removed_at: null },
       attributes: ['user_id'],
     });
-    const out = members.map((m) => serializePresence(m.user_id, byUser.get(m.user_id) || null, onLeave.has(m.user_id)));
+    // 관리자만 오늘 지각·미출근 표시(§6 — 멤버 응답에는 칸 자체가 없다)
+    const flags = isManager(scope) ? await PU.todayFlags(businessId) : null;
+    const out = members.map((m) => ({ ...serializePresence(m.user_id, byUser.get(m.user_id) || null, onLeave.has(m.user_id)), ...(flags ? { punct_today: flags.get(m.user_id) || null } : {}) }));
     return successResponse(res, out);
   } catch (err) { next(err); }
 });
@@ -359,11 +365,10 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
       }
       return acc.get(uid);
     };
-    const minutesOf = (dt) => {
-      if (!dt) return null;
-      const d = new Date(dt);
-      return d.getHours() * 60 + d.getMinutes();
-    };
+    // 워크스페이스 tz 벽시계 분 — 서버 로컬 시각이 아니다(지각 판정과 같은 기준, 설계 §3).
+    const tz = await A.workspaceTz(businessId);
+    const minutesOf = (dt) => (dt ? PU.wallOf(dt, tz).min : null);
+    const pj = await PU.judgeDays({ businessId, userIds: manager ? null : [req.user.id], from, to });
     for (const d of days) {
       const r = row(d.user_id);
       const evs = evByDay.get(d.id) || [];
@@ -393,6 +398,7 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
       else r.leave_used_unpaid += Number(l.days_charged || 0);
     }
 
+    for (const [key, p] of pj.results) if (p) row(Number(key.split('|')[0]));   // 고정 근무인데 기록이 하나도 없는 사람(미출근만)도 표에 나오게
     const avg = (arr) => {
       if (!arr.length) return null;
       const m = Math.round(arr.reduce((s, v) => s + v, 0) / arr.length);
@@ -411,6 +417,7 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
       auto_closed_count: r.auto_closed_count,
       leave_used_paid: round1(r.leave_used_paid),
       leave_used_unpaid: round1(r.leave_used_unpaid),
+      ...PU.statsOf(pj.results, r.user_id, from, to),   // 고정 근무 지각·조퇴·미출근(유연이면 null)
     })).sort((a, b) => b.work_hours - a.work_hours);
 
     // 부서 롤업 — 부서가 없는 멤버는 묶지 않는다(없는 소속을 만들어내지 않는다).
@@ -422,6 +429,7 @@ router.get('/stats', authenticateToken, async (req, res, next) => {
       d.work_hours += r.work_hours;
       d.overtime_hours += r.overtime_hours;
       d.leave_used_paid += r.leave_used_paid;
+      if (r.late_count !== null) { d.late_count = (d.late_count || 0) + r.late_count; d.no_show_count = (d.no_show_count || 0) + r.no_show_count; }
       deptAcc.set(r.department_id, d);
     }
     const departments = [...deptAcc.values()].map((d) => ({

@@ -656,6 +656,9 @@ sync_database() {
   #   attendance_days.close_confirmed_at · businesses.attendance_fix_approval · users.attendance_prompt_on. 멱등(있으면 no-op), 기존 행 무변경.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 새 칸을 SELECT 하므로 없으면 로그인·워크스페이스·근태 조회 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-attendance-checkin.js 2>&1 | tail -8"
+  # 2026-11-24 근태 고정 근무 일정·지각 — attendance_schedules · attendance_exceptions 새 표. 멱등, 백필 없음(행 없음 = 유연 = 지금 그대로).
+  #   ★ 순서: PM2 reload 보다 먼저 — 근태 조회(/today·/stats·/team)가 새 표를 읽는다. docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §9
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-attendance-fixed-schedule.js 2>&1 | tail -6"
   # 2026-10-07 일정 ↔ 업무 연결 — calendar_events.task_id INT NULL + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-task-link.js 2>&1 | tail -6"

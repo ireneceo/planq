@@ -15,7 +15,8 @@ import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import { onSocket } from '../../services/socket';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { fixChanges } from '../Attendance/SelfFixBadge';
-import type { SelfFix } from '../../hooks/useAttendance';
+import { punctText } from '../Attendance/PunctBadge';   // 고정 근무 — 이 정정으로 판정이 어떻게 바뀌나
+import type { Punct, SelfFix } from '../../hooks/useAttendance';
 
 interface FixRow extends Omit<SelfFix, 'request_id'> {
   id: number;
@@ -23,6 +24,9 @@ interface FixRow extends Omit<SelfFix, 'request_id'> {
   user_name: string | null;
   work_date: string;
   created_at: string | null;
+  /** 고정 근무일 때만 — 정정 전 스냅숏 판정 / 지금 판정 (docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §5.4) */
+  punct_before?: Punct | null;
+  punct_after?: Punct | null;
 }
 
 export default function AttendanceFixSection({ businessId }: { businessId: number }) {
@@ -91,8 +95,15 @@ export default function AttendanceFixSection({ businessId }: { businessId: numbe
     } finally { setBusy(null); }
   };
 
-  const pending = rows.filter((r) => r.status === 'pending');
-  const unconfirmed = rows.filter((r) => r.status === 'applied');
+  // 판정이 바뀌는 정정(«지각 25분 → 정상»)은 그 묶음 맨 위로 — 조용히 넘어가지 않게(§5.4)
+  const punctChange = (r: FixRow) => {
+    if (!r.punct_before || !r.punct_after?.applicable) return null;
+    const a = punctText(r.punct_before, t); const b = punctText(r.punct_after, t);
+    return a !== b ? { a, b } : null;
+  };
+  const changedFirst = (list: FixRow[]) => [...list].sort((x, y) => Number(!!punctChange(y)) - Number(!!punctChange(x)));
+  const pending = changedFirst(rows.filter((r) => r.status === 'pending'));
+  const unconfirmed = changedFirst(rows.filter((r) => r.status === 'applied'));
 
   const renderRow = (r: FixRow) => {
     const changes = fixChanges({ ...r, request_id: r.id } as SelfFix);
@@ -103,6 +114,7 @@ export default function AttendanceFixSection({ businessId }: { businessId: numbe
           {changes.map((c) => (
             <div key={c.kind}>{t(c.kind === 'in' ? 'fix.changeIn' : 'fix.changeOut', { from: c.from, to: c.to })}</div>
           ))}
+          {(() => { const pc = punctChange(r); return pc ? <PunctChange data-testid="attn-fixreq-punct">{t('punct.fixChanges', { before: pc.a, after: pc.b })}</PunctChange> : null; })()}
           {r.reason && <Muted>{t('fix.reasonLine', { reason: r.reason })}</Muted>}
           {rejecting === r.id && (
             <RejectBox>
@@ -206,6 +218,7 @@ const ItemMain = styled.div`min-width: 0; flex: 1; display: flex; flex-direction
 const ItemHead = styled.div`display: flex; gap: 8px; align-items: baseline; span { color: #64748B; font-size: 0.75rem; }`;
 const Btns = styled.div`display: flex; gap: 6px; flex-shrink: 0; align-items: center;`;
 const Muted = styled.div`color: #64748B; font-size: 0.75rem;`;
+const PunctChange = styled.div`font-size: 0.75rem; font-weight: 600; color: #9F1239;`;
 const Empty = styled.div`font-size: 0.8125rem; color: #94A3B8; padding: 8px 0;`;
 const Err = styled.div`font-size: 0.75rem; color: #BE123C; margin-bottom: 8px;`;
 const RejectBox = styled.div`

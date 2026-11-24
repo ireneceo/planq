@@ -18,7 +18,9 @@ import { TeamTab } from '../Attendance/TeamTab';
 import HolidaySettingsSection from './HolidaySettingsSection';   // #424 휴일·근무일
 import LeaveTypeSettingsSection from './LeaveTypeSettingsSection';   // 휴가 종류 — 맨 위(docs/LEAVE_TYPES_DESIGN.md §6.1)
 import { AdminFixDrawer } from '../Attendance/AdminFixDrawer';
-import AttendanceFixSection from './AttendanceFixSection';   // 확인할 정정 · 본인 수정 승인 설정 (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §6.4)
+import AttendanceFixSection from './AttendanceFixSection';
+import AttendanceScheduleSection from './AttendanceScheduleSection';   // 근무 일정(유연/고정) — docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §5.1
+import type { Punct } from '../../hooks/useAttendance';   // 확인할 정정 · 본인 수정 승인 설정 (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md §6.4)
 import type { LeaveRequestRow, PresenceRow, StatRow } from '../Attendance/shared';
 import { pickableMembers } from '../../utils/pickableMembers';
 
@@ -33,6 +35,8 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
 
   const [presence, setPresence] = useState<PresenceRow[]>([]);
   const [teamDays, setTeamDays] = useState<AttendanceDay[]>([]);
+  // 그 날 판정 중 근태 행이 없는 미출근(행 없음) — /team 에는 없다
+  const [teamNoShows, setTeamNoShows] = useState<{ user_id: number; work_date: string; punct: Punct }[]>([]);
   const [allRequests, setAllRequests] = useState<LeaveRequestRow[]>([]);
   const [stats, setStats] = useState<StatRow[]>([]);
   const [members, setMembers] = useState<{ user_id: number; name: string }[]>([]);
@@ -58,12 +62,14 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
       const j = await r.json().catch(() => null);
       return j?.success ? j.data : null;
     };
-    const [pres, all, team, st] = await Promise.all([
+    const [pres, all, team, st, pu] = await Promise.all([
       get(`/api/attendance/presence?business_id=${businessId}`),
       get(`/api/leave/requests?business_id=${businessId}&scope=all&limit=200`),
       get(`/api/attendance/team?business_id=${businessId}&date=${teamDate}`),
       get(`/api/attendance/stats?business_id=${businessId}&month=${statMonth}`),
+      get(`/api/attendance/punctuality?business_id=${businessId}&from=${teamDate}&to=${teamDate}`),
     ]);
+    if (pu) setTeamNoShows((pu.items || []).filter((x: { day_id: number | null }) => !x.day_id));
     if (pres) setPresence(pres);
     if (all) setAllRequests(all);
     if (team) setTeamDays(team);
@@ -84,10 +90,13 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
     };
     const offA = onSocket('attendance:updated', debounced);
     const offL = onSocket('leave:updated', debounced);
+    // 근무 일정 변경 · 사유/인정 — 판정이 바뀐다(신호만, 값은 다시 읽는다 · docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §6)
+    const offS = onSocket('attendance:schedule', debounced);
+    const offE = onSocket('attendance:exception', debounced);
     window.addEventListener(ATTENDANCE_REFRESH_EVENT, debounced);
     return () => {
       if (timer) window.clearTimeout(timer);
-      offA(); offL(); leaveRoom(room);
+      offA(); offL(); offS(); offE(); leaveRoom(room);
       window.removeEventListener(ATTENDANCE_REFRESH_EVENT, debounced);
     };
   }, [businessId, load]);
@@ -123,11 +132,12 @@ export default function AttendanceAdminSettings({ businessId }: Props) {
       {!moduleOn && <HolidaySettingsSection businessId={businessId} />}
       {moduleOn && (<>
       <Desc>{t('admin.desc') as string}</Desc>
+      <AttendanceScheduleSection businessId={businessId} members={members} />
       <AttendanceFixSection businessId={businessId} />
       <LeaveTypeSettingsSection businessId={businessId} />
       <HolidaySettingsSection businessId={businessId} />
       <TeamTab
-        presence={presence} teamDays={teamDays} allRequests={allRequests}
+        presence={presence} teamDays={teamDays} teamNoShows={teamNoShows} allRequests={allRequests}
         nameOf={nameOf} members={members} bizId={businessId} year={year}
         teamDate={teamDate} setTeamDate={setTeamDate}
         stats={stats} statMonth={statMonth} setStatMonth={setStatMonth}

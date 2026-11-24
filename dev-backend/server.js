@@ -555,6 +555,7 @@ app.use('/api/app-diag', require('./routes/app_diag'));
 app.use('/api/focus', require('./routes/focus'));
 app.use('/api/attendance', require('./routes/attendance'));   // #208 출퇴근
 app.use('/api/attendance', require('./routes/attendance_fix'));   // 본인 수정 요청·승인·출근 묻기 답 (docs/ATTENDANCE_CHECKIN_PROMPT_DESIGN.md) — attendance.js 뒤
+app.use('/api/attendance', require('./routes/attendance_schedule'));   // 고정 근무 일정·지각 판정·사유/인정 (docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md) — attendance_fix 뒤
 app.use('/api/leave', require('./routes/leave'));               // #208 휴가
 // ★ /api/tasks 체인 최상단 — 리터럴 `/priority/*` 가 뒤쪽 라우터의 파라미터 패턴에 먹히지 않게.
 //   (현재는 세그먼트 수가 달라 충돌 없지만, 미래 라우트 추가에 대한 방어선을 위치로 못박는다)

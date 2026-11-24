@@ -149,7 +149,9 @@ router.get('/fix-requests', authenticateToken, async (req, res, next) => {
     const { rows, count } = await AttendanceFixRequest.findAndCountAll({
       where, order: [['created_at', 'DESC'], ['id', 'DESC']], limit, offset,
     });
-    return paginatedResponse(res, await F.serializeList(rows, businessId), count, { limit, page, offset });
+    // 고정 근무면 «지각 25분 → 정상» 처럼 판정 변화를 붙인다(docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §5.4)
+    const list = await require('../services/attendancePunctuality').attachToFixRequests(businessId, await F.serializeList(rows, businessId));
+    return paginatedResponse(res, list, count, { limit, page, offset });
   } catch (err) { return sendErr(res, next, err); }
 });
 

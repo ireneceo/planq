@@ -15,29 +15,10 @@ import { apiFetch } from '../../contexts/AuthContext';
 import AutoSaveField from '../Common/AutoSaveField';
 import PlanQSelect from '../Common/PlanQSelect';
 import { Switch, SwitchKnob } from '../Common/switchShell';
+import WeekHoursEditor, { DEFAULT_WEEK_HOURS as DEFAULT_HOURS, readWeekHours as readHours, type WeekHours as Hours } from '../Common/WeekHoursEditor';   // 근태 근무 일정과 같은 편집기
 
 type Booking = { enabled: boolean; member_id: number | null; duration: number; lead_hours: number; daily_max: number };
-type Hours = Record<string, [number, number] | null>;
 interface Props { businessId: number; isOwner: boolean }
-
-const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
-const DEFAULT_HOURS: Hours = { mon: [9, 18], tue: [9, 18], wed: [9, 18], thu: [9, 18], fri: [9, 18], sat: null, sun: null };
-const HOUR_OPTS = Array.from({ length: 49 }, (_, i) => i / 2).map((h) => ({
-  value: String(h), label: `${String(Math.floor(h)).padStart(2, '0')}:${h % 1 ? '30' : '00'}`,
-}));
-
-/** 서버가 정한 모양이 아니면 기본값 — 서버 normalizeWorkHours 와 같은 규칙. */
-function readHours(raw: unknown): Hours {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return DEFAULT_HOURS;
-  const src = raw as Record<string, unknown>;
-  const out: Hours = {};
-  let any = false;
-  for (const d of DAYS) {
-    const v = src[d];
-    if (Array.isArray(v) && v.length === 2 && Number(v[0]) < Number(v[1])) { out[d] = [Number(v[0]), Number(v[1])]; any = true; } else out[d] = null;
-  }
-  return any ? out : DEFAULT_HOURS;
-}
 
 const BookingSettings: React.FC<Props> = ({ businessId, isOwner }) => {
   const { t } = useTranslation('settings');
@@ -160,28 +141,8 @@ const BookingSettings: React.FC<Props> = ({ businessId, isOwner }) => {
             <Label>{t('entry.booking.hours', '예약 받는 시간')}</Label>
             <Hint>{t('entry.booking.hoursHint', '워크스페이스 시간대 기준입니다. 이미 잡힌 담당자 일정과 겹치는 시간은 고객에게 보이지 않습니다.')}</Hint>
             <AutoSaveField key={`entry-bk-hours-${businessId}`} ref={hoursSave} type="select" onSave={saveHours}>
-              <HoursList>
-                {DAYS.map((d) => {
-                  const v = hours[d];
-                  return (
-                    <HourRow key={d} data-testid={`entry-hours-${d}`}>
-                      <DayToggle type="button" aria-pressed={!!v} $on={!!v} disabled={off}
-                        onClick={() => setHoursAndSave((p) => ({ ...p, [d]: p[d] ? null : [9, 18] }))}>
-                        {t(`entry.booking.day.${d}`)}
-                      </DayToggle>
-                      {v ? (
-                        <>
-                          <Sel><PlanQSelect size="sm" isDisabled={off} options={HOUR_OPTS} value={HOUR_OPTS.find((o) => Number(o.value) === v[0]) || null}
-                            onChange={(o) => { const n = Number((o as { value: string }).value); if (n < v[1]) setHoursAndSave((p) => ({ ...p, [d]: [n, v[1]] })); }} /></Sel>
-                          <Dash>–</Dash>
-                          <Sel><PlanQSelect size="sm" isDisabled={off} options={HOUR_OPTS} value={HOUR_OPTS.find((o) => Number(o.value) === v[1]) || null}
-                            onChange={(o) => { const n = Number((o as { value: string }).value); if (n > v[0]) setHoursAndSave((p) => ({ ...p, [d]: [v[0], n] })); }} /></Sel>
-                        </>
-                      ) : <Closed>{t('entry.booking.closed', '받지 않음')}</Closed>}
-                    </HourRow>
-                  );
-                })}
-              </HoursList>
+              <WeekHoursEditor hours={hours} onChange={setHoursAndSave} disabled={off}
+                closedLabel={t('entry.booking.closed', '받지 않음')} testIdPrefix="entry-hours" />
             </AutoSaveField>
           </Field>
         </>
@@ -198,16 +159,3 @@ const Grid = styled.div`display:grid;grid-template-columns:repeat(auto-fill,minm
 const Field = styled.div`display:flex;flex-direction:column;gap:6px;min-width:0;`;
 const Label = styled.div`font-size:0.75rem;font-weight:600;color:#475569;`;
 const Hint = styled.div`font-size:0.75rem;color:#94a3b8;line-height:1.5;`;
-const HoursList = styled.div`display:flex;flex-direction:column;gap:6px;`;
-const HourRow = styled.div`display:flex;align-items:center;gap:8px;flex-wrap:wrap;`;
-const DayToggle = styled.button<{ $on: boolean }>`
-  flex:0 0 56px;height:36px;border-radius:8px;cursor:pointer;font-size:0.8125rem;font-weight:600;
-  background:${p => (p.$on ? '#F0FDFA' : '#fff')};color:${p => (p.$on ? '#0F766E' : '#94A3B8')};
-  border:1px solid ${p => (p.$on ? '#14B8A6' : '#E2E8F0')};
-  &:disabled{cursor:default;}
-  &:focus-visible{outline:2px solid #14B8A6;outline-offset:2px;}
-  @media (max-width:640px){ height:40px; }
-`;
-const Sel = styled.div`flex:0 1 120px;min-width:96px;`;
-const Dash = styled.span`color:#94A3B8;font-size:0.8125rem;`;
-const Closed = styled.span`font-size:0.75rem;color:#94A3B8;`;

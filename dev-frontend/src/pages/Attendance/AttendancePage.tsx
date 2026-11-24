@@ -17,6 +17,8 @@ import PromptStatusLine from './PromptStatusLine';
 import { LeaveRequestDrawer } from './LeaveRequestDrawer';
 import CorrectDayModal from './CorrectDayModal';
 import SelfFixBadge from './SelfFixBadge';
+import { PunctBadges, PunctExceptionModal, punctExcusable } from './PunctBadge';   // 고정 근무 지각·미출근(유연이면 안 보임)
+import type { Punct } from '../../hooks/useAttendance';
 import {
   type LeaveRequestRow, type Balance,
   hhmm, unitKey,
@@ -54,6 +56,9 @@ const AttendancePage: React.FC = () => {
   const [days, setDays] = useState<AttendanceDay[]>([]);
   // 운영 #392 — 본인 정정. 서버와 같은 창(14일)을 화면도 알아야 "왜 버튼이 없지" 가 안 생긴다.
   const [correcting, setCorrecting] = useState<AttendanceDay | null>(null);
+  // 행 없는 미출근 날 — 근태 기록이 없어 /my 에 없다(/punctuality 가 준다 · 설계 D4)
+  const [noShows, setNoShows] = useState<{ work_date: string; punct: Punct }[]>([]);
+  const [reasonFor, setReasonFor] = useState<{ work_date: string; punct: Punct } | null>(null);
   const SELF_FIX_WINDOW_DAYS = 14;
   const canCorrect = (d: AttendanceDay) => {
     const age = Math.floor((Date.now() - new Date(`${d.work_date}T00:00:00`).getTime()) / 86400000);
@@ -84,12 +89,16 @@ const AttendancePage: React.FC = () => {
       const j = await r.json().catch(() => null);
       return j?.success ? j.data : null;
     };
-    const [d, req, bal] = await Promise.all([
+    const toYmd = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const now = new Date();
+    const [d, req, bal, pu] = await Promise.all([
       get(`/api/attendance/my?business_id=${bizId}&limit=60`),
       get(`/api/leave/requests?business_id=${bizId}&limit=100`),
       get(`/api/leave/balance?business_id=${bizId}&year=${year}`),
+      get(`/api/attendance/punctuality?business_id=${bizId}&from=${toYmd(new Date(now.getTime() - 60 * 86400000))}&to=${toYmd(now)}`),
     ]);
     if (d) setDays(d);
+    if (pu) setNoShows((pu.items || []).filter((x: { day_id: number | null }) => !x.day_id));
     if (req) setRequests(req);
     if (bal) setBalance(bal);
   }, [bizId, year]);
@@ -165,10 +174,13 @@ const AttendancePage: React.FC = () => {
     };
     const offA = onSocket('attendance:updated', debounced);
     const offL = onSocket('leave:updated', debounced);
+    // 근무 일정 변경 · 사유/인정 — 판정이 바뀐다(신호만, 값은 다시 읽는다 · docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §6)
+    const offS = onSocket('attendance:schedule', debounced);
+    const offE = onSocket('attendance:exception', debounced);
     window.addEventListener(ATTENDANCE_REFRESH_EVENT, debounced);
     return () => {
       if (timer) window.clearTimeout(timer);
-      offA(); offL(); leaveRoom(room);
+      offA(); offL(); offS(); offE(); leaveRoom(room);
       window.removeEventListener(ATTENDANCE_REFRESH_EVENT, debounced);
     };
   }, [bizId, silentLoad]);
@@ -204,6 +216,28 @@ const AttendancePage: React.FC = () => {
   // ★ **아무것도 안 그리는 분기를 두지 않는다.** 워크스페이스가 아직 안 잡혔을 때 null 을 돌려주면
   //   사용자에게는 메뉴를 눌렀는데 빈 화면이 뜬 것으로 보인다(운영: "근태 메뉴 누르면 아무것도 없는데").
   //   무슨 상황인지 말해주는 화면을 대신 그린다.
+  // 미출근 날을 날짜 순서(최신 먼저)대로 기록 사이에 끼운다 — 그 날보다 늦은 첫 기록 행 앞에.
+  const nsBefore = new Map<number, typeof noShows>();
+  const nsTail: typeof noShows = [];
+  for (const x of [...noShows].sort((a, b) => (a.work_date < b.work_date ? 1 : -1))) {
+    const at = days.find((d) => d.work_date < x.work_date);
+    if (at) nsBefore.set(at.id, [...(nsBefore.get(at.id) || []), x]); else nsTail.push(x);
+  }
+  const renderNoShow = (x: { work_date: string; punct: Punct }) => (
+    <tr key={`ns-${x.work_date}`} data-testid="attendance-noshow-row">
+      <Td>{x.work_date}</Td>
+      <Td>–</Td><Td>–</Td><Td>–</Td><Td>–</Td>
+      <Td><PunctBadges punct={x.punct} /></Td>
+      <Td>
+        {!x.punct.excused && canCorrect({ work_date: x.work_date } as AttendanceDay) && (
+          <ActionButton tone="secondary" size="sm" data-testid="punct-reason-open" onClick={() => setReasonFor(x)}>
+            {x.punct.reason ? t('punct.reason.edit') : t('punct.reason.add')}
+          </ActionButton>
+        )}
+      </Td>
+    </tr>
+  );
+
   if (!bizId) {
     return (
       <PageShell title={t('page.title')}>
@@ -244,7 +278,7 @@ const AttendancePage: React.FC = () => {
               })}
             </SummaryChip>
           </TopRow>
-          {days.length === 0 ? (
+          {days.length === 0 && noShows.length === 0 ? (
             <Empty>{t('my.empty')}</Empty>
           ) : (
             <TableWrap>
@@ -258,13 +292,16 @@ const AttendancePage: React.FC = () => {
                 </thead>
                 <tbody>
                   {days.map((d) => (
-                    <tr key={d.id}>
+                    <React.Fragment key={d.id}>
+                    {(nsBefore.get(d.id) || []).map(renderNoShow)}
+                    <tr>
                       <Td>{d.work_date}</Td>
                       <Td>{hhmm(d.clock_in_at)}</Td>
                       <Td>{d.clock_out_at ? hhmm(d.clock_out_at) : <Muted>{t('my.inProgress')}</Muted>}</Td>
                       <Td>{formatHours(d.break_sec)}</Td>
                       <Td><strong>{formatHours(d.work_sec)}</strong></Td>
                       <Td>
+                        <PunctBadges punct={d.punct} />
                         {d.auto_closed && (d.close_confirmed
                           ? <Badge $tone="info">{t('my.autoClosedConfirmed')}</Badge>
                           : <Badge $tone="warn" title={t('my.autoClosedHint') as string}>{t('my.autoClosed')}</Badge>)}
@@ -280,9 +317,17 @@ const AttendancePage: React.FC = () => {
                             {t('correct.open', { defaultValue: '정정' })}
                           </ActionButton>
                         )}
+                        {d.punct && punctExcusable(d.punct) && !d.punct.excused && canCorrect(d) && (
+                          <ActionButton tone="secondary" size="sm" data-testid="punct-reason-open"
+                            onClick={() => setReasonFor({ work_date: d.work_date, punct: d.punct as Punct })}>
+                            {d.punct.reason ? t('punct.reason.edit') : t('punct.reason.add')}
+                          </ActionButton>
+                        )}
                       </Td>
                     </tr>
+                    </React.Fragment>
                   ))}
+                  {nsTail.map(renderNoShow)}
                 </tbody>
               </Table>
             </TableWrap>
@@ -383,6 +428,8 @@ const AttendancePage: React.FC = () => {
         </>
       )}
 
+      <PunctExceptionModal open={!!reasonFor} onClose={() => setReasonFor(null)} onDone={() => { void silentLoad(); }}
+        mode="reason" businessId={bizId} workDate={reasonFor?.work_date || ''} initial={reasonFor?.punct.reason || ''} punct={reasonFor?.punct} />
       {correcting && (
 
         <CorrectDayModal

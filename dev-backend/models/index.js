@@ -49,6 +49,8 @@ const AttendanceDay = require('./AttendanceDay');
 const AttendanceEvent = require('./AttendanceEvent');
 const AttendanceFixRequest = require('./AttendanceFixRequest');
 const AttendanceActivity = require('./AttendanceActivity');
+const AttendanceSchedule = require('./AttendanceSchedule');   // 고정 근무 일정 이력 — docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md
+const AttendanceException = require('./AttendanceException');   // 지각·미출근 사유·인정
 const LeaveGrant = require('./LeaveGrant');
 const LeaveRequest = require('./LeaveRequest');
 const LeaveType = require('./LeaveType');
@@ -703,7 +705,7 @@ module.exports = {
   ProjectHistoryEntry,
   HistoryOverride,
   ProviderCredit,
-  AttendanceDay, AttendanceEvent, AttendanceFixRequest, AttendanceActivity, LeaveGrant, LeaveRequest, LeaveType, WorkspaceHoliday,
+  AttendanceDay, AttendanceEvent, AttendanceFixRequest, AttendanceActivity, AttendanceSchedule, AttendanceException, LeaveGrant, LeaveRequest, LeaveType, WorkspaceHoliday,
   TaskDeliverableVersion,
   EmailAccountAlias,
   EmailAccountNotifyPref,

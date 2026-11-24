@@ -18,12 +18,15 @@ export interface Balance {
   /** 종류별(2026-10-22) — 서버 getBalance 한 벌 */
   by_type?: import('./LeaveBalanceParts').TypeBalance[];
 }
-export interface PresenceRow { user_id: number; state: string | null; on_leave_today: boolean }
+export interface PresenceRow { user_id: number; state: string | null; on_leave_today: boolean; /** 관리자 응답에만 — 오늘 지각·미출근 */ punct_today?: 'late' | 'missing' | string | null }
 export interface StatRow {
   user_id: number; department_id: number | null;
   work_days: number; work_hours: number; break_hours: number; overtime_hours: number;
   avg_clock_in: string | null; avg_clock_out: string | null;
   auto_closed_count: number; leave_used_paid: number; leave_used_unpaid: number;
+  /** 고정 근무 — 유연이면 null (docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §4) */
+  applicable_days?: number | null; late_count?: number | null; late_minutes?: number | null;
+  early_count?: number | null; early_minutes?: number | null; no_show_count?: number | null; excused_count?: number | null;
 }
 export interface AttendanceEventRow {
   id: number; kind: 'clock_in' | 'break_start' | 'break_end' | 'clock_out';

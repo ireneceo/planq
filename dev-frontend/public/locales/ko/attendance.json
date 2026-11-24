@@ -196,7 +196,11 @@
     "autoClosed": "미확인 자동마감",
     "empty": "이 달에는 기록이 없습니다.",
     "overtimeHint": "‘기준 초과’는 각자의 1일 기준시간을 넘긴 합계입니다. 유연근무라 어떤 날은 넘고 어떤 날은 모자란 것이 정상이며, 법정 연장근로 수치가 아닙니다.",
-    "autoClosedHint": "퇴근을 누르지 않아 자동 마감됐는데 본인이 아직 확인·정정하지 않은 날 수"
+    "autoClosedHint": "퇴근을 누르지 않아 자동 마감됐는데 본인이 아직 확인·정정하지 않은 날 수",
+    "lateCount": "지각",
+    "earlyCount": "조퇴",
+    "noShowCount": "미출근",
+    "excusedCount": "인정"
   },
   "fix": {
     "open": "정정",
@@ -323,6 +327,86 @@
       "day_changed": "그사이 이 날 기록이 바뀌었어요. 멤버에게 다시 요청하게 해 주세요.",
       "cannot_decide_own": "본인 요청은 다른 관리자가 처리해요.",
       "not_pending": "이미 처리된 요청이에요."
+    }
+  },
+  "schedule": {
+    "title": "근무 일정",
+    "desc": "고정 근무로 바꾸면 정한 시각보다 늦게 출근한 날을 지각으로, 일찍 퇴근한 날을 조퇴로 기록해요. 바꾼 일정은 적용 시작일부터 반영되고, 지난 기록의 판정은 바뀌지 않아요.",
+    "mode": {
+      "flexShort": "유연 근무",
+      "flexDesc": "출근 시각을 정하지 않아요 (지각을 따지지 않음)",
+      "fixedShort": "고정 근무",
+      "fixedDesc": "정한 시각보다 늦으면 지각으로 기록해요"
+    },
+    "hours": "요일별 근무 시간",
+    "copyFromBooking": "예약 시간에서 가져오기",
+    "dayOff": "쉬는 날",
+    "grace": "지각 유예",
+    "graceNone": "없음 (정시)",
+    "graceMin": "{{min}}분",
+    "graceShort": "유예 {{min}}분",
+    "halfDayAt": "반차 경계",
+    "halfAuto": "자동 (근무 시간 가운데 + 30분)",
+    "halfHint": "오전 반차면 이 시각까지 출근, 오후 반차면 이 시각부터 퇴근해도 돼요.",
+    "effectiveFrom": "적용 시작",
+    "save": "저장",
+    "appliesFrom": "{{date}}부터 적용돼요",
+    "current": "지금 적용 중",
+    "upcoming": "{{date}}부터",
+    "cancelUpcoming": "예정 취소",
+    "memberTitle": "사람별 일정",
+    "memberHint": "대표·시차 출근자처럼 다르게 적용할 사람만 바꾸세요. 나머지는 워크스페이스 일정을 따라요.",
+    "member": {
+      "inherit": "워크스페이스 따름",
+      "flex": "적용 안 함(유연)",
+      "custom": "따로 정한 시간",
+      "change": "바꾸기",
+      "mode": "적용 방식"
+    },
+    "error": {
+      "generic": "저장하지 못했어요. 다시 시도해 주세요.",
+      "effective_from_must_be_future": "적용 시작은 내일 이후로 골라 주세요.",
+      "invalid_schedule": "근무 요일과 시간을 하나 이상 골라 주세요.",
+      "invalid_grace": "유예 시간을 다시 골라 주세요.",
+      "already_started": "이미 시작된 일정은 취소할 수 없어요.",
+      "member_not_found": "이 워크스페이스 멤버가 아니에요.",
+      "forbidden": "관리자만 바꿀 수 있어요.",
+      "effective_from_too_far": "1년 안의 날짜로 골라 주세요."
+    }
+  },
+  "punct": {
+    "late": "지각 {{min}}분",
+    "lateShort": "지각",
+    "lateBy": "{{min}}분 늦음",
+    "early": "조퇴 {{min}}분",
+    "missing": "아직 미출근",
+    "noShow": "미출근",
+    "unverified": "퇴근 시각 미확인",
+    "excused": "인정됨",
+    "onTime": "정상",
+    "expected": "기준 {{in}}~{{out}}",
+    "midnightTail": "자정 넘겨 근무",
+    "reason": {
+      "add": "사유 쓰기",
+      "edit": "사유 고치기",
+      "title": "사유 쓰기",
+      "save": "남기기",
+      "placeholder": "예: 병원 들렀다 출근"
+    },
+    "excuse": "인정",
+    "unexcuse": "인정 취소",
+    "excuseTitle": "지각·미출근 인정",
+    "unexcuseTitle": "인정 취소",
+    "excuseNotePlaceholder": "메모 (선택)",
+    "fixChanges": "{{before}} → {{after}}",
+    "todaySum": "지각 {{late}} · 아직 미출근 {{missing}}",
+    "countMin": "{{count}}회 · {{min}}분",
+    "flexShort": "유연",
+    "error": {
+      "no_issue": "이 날은 지각·미출근이 아니에요.",
+      "out_of_window": "14일 안의 날만 사유를 쓸 수 있어요.",
+      "self_excuse_not_allowed": "자기 기록은 다른 관리자가 인정해야 해요.",
+      "forbidden": "권한이 없어요."
     }
   }
 }

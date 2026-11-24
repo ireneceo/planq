@@ -196,7 +196,11 @@
     "autoClosed": "Unchecked auto-close",
     "empty": "No records this month.",
     "overtimeHint": "‘Over baseline’ totals time past each person's daily baseline. With flexible hours some days run over and others under — this is not a legal overtime figure.",
-    "autoClosedHint": "Days auto-closed for a missed clock-out that the person hasn't confirmed or corrected yet"
+    "autoClosedHint": "Days auto-closed for a missed clock-out that the person hasn't confirmed or corrected yet",
+    "lateCount": "Late",
+    "earlyCount": "Early",
+    "noShowCount": "No show",
+    "excusedCount": "Excused"
   },
   "fix": {
     "open": "Correct",
@@ -323,6 +327,86 @@
       "day_changed": "This day's record changed in the meantime. Ask the member to request again.",
       "cannot_decide_own": "Another admin handles your own request.",
       "not_pending": "This request was already handled."
+    }
+  },
+  "schedule": {
+    "title": "Work schedule",
+    "desc": "With a fixed schedule, arrivals after the set time are marked late and leaving before it is marked early. Changes apply from the start date — past records keep their judgment.",
+    "mode": {
+      "flexShort": "Flexible",
+      "flexDesc": "No fixed start time (no late check)",
+      "fixedShort": "Fixed",
+      "fixedDesc": "Arrivals after the set time are marked late"
+    },
+    "hours": "Hours by weekday",
+    "copyFromBooking": "Copy from booking hours",
+    "dayOff": "Day off",
+    "grace": "Grace period",
+    "graceNone": "None (on the dot)",
+    "graceMin": "{{min}} min",
+    "graceShort": "grace {{min}} min",
+    "halfDayAt": "Half-day boundary",
+    "halfAuto": "Auto (middle of the day + 30 min)",
+    "halfHint": "With a morning half-day, arrive by this time; with an afternoon half-day, leave from this time.",
+    "effectiveFrom": "Starts on",
+    "save": "Save",
+    "appliesFrom": "Applies from {{date}}",
+    "current": "Now",
+    "upcoming": "From {{date}}",
+    "cancelUpcoming": "Cancel scheduled change",
+    "memberTitle": "Per-person schedule",
+    "memberHint": "Change only people who work differently (owner, staggered hours). Everyone else follows the workspace schedule.",
+    "member": {
+      "inherit": "Follows workspace",
+      "flex": "Not applied (flexible)",
+      "custom": "Custom hours",
+      "change": "Change",
+      "mode": "Applies as"
+    },
+    "error": {
+      "generic": "Couldn't save. Please try again.",
+      "effective_from_must_be_future": "Pick a start date from tomorrow on.",
+      "invalid_schedule": "Pick at least one weekday and its hours.",
+      "invalid_grace": "Pick the grace period again.",
+      "already_started": "A schedule that already started can't be canceled.",
+      "member_not_found": "Not a member of this workspace.",
+      "forbidden": "Only admins can change this.",
+      "effective_from_too_far": "Pick a date within a year."
+    }
+  },
+  "punct": {
+    "late": "{{min}} min late",
+    "lateShort": "Late",
+    "lateBy": "{{min}} min late",
+    "early": "Left {{min}} min early",
+    "missing": "Not in yet",
+    "noShow": "No show",
+    "unverified": "Clock-out unconfirmed",
+    "excused": "Excused",
+    "onTime": "On time",
+    "expected": "Expected {{in}}–{{out}}",
+    "midnightTail": "Worked past midnight",
+    "reason": {
+      "add": "Add reason",
+      "edit": "Edit reason",
+      "title": "Add a reason",
+      "save": "Save",
+      "placeholder": "e.g. Stopped by the clinic"
+    },
+    "excuse": "Excuse",
+    "unexcuse": "Undo excuse",
+    "excuseTitle": "Excuse late / no show",
+    "unexcuseTitle": "Undo excuse",
+    "excuseNotePlaceholder": "Note (optional)",
+    "fixChanges": "{{before}} → {{after}}",
+    "todaySum": "Late {{late}} · Not in yet {{missing}}",
+    "countMin": "{{count}}× · {{min}} min",
+    "flexShort": "Flexible",
+    "error": {
+      "no_issue": "This day has no late arrival or no-show.",
+      "out_of_window": "You can add a reason only within 14 days.",
+      "self_excuse_not_allowed": "Another admin must excuse your own record.",
+      "forbidden": "You don't have permission."
     }
   }
 }

@@ -11,6 +11,7 @@
 
 **Irene 확정 1차 범위 (2026-08-18):**
 1. 출퇴근 기록 — 시작/중지(휴게)/재개/종료, 유연근무제 기준 (고정 출근시각 강제 없음)
+   - ★ 2026-11-24: 워크스페이스가 «고정 근무» 를 고르면 지각·조퇴·미출근을 판정한다 → `docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md` (고르지 않으면 이 문서 그대로)
 2. 휴가 — 관리자 연간 부여(유급) → 멤버 신청(유급/무급, 종일/반차/시간) → 승인/반려 → 잔여 관리
 3. Q Task 주간 가용시간 연동 — 승인된 휴가가 그 주 가용시간을 자동 차감
 
@@ -315,7 +316,7 @@ async function getMemberCapacityForWeek(userId, businessId, weekStartYmd) {
 
 멤버별 (owner/admin 은 전원, member 는 본인):
 - `work_days` (출근일수) · `work_hours` (Σwork_total_sec) · `break_hours`
-- `avg_clock_in` / `avg_clock_out` (유연근무 패턴 파악 — 지각 판정 아님)
+- `avg_clock_in` / `avg_clock_out` (유연근무 패턴 파악 — 지각 판정 아님) — 고정 근무 워크스페이스의 지각은 `docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md` (평균은 2026-11-24 부터 워크스페이스 시간대 기준)
 - `overtime_hours` = Σ max(0, 일 근무시간 − daily_work_hours) — 초과 참고치 (법정 아님, 라벨에 명시)
 - `leave_used_paid / leave_used_unpaid / leave_remaining` (그 해 기준)
 - `auto_closed_count` (미퇴근 마감 건수 — 데이터 품질 신호)

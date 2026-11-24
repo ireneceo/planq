@@ -79,13 +79,27 @@ async function lastActAt({ businessId, userId, workDate }) {
 
 // ─── 묻는 조건 (§3.2) ────────────────────────────────────────────
 /** 그날 묻는 시간대 [시작, 끝](Date) — 쉬는 날·공휴일이면 null. */
-async function workWindow({ businessId, workDate, tz }) {
+async function workWindow({ businessId, userId = null, workDate, tz }) {
   const biz = await Business.findByPk(businessId, { attributes: ['id', 'work_hours', 'timezone', 'holiday_country'] });
   const { workHoursOf, normalizeWorkHours } = require('./booking');
   const { getWorkCalendar, isWorkday } = require('./workspaceHolidays');
+  const dow = new Date(`${workDate}T00:00:00Z`).getUTCDay();
+  // 고정 근무(docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §4 «같이 고치는 한 곳») — 그 사람 그날 일정이 fixed 면
+  //   예약 받는 시간(work_hours) 대신 근태 일정으로 창을 잡는다. 그 요일에 일정이 없으면 쉬는 날. 유연이면 아래 종전 그대로.
+  if (userId) {
+    const sched = await require('./attendanceSchedule').resolveSchedule(businessId, userId, workDate);
+    if (sched.mode === 'fixed' && sched.row?.hours) {
+      const h = sched.row.hours[dow];
+      if (!h) return null;
+      const { WorkspaceHoliday } = require('../models');
+      const off = await WorkspaceHoliday.findOne({ where: { business_id: businessId, is_off: true, date: workDate }, attributes: ['id'] });
+      if (off) return null;
+      const base0 = startOfDayInTz(workDate, tz).getTime();
+      return [new Date(base0 + Math.max(0, h[0] - 120) * 60000), new Date(base0 + h[1] * 60000)];
+    }
+  }
   const cal = await getWorkCalendar(businessId, workDate, workDate, { biz });
   if (!isWorkday(workDate, cal)) return null;
-  const dow = new Date(`${workDate}T00:00:00Z`).getUTCDay();
   let win;
   if (normalizeWorkHours(biz?.work_hours)) {
     const h = workHoursOf(biz)[dow];
@@ -112,7 +126,7 @@ async function observedStart({ businessId, userId, now = new Date() }) {
   });
   const seen = row?.first_seen_at ? new Date(row.first_seen_at) : null;
   if (!seen || seen > now) return null;
-  const win = await workWindow({ businessId, workDate, tz });
+  const win = await workWindow({ businessId, userId, workDate, tz });
   if (win && seen < win[0]) return null;
   return seen;
 }
@@ -172,7 +186,7 @@ async function promptFor({ businessId, userId, day, now = new Date() }) {
   // prompt_status — 지금 묻지 않으면 **왜** 안 묻는지(근태 페이지가 그대로 보여 준다 · 2026-11-23 Irene
   //   «안 뜨는 게 맞는 조건이면 그 조건을 화면에 알려 주세요»). 판정은 아래 한 벌 그대로 — 값만 이름 붙여 내보낸다.
   let status;
-  const win = day ? null : await workWindow({ businessId, workDate, tz });
+  const win = day ? null : await workWindow({ businessId, userId, workDate, tz });
   if (day) status = { state: 'checked_in' };
   else if (!win) status = { state: 'day_off' };
   else if (now < win[0]) status = { state: 'before', from: win[0], until: win[1] };

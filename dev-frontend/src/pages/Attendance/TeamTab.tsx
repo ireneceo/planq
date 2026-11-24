@@ -11,6 +11,8 @@ import { apiFetch } from '../../contexts/AuthContext';
 import { formatHours, type AttendanceDay } from '../../hooks/useAttendance';
 import { useRevealSelectedRow } from '../../hooks/useRevealSelectedRow';
 import SelfFixBadge from './SelfFixBadge';
+import { PunctBadges, PunctExceptionModal, punctExcusable } from './PunctBadge';   // 고정 근무 지각·미출근(유연이면 안 보임)
+import type { Punct } from '../../hooks/useAttendance';
 import {
   type LeaveRequestRow, type PresenceRow, type StatRow, hhmm, unitKey, shiftMonth,
   Section, SectionTitle, Empty, TableWrap, Table, Th, Td, Muted, Badge,
@@ -26,6 +28,8 @@ const DecidedNote = styled.div`
 // ─── 팀 관리 탭 ─────────────────────────────────────────────────
 export const TeamTab: React.FC<{
   presence: PresenceRow[]; teamDays: AttendanceDay[]; allRequests: LeaveRequestRow[];
+  /** 그 날 행 없는 미출근 — /punctuality (docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §5.2) */
+  teamNoShows?: { user_id: number; work_date: string; punct: Punct }[];
   nameOf: (id: number) => string; members: { user_id: number; name: string }[];
   bizId: number; year: number; teamDate: string; setTeamDate: (v: string) => void;
   stats: StatRow[]; statMonth: string; setStatMonth: (v: string) => void;
@@ -35,7 +39,7 @@ export const TeamTab: React.FC<{
   //   부모가 파라미터를 쥐고 내려 준다(같은 파라미터를 두 곳에서 읽으면 갈라진다).
   highlightLeaveId?: number | null;
   onReload: () => Promise<void>;
-}> = ({ presence, teamDays, allRequests, nameOf, members, bizId, year, teamDate, setTeamDate,
+}> = ({ presence, teamDays, teamNoShows = [], allRequests, nameOf, members, bizId, year, teamDate, setTeamDate,
         stats, statMonth, setStatMonth, onFix, onDecide, onReload, highlightLeaveId }) => {
   const { t } = useTranslation('attendance');
   const pending = allRequests.filter((r) => r.status === 'pending');
@@ -46,6 +50,16 @@ export const TeamTab: React.FC<{
   const linkedDecided = linked && linked.status !== 'pending' ? linked : null;
   // 목록 안에서 보이게 — 공용 훅(화면마다 스크롤 코드를 쓰지 않는다)
   useRevealSelectedRow(highlightLeaveId ?? null);
+  // 인정/인정 취소 창 — 대상(사람·날짜·판정)
+  const [excuseFor, setExcuseFor] = useState<{ user_id: number; work_date: string; punct: Punct } | null>(null);
+  const showPunctStats = stats.some((r) => r.late_count !== null && r.late_count !== undefined);
+  const lateToday = presence.filter((p) => p.punct_today === 'late').length;
+  const missingToday = presence.filter((p) => p.punct_today === 'missing').length;
+  const excuseBtn = (uid: number, date: string, p?: Punct | null) => (p && punctExcusable(p) ? (
+    <ActionButton tone="secondary" size="sm" data-testid="punct-excuse-open" onClick={() => setExcuseFor({ user_id: uid, work_date: date, punct: p })}>
+      {p.excused ? t('punct.unexcuse') : t('punct.excuse')}
+    </ActionButton>
+  ) : null);
   const [grantUser, setGrantUser] = useState<number | null>(null);
   const [grantDays, setGrantDays] = useState('');
   // ★ 휴가 **종류**(2026-10-22 — 회사가 정한 목록, 설정 › 근태 관리 맨 위 «휴가 설정»).
@@ -86,7 +100,12 @@ export const TeamTab: React.FC<{
   return (
     <>
       <Section>
-        <SectionTitle>{t('team.presence')}</SectionTitle>
+        <SectionTitle>
+          {t('team.presence')}
+          {(lateToday > 0 || missingToday > 0) && (
+            <PresenceSum data-testid="attn-presence-punct-sum">{t('punct.todaySum', { late: lateToday, missing: missingToday })}</PresenceSum>
+          )}
+        </SectionTitle>
         <PresenceWrap>
           {presence.map((p) => (
             <PresenceChip key={p.user_id} $state={p.on_leave_today ? 'leave' : p.state}>
@@ -95,6 +114,9 @@ export const TeamTab: React.FC<{
               <PresenceState>
                 {p.on_leave_today ? t('widget.onLeaveToday') : t(`state.${p.state || 'none'}`)}
               </PresenceState>
+              {p.punct_today === 'late' && <PresencePunct $tone="bad">{t('punct.lateShort')}</PresencePunct>}
+              {p.punct_today === 'missing' && <PresencePunct $tone="warn">{t('punct.missing')}</PresencePunct>}
+              {p.punct_today && p.punct_today !== 'late' && p.punct_today !== 'missing' && <PresencePunct $tone="warn">{p.punct_today}</PresencePunct>}
             </PresenceChip>
           ))}
         </PresenceWrap>
@@ -160,7 +182,7 @@ export const TeamTab: React.FC<{
       <Section>
         <SectionTitle>{t('team.records')}</SectionTitle>
         <SingleDateField value={teamDate} onChange={setTeamDate} />
-        {teamDays.length === 0 ? <Empty>{t('team.noRecords')}</Empty> : (
+        {teamDays.length === 0 && teamNoShows.length === 0 ? <Empty>{t('team.noRecords')}</Empty> : (
           <TableWrap>
             <Table>
               <thead>
@@ -178,6 +200,7 @@ export const TeamTab: React.FC<{
                     <Td>{formatHours(d.break_sec)}</Td>
                     <Td><strong>{formatHours(d.work_sec)}</strong></Td>
                     <Td>
+                      <PunctBadges punct={d.punct} />
                       {d.auto_closed && (d.close_confirmed
                         ? <Badge $tone="info">{t('my.autoClosedConfirmed')}</Badge>
                         : <Badge $tone="warn">{t('my.autoClosed')}</Badge>)}
@@ -186,7 +209,15 @@ export const TeamTab: React.FC<{
                       <ActionButton tone="secondary" size="sm" onClick={() => onFix(d)} data-testid="attn-fix-open">
                         {t('fix.open')}
                       </ActionButton>
+                      {excuseBtn(d.user_id, d.work_date, d.punct)}
                     </Td>
+                  </tr>
+                ))}
+                {teamNoShows.map((x) => (
+                  <tr key={`ns-${x.user_id}-${x.work_date}`} data-testid="attn-team-noshow-row">
+                    <Td>{nameOf(x.user_id)}</Td>
+                    <Td>–</Td><Td>–</Td><Td>–</Td><Td>–</Td>
+                    <Td><PunctBadges punct={x.punct} />{excuseBtn(x.user_id, x.work_date, x.punct)}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -212,6 +243,9 @@ export const TeamTab: React.FC<{
                   <Th>{t('stats.breakHours')}</Th><Th>{t('stats.overtime')}</Th>
                   <Th>{t('stats.avgIn')}</Th><Th>{t('stats.avgOut')}</Th>
                   <Th>{t('stats.leaveUsed')}</Th><Th title={t('stats.autoClosedHint') as string}>{t('stats.autoClosed')}</Th>
+                  {showPunctStats && (<>
+                    <Th>{t('stats.lateCount')}</Th><Th>{t('stats.earlyCount')}</Th><Th>{t('stats.noShowCount')}</Th><Th>{t('stats.excusedCount')}</Th>
+                  </>)}
                 </tr>
               </thead>
               <tbody>
@@ -226,6 +260,14 @@ export const TeamTab: React.FC<{
                     <Td>{r.avg_clock_out || '–'}</Td>
                     <Td>{r.leave_used_paid}{r.leave_used_unpaid ? ` (+${r.leave_used_unpaid})` : ''}</Td>
                     <Td>{r.auto_closed_count ? <Badge $tone="warn">{r.auto_closed_count}</Badge> : '–'}</Td>
+                    {showPunctStats && (r.late_count === null || r.late_count === undefined ? (
+                      <><Td><Muted>{t('punct.flexShort')}</Muted></Td><Td>–</Td><Td>–</Td><Td>–</Td></>
+                    ) : (<>
+                      <Td data-testid="stat-late">{r.late_count ? t('punct.countMin', { count: r.late_count, min: r.late_minutes }) : '–'}</Td>
+                      <Td>{r.early_count ? t('punct.countMin', { count: r.early_count, min: r.early_minutes }) : '–'}</Td>
+                      <Td>{r.no_show_count || '–'}</Td>
+                      <Td>{r.excused_count || '–'}</Td>
+                    </>))}
                   </tr>
                 ))}
               </tbody>
@@ -233,6 +275,10 @@ export const TeamTab: React.FC<{
           </TableWrap>
         )}
       </Section>
+      <PunctExceptionModal open={!!excuseFor} onClose={() => setExcuseFor(null)} onDone={() => { void onReload(); }}
+        mode="excuse" businessId={bizId} workDate={excuseFor?.work_date || ''} userId={excuseFor?.user_id}
+        currentExcused={!!excuseFor?.punct.excused} who={excuseFor ? nameOf(excuseFor.user_id) : ''}
+        initial={excuseFor?.punct.excuse_note || ''} punct={excuseFor?.punct} />
     </>
   );
 };
@@ -246,6 +292,11 @@ const PresenceChip = styled.div<{ $state: string | null }>`
 `;
 
 const PresenceState = styled.span` font-weight: 500; color: #94A3B8; `;
+const PresencePunct = styled.span<{ $tone: 'bad' | 'warn' }>`
+  padding: 1px 6px; border-radius: 999px; font-size: 0.6875rem; font-weight: 600;
+  background: ${(p) => (p.$tone === 'bad' ? '#FFE4E6' : '#FEF3C7')}; color: ${(p) => (p.$tone === 'bad' ? '#9F1239' : '#92400E')};
+`;
+const PresenceSum = styled.span` margin-left: 8px; font-size: 0.75rem; font-weight: 600; color: #9F1239; `;
 
 const Dot = styled.span<{ $state: string | null }>`
   width: 7px; height: 7px; border-radius: 50%;

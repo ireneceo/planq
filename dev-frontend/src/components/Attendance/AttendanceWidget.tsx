@@ -162,6 +162,15 @@ const AttendanceWidget: React.FC<Props> = ({ variant = 'sidebar', isCollapsed, e
           </SinceEdit>
         </Since>
       )}
+      {/* 고정 근무 — 오늘 기준 시각 + 늦었으면 몇 분(정상이면 덧붙이지 않는다 · docs/ATTENDANCE_FIXED_SCHEDULE_DESIGN.md §5.3) */}
+      {a.schedule && !a.schedule.day_off && a.schedule.expected_in && (
+        <Since $dark={dark} data-testid="attn-schedule-line">
+          <span>
+            {t('punct.expected', { in: a.todayPunct?.expected_in || a.schedule.expected_in, out: a.todayPunct?.expected_out || a.schedule.expected_out })}
+            {a.todayPunct?.in_status === 'late' ? ` · ${t('punct.lateBy', { min: a.todayPunct.late_min })}` : ''}
+          </span>
+        </Since>
+      )}
       <Actions $card={variant === 'card'}>
         {!state && (
           <Primary $dark={dark} $card={variant === 'card'} type="button" data-testid="attn-clock-in"
