@@ -99,8 +99,9 @@ export default function ReactionPickerPopover({ anchorEl, businessId, messageId,
 const Bar = styled.div`
   position: fixed;
   z-index: var(--pq-z-modal);
-  display: flex; align-items: center; gap: 2px;
-  padding: 4px 6px; border-radius: 999px;
+  /* 14개 — 한 줄이면 폰 폭을 넘는다. 7칸 2줄 고정(데스크탑·폰 같은 모양). */
+  display: grid; grid-template-columns: repeat(7, auto); gap: 2px;
+  padding: 6px; border-radius: 14px;
   background: #fff; border: 1px solid #E2E8F0;
   box-shadow: 0 6px 20px rgba(15, 23, 42, 0.14);
 `;

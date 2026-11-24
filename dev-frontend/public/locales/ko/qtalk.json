@@ -381,6 +381,7 @@
       "hint": "Enter 전송 · Shift+Enter 줄바꿈",
       "extractHint": "AI 가 이 대화에서 할 일 후보를 뽑아냅니다",
       "emoji": "이모지",
+      "emojiGroup": { "frequent": "자주 쓰는", "face": "표정", "hand": "손·사람", "thing": "사물·기호" },
       "attachPost": "문서 카드",
       "uploading": "업로드 중..."
     },

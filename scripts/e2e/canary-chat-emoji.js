@@ -5,6 +5,10 @@
 //   그래서 렌더 후 ① 뷰포트 안에 있는지 ② 그 지점의 최상단 엘리먼트가 팝업 자신인지
 //   (= 무엇에도 덮이거나 잘리지 않았는지) 를 elementFromPoint 로 반증한다.
 //
+// 2026-11-24 Irene «이모티콘이 왜 이렇게 적어? 오케이도 없고» — 32 → 묶음 4개·88개(스크롤 판).
+//   그래서 ③ 묶음 이름이 보이는가 ④ 👌 가 있는가 ⑤ 맨 끝 이모지까지 스크롤해 **그려지는가**(판 안 elementFromPoint) 를 더 잰다.
+//   폰(375)·데스크탑(1280) 두 폭.
+//
 // ★ 검사한 개수를 같이 출력한다 — "0개 검사한 통과" 와 진짜 통과를 구분하기 위해서다
 //   (memory feedback_detector_must_report_coverage).
 const { launch, login, goto, sleep } = require('./lib/browser');
@@ -15,7 +19,10 @@ const PASSWORD = process.env.E2E_PASSWORD || 'PlanQ-Review-2026!';
 (async () => {
   const fails = [];
   let checked = 0;
-  const { browser, page } = await launch();
+  for (const mobile of [false, true]) {
+  const tag = mobile ? '[폰 375]' : '[데스크탑]';
+  console.log(tag);
+  const { browser, page } = await launch({ mobile });
   try {
     await login(page, { email: EMAIL, password: PASSWORD });
     await goto(page, '/talk');
@@ -56,7 +63,31 @@ const PASSWORD = process.env.E2E_PASSWORD || 'PlanQ-Review-2026!';
     });
     checked++;
     console.log(`  팝업 rect ${JSON.stringify(verdict.rect)} · 이모지 셀 ${verdict.cells}개`);
-    if (!verdict.ok) fails.push(`팝업 가시성: ${verdict.why}`);
+    if (!verdict.ok) fails.push(`${tag} 팝업 가시성: ${verdict.why}`);
+
+    // 묶음 이름 · 👌 · 맨 끝 이모지까지 스크롤해 실제로 그려지는가
+    const more = await page.evaluate(async () => {
+      const pop = document.querySelector('[role="menu"][aria-label="이모지"], [role="menu"][aria-label="Emoji"]');
+      const cells = [...pop.querySelectorAll('[role="menuitem"]')];
+      const hasOk = cells.some((c) => c.textContent === '👌');
+      const labels = [...pop.children].map((g) => g.firstElementChild && g.firstElementChild.textContent).filter(Boolean);
+      const last = cells[cells.length - 1];
+      last.scrollIntoView({ block: 'nearest' });
+      await new Promise((r) => setTimeout(r, 200));
+      const lr = last.getBoundingClientRect();
+      const hit = document.elementFromPoint(lr.left + lr.width / 2, lr.top + lr.height / 2);
+      const pr = pop.getBoundingClientRect();
+      return { n: cells.length, hasOk, labels, lastDrawn: !!hit && (hit === last || last.contains(hit)), scrolls: pop.scrollHeight > pop.clientHeight, popH: Math.round(pr.height), lastCell: last.textContent };
+    });
+    checked++;
+    console.log(`  이모지 ${more.n}개 · 👌=${more.hasOk} · 묶음 ${JSON.stringify(more.labels)} · 판 높이 ${more.popH} · 스크롤=${more.scrolls} · 맨 끝(${more.lastCell}) 그려짐=${more.lastDrawn}`);
+    if (more.n < 80) fails.push(`${tag} 이모지 ${more.n}개 (80 미만)`);
+    if (!more.hasOk) fails.push(`${tag} 👌 없음`);
+    if (more.labels.length !== 4) fails.push(`${tag} 묶음 이름 ${more.labels.length}개 (4 기대)`);
+    if (!more.lastDrawn) fails.push(`${tag} 맨 끝 이모지가 스크롤해도 안 그려짐`);
+    if (mobile) await page.screenshot({ path: (process.env.CLAUDE_JOB_DIR ? process.env.CLAUDE_JOB_DIR + '/tmp' : '/tmp') + '/emoji-phone.png' });
+    else await page.screenshot({ path: (process.env.CLAUDE_JOB_DIR ? process.env.CLAUDE_JOB_DIR + '/tmp' : '/tmp') + '/emoji-desktop.png' });
+    await page.evaluate(() => { const pop = document.querySelector('[role="menu"][aria-label="이모지"], [role="menu"][aria-label="Emoji"]'); pop.scrollTop = 0; });
 
     // 클릭 시 입력창에 실제로 들어가는가
     const before = await page.$eval('textarea[aria-label="메시지 입력"], textarea[aria-label="Message input"]', el => el.value);
@@ -64,12 +95,13 @@ const PASSWORD = process.env.E2E_PASSWORD || 'PlanQ-Review-2026!';
     await sleep(300);
     const after = await page.$eval('textarea[aria-label="메시지 입력"], textarea[aria-label="Message input"]', el => el.value);
     checked++;
-    if (after.length <= before.length) fails.push(`이모지 클릭이 입력창에 반영되지 않음 ("${before}" → "${after}")`);
+    if (after.length <= before.length) fails.push(`${tag} 이모지 클릭이 입력창에 반영되지 않음 ("${before}" → "${after}")`);
     else console.log(`  삽입 확인: "${before}" → "${after}"`);
   } catch (e) {
-    fails.push(e.message);
+    fails.push(`${tag} ${e.message}`);
   } finally {
     await browser.close();
+  }
   }
 
   console.log(`\n[canary-chat-emoji] 검사 ${checked}개 · 실패 ${fails.length}건`);

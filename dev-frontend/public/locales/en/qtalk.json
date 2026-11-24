@@ -417,6 +417,7 @@
       "hint": "Enter to send · Shift+Enter for newline",
       "extractHint": "AI extracts task candidates from this conversation",
       "emoji": "Emoji",
+      "emojiGroup": { "frequent": "Frequent", "face": "Faces", "hand": "Hands & people", "thing": "Objects & symbols" },
       "attachPost": "Document card",
       "uploading": "Uploading..."
     },

@@ -14,7 +14,9 @@ const { applyMemberDisplayName } = require('../services/displayName');
 const { isVisibleToClient } = require('../utils/messageVisibility');
 
 // 허용 이모지 — 임의 문자열 저장 금지(스토리지·렌더 오염 차단). 채팅 리액션 표준 세트.
-const ALLOWED = ['👍', '❤️', '😂', '🎉', '👀', '🙏', '✅', '🔥'];
+// 2026-11-24 Irene «이모티콘이 왜 이렇게 적어? 오케이도 없고» — 8 → 14. 옛 8개는 그대로 포함(이미 달린 반응이 계속 보이게).
+//   프론트 REACTION_EMOJIS(services/qtalk.ts)와 같은 목록이어야 한다.
+const ALLOWED = ['👍', '👌', '🆗', '✅', '❤️', '😊', '😂', '🎉', '👏', '🙏', '👀', '🔥', '💯', '😢'];
 
 // 메시지 → 대화방 로드 + 접근 검사
 async function loadMessageOrFail(req, res) {

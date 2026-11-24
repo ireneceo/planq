@@ -302,7 +302,8 @@ export async function toggleMessageReaction(
 }
 
 /** 채팅 리액션 이모지 (백엔드 허용 목록과 동일해야 함 — routes/message_reactions.js) */
-export const REACTION_EMOJIS = ['👍', '❤️', '😂', '🎉', '👀', '🙏', '✅', '🔥'];
+//   2026-11-24 «오케이도 없고» — 8 → 14 (옛 8개 포함 · 고르는 창은 7칸 2줄)
+export const REACTION_EMOJIS = ['👍', '👌', '🆗', '✅', '❤️', '😊', '😂', '🎉', '👏', '🙏', '👀', '🔥', '💯', '😢'];
 
 export type ApiMessageMeta =
   | { card_type: 'post'; post_id: number; share_token: string; share_url: string; title: string; note: string | null }

@@ -662,6 +662,8 @@ sync_database() {
   # 2026-11-24 멤버별 «출퇴근 안 함» — business_members.attendance_tracked TINYINT(1) NOT NULL DEFAULT 1. 멱등, 기존 행 = 1(지금 그대로).
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 멤버 조회 전체(로그인 포함)가 500. docs/ATTENDANCE_MEMBER_TRACKING_DESIGN.md
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-attendance-tracked.js 2>&1 | tail -4"
+  # 2026-11-24 반응 이모지 칸 utf8mb4_bin — unicode_ci 에선 이모지끼리 «같은 값» 이라 👍 뒤 🎉 가 👍 를 지웠다. 멱등·더 엄격해질 뿐(순서 무관).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-reaction-emoji-collation.js 2>&1 | tail -3"
   # 2026-10-07 일정 ↔ 업무 연결 — calendar_events.task_id INT NULL + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-task-link.js 2>&1 | tail -6"
