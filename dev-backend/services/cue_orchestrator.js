@@ -9,6 +9,7 @@
 //  6. Message 생성 (is_ai=true) + cue_usage 집계 + 감사 로그
 
 const { sequelize } = require('../config/database');
+const { Op } = require('sequelize');
 const Business = require('../models/Business');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
@@ -133,6 +134,7 @@ async function callLLM(model, messages, opts = {}) {
     // ★ 상한을 여기서 400 으로 못 박지 않는다 — 안 주면 purpose 레지스트리가 정한다.
     //   400 은 4o-mini 의 한 줄 답에 맞춘 값이라, 근거를 붙이는 gpt-5.1 의 답이 중간에 잘린다.
     ...(opts.maxTokens ? { maxTokens: opts.maxTokens } : {}),
+    ...(opts.json ? { json: true } : {}),
     fallback: CUE_FALLBACK,
   });
   return {
@@ -168,13 +170,83 @@ function buildSystemPrompt(business, searchResults) {
 
   return `You are Cue, an AI teammate at "${brandName}". Reply in ${lang} in first-person plural when representing the workspace (e.g. "저희 ${brandName}에서는..." or "At ${brandName}, we...").
 
-Rules:
+First decide whether the customer's latest message(s) need a reply from you at all.
+Return ONLY a JSON object: {"action":"reply"|"handoff"|"none","reason":"<short code>","reply":"<message or empty>"}
+- "none": nothing to answer — thanks, acknowledgements ("네", "알겠습니다"), greetings only, emoji/stickers, small talk,
+  words addressed to a staff member, or something a staff member (marked "(직원)" in the conversation) already answered.
+- "handoff": a reply is needed but the sources and context below do not contain the answer, or it needs a person's
+  promise/judgement (price negotiation, schedule commitment, refund, contract, complaint). reply = "".
+- "reply": you can answer from the sources/context. Put the message in "reply".
+Never write holding phrases such as "확인 후 답변드리겠습니다" / "확인 후 안내드리겠습니다" / "Let me check and get back to you" — use "handoff" instead.
+
+Rules for "reply":
 1. NEVER say "I am an AI" or similar self-negations
 2. Be concise (2-4 sentences max unless asked for detail)
 3. If the provided sources contain the answer, use them verbatim and cite briefly
-4. If sources don't cover the question, say something like "확인 후 답변드리겠습니다" / "Let me check and get back to you"
+4. Answer only what the sources/context support — do not guess facts, prices, dates or promises
 5. Be warm and professional, matching ${brandName}'s tone
 ${sources}`;
+}
+
+// ─── 답할 대상 묶음 (2026-11-25 Fable B2 축소판) ───
+//   마지막 공개 직원/Cue 발화 이후의 고객 메시지(최대 5개, 시간순). 마지막 한 줄 «네 감사합니다» 만 보고
+//   앞의 질문을 놓치지 않게. 고객이 실제로 본 글만 센다(미승인·거절 초안·내부 메모는 경계가 아니다).
+const REPLY_TARGET_MAX = 5;
+async function loadReplyTarget(conversation, triggerMessage, businessId) {
+  const { CLIENT_VISIBLE_MESSAGE_WHERE } = require('../utils/messageVisibility');
+  const rows = await Message.findAll({
+    where: { conversation_id: conversation.id, id: { [Op.lte]: triggerMessage.id }, ...CLIENT_VISIBLE_MESSAGE_WHERE },
+    attributes: ['id', 'sender_id', 'content', 'is_ai'],
+    order: [['id', 'DESC']], limit: 20, raw: true,
+  });
+  const ids = [...new Set(rows.filter((r) => !r.is_ai && r.sender_id).map((r) => r.sender_id))];
+  const { BusinessMember } = require('../models');
+  const staff = ids.length ? await BusinessMember.findAll({ where: { business_id: businessId, user_id: ids, removed_at: null }, attributes: ['user_id'], raw: true }) : [];
+  const staffSet = new Set(staff.map((r) => r.user_id));
+  const bundle = [];
+  for (const r of rows) {
+    if (r.is_ai || staffSet.has(r.sender_id)) break;   // 직원·Cue 가 마지막으로 말한 곳까지
+    bundle.push(r);
+    if (bundle.length >= REPLY_TARGET_MAX) break;
+  }
+  if (!bundle.length) bundle.push({ id: triggerMessage.id, content: triggerMessage.content || '' });
+  return bundle.reverse().map((r) => String(r.content || '').trim()).filter(Boolean).join('\n');
+}
+
+// 글자가 하나도 없으면(사진만·이모지만·문장부호만) 답할 것이 없다 — LLM 을 부르지 않는다.
+//   «감사» 같은 낱말 필터는 두지 않는다(«감사합니다, 그런데 견적은요?» 오판 — Fable).
+function hasNoLetters(text) {
+  return String(text || '').replace(/[\s\p{P}\p{S}\p{Extended_Pictographic}\u200d\ufe0f]/gu, '').length === 0;
+}
+
+// LLM JSON 판정 해석 — fail-closed = 침묵(handoff). 파싱 안 된 원문을 메시지로 만들지 않는다.
+const CUE_ACTIONS = new Set(['reply', 'handoff', 'none']);
+function parseCueDecision(raw) {
+  let o = null;
+  try { o = JSON.parse(String(raw || '').trim().replace(/^```(?:json)?\s*|\s*```$/g, '')); } catch { o = null; }
+  if (!o || typeof o !== 'object' || !CUE_ACTIONS.has(o.action)) return { action: 'handoff', reason: 'unparsed', reply: '' };
+  const reply = typeof o.reply === 'string' ? o.reply.trim() : '';
+  const reason = String(o.reason || '').slice(0, 40).replace(/[^\w\-]/g, '') || o.action;
+  if (o.action === 'reply' && !reply) return { action: 'handoff', reason: 'empty_reply', reply: '' };
+  return { action: o.action, reason, reply };
+}
+
+// 답하지 않음 — 메시지 0 · 소켓 0 · last_message_at 무변경. 감사(본문 없음) + 실비(월 한도 차감 없음).
+async function recordNoReply(business, triggerMessage, decision, reason, llm) {
+  if (llm) await recordUsage(business.id, 'answer', llm.model, llm.input_tokens || 0, llm.output_tokens || 0, { count: 0 }).catch(() => {});
+  try {
+    createAuditLog({
+      userId: business.cue_user_id, businessId: business.id, action: 'cue.no_reply', targetType: 'Message', targetId: triggerMessage.id,
+      newValue: { decision, reason, trigger_message_id: triggerMessage.id, model: llm?.model || null },
+    });
+  } catch { /* non-fatal */ }
+  return { skipped: true, reason: `no_reply:${decision}`, decision, why: reason };
+}
+
+// 뒤에 공개 사람 글(고객 보충·직원 답)이 왔으면 이 결과는 낡았다 — 버린다(B4 축소판).
+async function hasNewerHumanMessage(conversationId, triggerId) {
+  const n = await Message.count({ where: { conversation_id: conversationId, id: { [Op.gt]: triggerId }, is_ai: false, is_internal: false, is_deleted: { [Op.not]: true } } });
+  return n > 0;
 }
 
 // ─── 메인: 고객 메시지에 Cue 응답 생성 ───
@@ -200,6 +272,10 @@ async function respondToMessage({ message, conversation, business, client }) {
   //     LLM 프롬프트에 들어가 고객 답변 재료가 됐다. 질문한 사람(= 발화자)의 권한으로 격리한다.
   const { buildCueContext } = require('./cue_context');
   const { getUserScope } = require('../middleware/access_scope');
+  // 3-B. 답할 대상 묶음 · 글자 없음 사전 판정(LLM 호출 0)
+  const target = await loadReplyTarget(conversation, message, business.id);
+  if (hasNoLetters(target)) return recordNoReply(business, message, 'none', 'no_letters', null);
+
   const askerScope = message.sender_id
     ? await getUserScope(message.sender_id, business.id).catch(() => null)
     : null;
@@ -209,7 +285,7 @@ async function respondToMessage({ message, conversation, business, client }) {
     projectId: conversation.project_id || null,
     clientId: conversation.client_id || (client?.id || null),
     userId: message.sender_id || null,
-    query: message.content,
+    query: target,
     businessTimezone: business.timezone,
     scope: askerScope,
     // ★ 이 답변은 **고객이 있는 대화방에 게시**된다. 질문자가 스태프여도(수동 트리거 등)
@@ -225,9 +301,18 @@ async function respondToMessage({ message, conversation, business, client }) {
   //   쓰는** 것이라 검색이 빈 질문일수록 답이 나빠졌다 — Irene 이 겪은 "딴 소리" 가 정확히 그 구간이다.
   const llmResult = await callLLM(null, [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: message.content }
-  ], { temperature: 0.3 });
+    { role: 'user', content: target }
+  ], { temperature: 0.3, json: true });
   const llmModel = llmResult.model;
+
+  // 5-B. 판정 — 실패·파싱 불가·none·handoff 는 메시지를 만들지 않는다(Fable 2026-11-25).
+  //   고객 글은 이미 응대 상태(conversation_care) open 으로 직원 «답할 문의» 에 떠 있다 — «확인 후 답변드리겠습니다» 는
+  //   직원 대신 하는 빈 약속이었다(Irene 이 거절한 «쓸데없는 말»).
+  if (llmResult.fallback) return recordNoReply(business, message, 'handoff', 'llm_failed', null);
+  const decision = parseCueDecision(llmResult.content);
+  if (decision.action !== 'reply') return recordNoReply(business, message, decision.action, decision.reason, llmResult);
+  if (await hasNewerHumanMessage(conversation.id, message.id)) return recordNoReply(business, message, 'none', 'stale', llmResult);
+  llmResult.content = decision.reply;
 
   // 6. Confidence 판정 (간단: 검색 결과 점수 최대값 기반)
   const topFaqScore = searchResults.pinned_faqs?.[0]?.score || 0;
@@ -240,7 +325,7 @@ async function respondToMessage({ message, conversation, business, client }) {
   else if (topChunkScore >= 0.4) aiSource = 'kb_rag';
 
   // 8. 민감 키워드 감지 → 강제 Draft
-  const sensitive = isSensitive(message.content) || isSensitive(llmResult.content);
+  const sensitive = isSensitive(target) || isSensitive(llmResult.content);
 
   // 9. 모드 분기
   let aiModeUsed;
@@ -304,6 +389,8 @@ async function respondToMessage({ message, conversation, business, client }) {
   });
 
   await conversation.update({ last_message_at: new Date() });
+  // 방마다 대기 초안은 하나 — 새 초안보다 오래된 대기 초안을 닫는다(create 뒤라 동시 생성 2건도 큰 id 하나만 남는다).
+  if (aiModeUsed === 'draft') await require('./cueDrafts').supersedePendingDrafts(conversation, { beforeMessageId: cueMsg.id, cause: 'newer_draft', io: global.__planqIo || null });
 
   try {
     await createAuditLog({
@@ -674,5 +761,7 @@ module.exports = {
   recordUsage,
   isSensitive,
   buildSystemPrompt,
+  parseCueDecision,
+  hasNoLetters,
   PRICING
 };

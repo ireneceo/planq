@@ -1132,6 +1132,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
     await promoteSpeaker(conversation.id, req.user.id, { io: req.app.get('io') });
     // 응대 상태 — 고객 글이면 해결·보류 → open, 첫 글이면 행을 만든다(services/convCare · docs/QTALK_CARE_DESIGN.md). best-effort.
     if (req.scope?.isClient) await require('../services/convCare').onCustomerMessage(conversation, { io: req.app.get('io'), isClient: true });
+    else if (!internalFlag && conversation.channel_type === 'customer') await require('../services/cueDrafts').supersedePendingDrafts(conversation, { beforeMessageId: msg.id, cause: 'staff_reply', io: req.app.get('io') });   // 직원 공개 답 → 대기 Cue 초안 닫기(내부 메모는 답이 아니다)
 
     // Socket.IO broadcast — 채팅 페이지 실시간 반영 + 우측 상단 in-app 토스터 트리거.
     // (projects.js 의 메시지 라우트와 동일 패턴. NotificationToaster 의 'message:new' 핸들러가 받음.)

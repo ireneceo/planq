@@ -1583,6 +1583,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
     // 열어 보기만 하던 사람이 말하면 참여자다(2026-10-15 Fable A · services/convParticipants).
     await require('../services/convParticipants').promoteSpeaker(conv.id, req.user.id, { io: req.app.get('io') });
     if (isClient) await require('../services/convCare').onCustomerMessage(conv, { io: req.app.get('io'), isClient });   // 응대 상태 — 고객 글이면 open(docs/QTALK_CARE_DESIGN.md)
+    else if (conv.channel_type === 'customer') await require('../services/cueDrafts').supersedePendingDrafts(conv, { beforeMessageId: msg.id, cause: 'staff_reply', io: req.app.get('io') });   // 직원이 답했으면 대기 Cue 초안은 닫는다
 
     // 응답에 sender 포함
     const full = await Message.findByPk(msg.id, {

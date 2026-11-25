@@ -126,7 +126,7 @@ function snip(s, max = 500) {
 }
 
 // ── 직전 대화 N turn — 가장 최근 부터 거꾸로
-async function getConversationHistory(conversationId, limit = HISTORY_TURN_LIMIT) {
+async function getConversationHistory(conversationId, limit = HISTORY_TURN_LIMIT, businessId = null) {
   if (!conversationId) return [];
   const msgs = await Message.findAll({
     // ★ 고객이 실제로 본 글만 — 미승인·거절 Cue 초안은 «Cue 가 한 말» 이 아니다(2026-11-25: 거절한 말을 Cue 가
@@ -137,6 +137,13 @@ async function getConversationHistory(conversationId, limit = HISTORY_TURN_LIMIT
     order: [['created_at', 'DESC']],
     limit,
   });
+  // 화자 역할(직원/고객) — 이름만으로는 직원 말과 고객 말이 갈리지 않아 Cue 가 «직원이 이미 답한 것» 을 몰랐다(2026-11-25 Fable B2 축소판).
+  if (businessId && msgs.length) {
+    const ids = [...new Set(msgs.filter((m) => !m.is_ai && m.sender_id).map((m) => m.sender_id))];
+    const staff = ids.length ? await require('../models').BusinessMember.findAll({ where: { business_id: businessId, user_id: ids, removed_at: null }, attributes: ['user_id'], raw: true }) : [];
+    const staffSet = new Set(staff.map((r) => r.user_id));
+    for (const m of msgs) m.speaker_role = m.is_ai ? 'cue' : (staffSet.has(m.sender_id) ? 'staff' : 'customer');
+  }
   return msgs.reverse(); // 시간 순
 }
 
@@ -1204,7 +1211,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
     //     워크스페이스 멤버는 그 방을 읽는다. 여기서 막는 것은 **반출** 하나뿐이다.
     let maskedCount = 0;
     history.forEach(m => {
-      const who = m.is_ai ? 'Cue' : (m.sender?.name || '사용자');
+      const who = m.is_ai ? 'Cue' : `${m.sender?.name || '사용자'}${m.speaker_role === 'staff' ? '(직원)' : m.speaker_role === 'customer' ? '(고객)' : ''}`;
       const r = maskSecrets(snip(m.content, 200));
       maskedCount += r.masked;
       parts.push(`- ${who}: ${r.text}`);
@@ -1397,7 +1404,7 @@ function composeMarkdown({ history, project, client, kb, userSnap, matches, over
 async function buildCueContext({ businessId, conversationId, emailThreadId = null, projectId, clientId, userId, query, businessTimezone, scope, audience = 'client_facing', personalScope = 'none', business = null }) {
   // 개별 스냅샷 실패가 컨텍스트 전체를 죽이면 안 됨 (memo 컬럼 실사고 재발 방지) — 모두 개별 .catch
   // 1. 대화 히스토리
-  const historyP = getConversationHistory(conversationId).catch(() => []);
+  const historyP = getConversationHistory(conversationId, HISTORY_TURN_LIMIT, businessId).catch(() => []);
   // 1-b. 메일 스레드 스냅샷 (#227) — 내부 화면에서만. 외부 유입 텍스트라 audience 를 가린다.
   const threadP = (emailThreadId && audience === 'internal')
     ? getEmailThreadSnapshot(emailThreadId, businessId, { userId, scope }).catch(() => null)

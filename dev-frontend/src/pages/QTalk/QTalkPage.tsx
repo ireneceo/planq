@@ -690,11 +690,17 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
 
     // 메시지 업데이트 (Draft 승인/거절 + 사이클 N+16-E 수정)
     on('message:updated', (msg: qtalkApi.ApiMessage) => {
+      // 거절·자동 정리된 Cue 초안 — 자리째 뺀다(빈 줄로 바꿔 끼우지 않는다). 자동 정리는 신호만 온다(본문 없음 · services/cueDrafts).
+      if (isRejectedCueDraft(msg)) {
+        setMessages((prev) => {
+          const arr = prev[msg.conversation_id];
+          return arr ? { ...prev, [msg.conversation_id]: arr.filter((m) => m.id !== msg.id) } : prev;
+        });
+        return;
+      }
       const mapped = apiMessageToMock(msg);
       setMessages((prev) => {
         const arr = prev[mapped.conversation_id] || [];
-        // 다른 직원이 거절한 Cue 초안 — 자리째 뺀다(빈 줄로 바꿔 끼우지 않는다).
-        if (isRejectedCueDraft(msg)) return { ...prev, [mapped.conversation_id]: arr.filter((m) => m.id !== mapped.id) };
         // 수정 신호에 없는 칸(반응·첨부·읽음 수)은 지금 값을 둔다 — 통째로 바꾸면 고친 순간 반응·읽음 표시가 사라진다
         return { ...prev, [mapped.conversation_id]: arr.map((m) => (m.id === mapped.id ? {
           ...mapped,

@@ -71,6 +71,8 @@ Message.init({
     allowNull: true
   },
   // Draft 승인 상태 (draft 만 해당). null=승인 전, true=발송됨, false=거절됨
+  //   ★ false 일 때 ai_draft_approved_by: 사람 id = 사람이 거절 / NULL = 자동 정리(직원이 먼저 답함·더 새 초안 — services/cueDrafts).
+  //     거절 학습·통계는 사람 거절만 본다(2026-11-25 Fable B3).
   ai_draft_approved: {
     type: DataTypes.BOOLEAN,
     allowNull: true
