@@ -77,6 +77,7 @@ const ProjectProcessPart = require('./ProjectProcessPart');
 const CalendarEvent = require('./CalendarEvent');
 const CalendarEventAttendee = require('./CalendarEventAttendee');
 const CalendarEventAttachment = require('./CalendarEventAttachment');
+const InvoiceAttachment = require('./InvoiceAttachment');
 const FileFolder = require('./FileFolder');
 const BusinessStorageUsage = require('./BusinessStorageUsage');
 const OpsCapacityLog = require('./OpsCapacityLog');
@@ -776,6 +777,7 @@ module.exports = {
   CalendarEvent,
   CalendarEventAttendee,
   CalendarEventAttachment,
+  InvoiceAttachment,
   FileFolder,
   BusinessStorageUsage,
   OpsCapacityLog,
@@ -942,6 +944,11 @@ CalendarEventAttachment.belongsTo(CalendarEvent, { foreignKey: 'event_id', onDel
 CalendarEventAttachment.belongsTo(File, { as: 'file', foreignKey: 'file_id', onDelete: 'CASCADE' });
 CalendarEventAttachment.belongsTo(Post, { as: 'post', foreignKey: 'post_id', onDelete: 'CASCADE' });
 CalendarEvent.hasMany(CalendarEventAttachment, { as: 'attachments', foreignKey: 'event_id', onDelete: 'CASCADE' });
+// 청구서 첨부 — 가리키기만 한다(CASCADE). 설계 docs/INVOICE_ATTACHMENTS_DESIGN.md
+InvoiceAttachment.belongsTo(Invoice, { foreignKey: 'invoice_id', onDelete: 'CASCADE' });
+InvoiceAttachment.belongsTo(File, { as: 'file', foreignKey: 'file_id', onDelete: 'CASCADE' });
+InvoiceAttachment.belongsTo(Post, { as: 'post', foreignKey: 'post_id', onDelete: 'CASCADE' });
+Invoice.hasMany(InvoiceAttachment, { as: 'attachments', foreignKey: 'invoice_id', onDelete: 'CASCADE' });
 // 역방향 동기화(#242 ②) — 링크 테이블에는 테넌트 축이 없다. business_id 는 CalendarEvent 에만 있으므로
 //   워크스페이스 링크를 business 로 좁히려면 이 조인이 필요하다(격리 없이 세면 남의 링크까지 센다).
 CalendarEventGcalLink.belongsTo(CalendarEvent, { as: 'event', foreignKey: 'event_id', onDelete: 'CASCADE' });

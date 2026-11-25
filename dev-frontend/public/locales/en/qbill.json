@@ -1230,5 +1230,38 @@
       "snapshotNote": "Changing this doesn't affect rates on existing subscriptions, monthly fees or invoices",
       "ownerOnly": "Only owners and admins can change tax settings — they change billed amounts and the invoices customers receive."
     }
+  },
+  "attach": {
+    "title": "Attachments",
+    "titleOptional": "Attachments (optional)",
+    "hint": "Attach documents or files such as contracts, quotes or deliverables. Turn on “Show to client” only for what the client should see.",
+    "empty": "No attachments yet",
+    "loading": "Loading attachments…",
+    "retry": "Retry",
+    "add": "+ Add attachment",
+    "close": "Close",
+    "working": "Working…",
+    "visible": "Show to client",
+    "shownToClient": "Visible to client (invoice link)",
+    "internal": "Internal — hidden from client",
+    "deleted": "Deleted item",
+    "locked": "Item you can't view",
+    "docKind": "Document",
+    "fileKind": "File",
+    "reason": {
+      "private": "This file is “Only me”, so it can't be shown to the client",
+      "confidential": "Items with a security level can't be shown to the client",
+      "post_not_shared": "Share the document externally first",
+      "deleted": "The original was deleted, so the client can't see it",
+      "internal": "Internal — hidden from client"
+    },
+    "error": {
+      "failed": "Couldn't update attachments",
+      "load": "Couldn't load attachments.",
+      "tooMany": "Up to {{max}} attachments per invoice",
+      "notFound": "Item not found or you don't have access",
+      "canceled": "Attachments can't be changed on a canceled invoice",
+      "uploadFailed": "Some files couldn't be uploaded"
+    }
   }
 }

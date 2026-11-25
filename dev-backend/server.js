@@ -674,6 +674,7 @@ app.use('/api/search', require('./routes/search'));
 app.use('/api/entity-workspace', require('./routes/entity_workspace'));
 // 청구서 AI 작성 — 기존 청구서 라우터보다 앞(라우트마다 미들웨어, 전역 use 없음)
 app.use('/api/invoices', require('./routes/invoice_ai'));
+app.use('/api/invoices', require('./routes/invoice_attachments'));   // 꼬리 /attachments… 만 — invoices.js 보다 먼저
 app.use('/api/invoices', require('./routes/invoices'));
 app.use('/api/client-subscriptions', require('./routes/client_subscriptions'));
 app.use('/api/docs', require('./routes/docs'));

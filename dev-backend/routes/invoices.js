@@ -254,6 +254,8 @@ router.get('/public/:token', optionalAuth, async (req, res, next) => {
       //   주소·전화·이메일·업태·종목·사업자등록번호가 이 응답에만 없어서 화면이 그릴 수가 없었다.
       sender: senderBlock,
       source_post: sourcePost,
+      // 첨부 — «고객에게 보이기» 를 켰고 원본이 지금도 내보낼 수 있는 것만(services/invoiceAttachments 한 곳)
+      attachments: await require('../services/invoiceAttachments').publicList(invoice, req.params.token),
     };
     successResponse(res, safe);
   } catch (error) { next(error); }
@@ -809,6 +811,8 @@ router.post('/:businessId/:id/duplicate', authenticateToken, checkBusinessAccess
       }, { transaction: t });
       instCount += 1;
     }
+    // 첨부 연결도 따라간다(복사 계약) — 포인터 행만, 지워졌거나 복사하는 사람이 못 읽는 원본은 건너뛴다
+    await require('../services/invoiceAttachments').copyForDuplicate({ srcInvoiceId: src.id, copy, user: req.user, transaction: t });
 
     await t.commit();
 
@@ -894,6 +898,12 @@ router.post('/:businessId', authenticateToken, checkBusinessAccess, requireMenu(
       notes, vatRate: vat_rate, taxMode: tax_mode, currency, receiptType,
       installmentMode: mode, installments, items,
     }, { transaction: t });
+    // 첨부(파일·문서) — 같은 트랜잭션. 검증에 실패하면 생성 전체가 취소된다(services/invoiceAttachments)
+    if (Array.isArray(req.body.attachments) && req.body.attachments.length) {
+      const att = require('../services/invoiceAttachments');
+      try { await att.setOnCreate({ invoice, list: req.body.attachments, user: req.user, transaction: t }); }
+      catch (e) { if (e instanceof att.AttachError) { await t.rollback(); return errorResponse(res, e.code, e.status); } throw e; }
+    }
 
     await t.commit();
 
@@ -2193,6 +2203,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, requir
     await InvoiceItem.destroy({ where: { invoice_id: invoice.id } });
     await sequelize.query('DELETE FROM invoice_status_history WHERE invoice_id = ?', { replacements: [invoice.id] }).catch(() => {});
     await sequelize.query('DELETE FROM receipt_corrections WHERE invoice_id = ?', { replacements: [invoice.id] }).catch(() => {});
+    await require('../models').InvoiceAttachment.destroy({ where: { invoice_id: invoice.id } });   // 연결만(원본 파일·문서는 그대로)
     const snap = {
       id: invoice.id,
       business_id: invoice.business_id,

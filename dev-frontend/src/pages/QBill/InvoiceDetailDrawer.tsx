@@ -28,6 +28,7 @@ import { formatRate } from '../../utils/taxCalc';
 import RecurringBillingNote from '../../components/QBill/RecurringBillingNote';
 import CardPayLinkSection, { cardPayLinkVisible } from './CardPayLinkSection';
 import PayerCodeEditor from './PayerCodeEditor';
+import InvoiceAttachmentsField from '../../components/QBill/InvoiceAttachmentsField';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { isEnterAction } from '../../utils/imeKey';
 
@@ -756,6 +757,17 @@ export default function InvoiceDetailDrawer({ invoice: initialInvoice, onClose, 
             </SourceLink>
           </SourceCard>
         )}
+
+        {/* 첨부(파일·문서) — 우리 쪽은 붙이기·떼기·«고객에게 보이기», 고객은 보이는 것만(없으면 안 그린다) */}
+        <InvoiceAttachmentsField
+          key={invoice.id}
+          businessId={invoice.business_id}
+          invoiceId={invoice.id}
+          canEdit={caps.showIssuerActions && invoice.status !== 'canceled'}
+          isStaff={caps.showIssuerActions}
+          projectId={invoice.project_id ?? null}
+          hideWhenEmpty
+        />
 
         {/* 진행 stepper */}
         <ProgressStepper status={invoice.status} />

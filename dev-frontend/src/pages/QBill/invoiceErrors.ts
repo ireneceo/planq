@@ -10,6 +10,10 @@ const CODE_KEY: Record<string, string> = {
   client_not_in_project: 'errors.clientNotInProject',
   project_not_in_workspace: 'errors.projectNotInWorkspace',
   client_not_in_workspace: 'errors.clientNotInWorkspace',
+  // 첨부(services/invoiceAttachments) — 생성 요청에 실은 첨부가 거절되면 청구서도 만들어지지 않는다
+  attachment_target_not_found: 'attach.error.notFound',
+  attachment_target_invalid: 'attach.error.failed',
+  too_many_attachments: 'attach.error.tooMany',
 };
 
 /** 알려진 거절 코드면 qbill 문구, 아니면 null(부르는 쪽이 자기 기본 문구를 쓴다). t 는 useTranslation('qbill').t */
@@ -18,6 +22,7 @@ export function invoiceErrorText(err: unknown, t: TFunction): string | null {
   if (!msg) return null;
   // 옛 서버(배포 전)는 'owner_only — …' 처럼 코드 뒤에 문장을 붙였다 — 앞 토막으로 판정한다
   const code = msg.split(/[\s—:]/)[0];
+  if (code === 'attachment_not_shareable') return t(`attach.reason.${msg.split(':')[1] || 'internal'}`) as string;
   const key = CODE_KEY[code];
-  return key ? (t(key) as string) : null;
+  return key ? (t(key, { max: 20 }) as string) : null;
 }

@@ -32,6 +32,8 @@ paths:
 
 **Q Bill 분할 (1):** **invoice_installments** (2026-04-26 신규 — Phase B 분할 청구, 회차별 status·결제마킹·세금계산서마킹·milestone_ref). **2026-06-13: cash_receipt_no/cash_receipt_at/cash_receipt_marked_by 3컬럼 추가 — 회차별 현금영수증 발급(세금계산서 회차 필드 미러).**
 
+**Q Bill 첨부 (1):** **invoice_attachments** (2026-11-25 신규 — 청구서 첨부 파일·문서. file_id XOR post_id 가리키기만(CASCADE) · client_visible 기본 0 · 청구서당 20개 · UNIQUE(invoice_id,file_id)/(invoice_id,post_id). 판정 `services/invoiceAttachments` 한 곳 · 설계 `docs/INVOICE_ATTACHMENTS_DESIGN.md`).
+
 **Q Bill 증빙 정정 (1):** **receipt_corrections** (2026-06-13 신규 — 수정세금계산서·증빙 취소 이력. 원 발행은 invoices/installments에 보존, 정정을 참조 이벤트로 기록. kind(tax/cash)·reason(부가세법 §70 6사유: clerical/amount_change/return/cancel/duplicate/other)·corrected_no·written_at·amount_delta. 유효상태(corrected/amended/canceled/correction_pending)는 receiptsDue에서 파생. 설계 docs/RECEIPT_CORRECTION_DESIGN.md. PlanQ는 홈택스/팝빌 자동발행 X — 외부 발행 후 마킹 추적)
 
 > **Q Bill 청구서 ↔ 출처 연결 (2026-04-27):** `invoices.source_post_id INT FK posts(id)` — 계약/견적/SOW/제안 post 참조 (1:N, 한 출처로 여러 회차 청구 가능). `Invoice.belongsTo(Post, as: 'sourcePost')` association.

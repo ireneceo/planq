@@ -194,6 +194,8 @@ export interface CreateInvoicePayload {
   installment_mode?: InstallmentMode;
   installments?: { label: string; percent: number; due_date?: string | null; milestone_ref?: string | null }[];
   items: { description: string; detail?: string | null; quantity: number; unit_price: number }[];
+  /** 새로 만들 때만 — 첨부(파일·문서). 서버 services/invoiceAttachments */
+  attachments?: Array<{ file_id: number; client_visible: boolean } | { post_id: number; client_visible: boolean }>;
 }
 
 export interface SendInvoicePayload {

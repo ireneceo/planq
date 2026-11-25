@@ -87,6 +87,8 @@ interface PublicInvoice {
     email?: string | null;
   } | null;
   source_post: { id: number; category: string; title: string } | null;   // 출처 문서 토큰은 싣지 않는다(FIX_0AB B-④)
+  // 첨부 — 발행자가 «고객에게 보이기» 를 켠 것 중 지금도 내보낼 수 있는 것만(서버 services/invoiceAttachments.publicList)
+  attachments?: Array<{ id: number; kind: 'file' | 'post'; name: string; size?: number; download_url?: string | null; url?: string }>;
   receipt?: {
     payment_method: 'bank_transfer' | 'card' | 'other';
     receipt_type: 'none' | 'tax_invoice' | 'cash_receipt';
@@ -611,6 +613,23 @@ const PublicInvoicePage: React.FC = () => {
           <PayerGuideFree>{t('public.payerGuideFree', '번호만 그대로면 이름 부분은 보내는 분(회사·담당자) 이름으로 바꿔 써도 됩니다.')}</PayerGuideFree>
         </Section>
 
+        {/* 첨부 — 있을 때만. 파일은 내려받기, 문서는 그 문서의 공개 링크(새 탭) */}
+        {(invoice.attachments?.length ?? 0) > 0 && (
+          <Section data-testid="public-invoice-attachments">
+            <SectionTitle>{t('attach.title', '첨부')}</SectionTitle>
+            <AttachList>
+              {invoice.attachments!.map((a) => (
+                <li key={a.id}>
+                  <AttachLink href={a.kind === 'post' ? a.url : (a.download_url || undefined)} target={a.kind === 'post' ? '_blank' : undefined} rel="noopener noreferrer">
+                    <AttachKind>{a.kind === 'post' ? t('attach.docKind', '문서') : t('attach.fileKind', '파일')}</AttachKind>
+                    <AttachName>{a.name}</AttachName>
+                  </AttachLink>
+                </li>
+              ))}
+            </AttachList>
+          </Section>
+        )}
+
         {/* 메모 */}
         {invoice.notes && (
           <Section>
@@ -1120,6 +1139,14 @@ const DoneIcon = styled.div`
 `;
 const NotifyDoneText = styled.div`display: flex; flex-direction: column; gap: 2px;`;
 // #77 — 발행 파일 다운로드 (공개 페이지, 외부 고객용 — 터치 타겟 44px)
+const AttachList = styled.ul`list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px;`;
+const AttachLink = styled.a`
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; min-width: 0;
+  border: 1px solid #E2E8F0; border-radius: 8px; text-decoration: none; color: #0F172A; background: #fff;
+  &:hover { border-color: #14B8A6; background: #F0FDFA; }
+`;
+const AttachKind = styled.span`flex-shrink: 0; font-size: 0.6875rem; font-weight: 700; color: #0F766E; background: #F0FDFA; border-radius: 4px; padding: 2px 6px;`;
+const AttachName = styled.span`font-size: 0.8125rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;`;
 const ReceiptDownloadBtn = styled.a`
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   margin-top: 10px; min-height: 44px; padding: 0 18px;

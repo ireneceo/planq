@@ -35,6 +35,8 @@ import { TaxRateInput, TaxModeSelect, useTaxLabel } from './TaxFields';
 import AiActionButton from '../../components/Common/AiActionButton';
 import ConfirmDialog from '../../components/Common/ConfirmDialog';
 import InvoiceAiDraftModal from './InvoiceAiDraftModal';
+import InvoiceAttachmentsField from '../../components/QBill/InvoiceAttachmentsField';
+import type { PendingAttachment } from '../../services/invoiceAttachments';
 import type { InvoiceAiDraft } from '../../services/invoices';
 import { isTaxEnabled, type TaxMode } from '../../utils/taxCalc';
 
@@ -125,6 +127,9 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
   const [extEmail, setExtEmail] = useState('');
   const [extBizNumber, setExtBizNumber] = useState('');
   const [sourcePostId, setSourcePostId] = useState<number | null>(null);
+  // 첨부(파일·문서) — 저장 전에는 여기 들고 있다가 생성 요청에 싣는다. 편집 모드는 칸이 바로 서버로 보낸다.
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  useEffect(() => { if (open) setPendingAttachments([]); }, [open]);
   const [title, setTitle] = useState('');
   const [issuedAt, setIssuedAt] = useState(todayStr);
   const [dueDate, setDueDate] = useState(addDays(todayStr, 14));
@@ -674,6 +679,10 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
           label: r.label, percent: r.rate, due_date: r.due_date || null, milestone_ref: r.milestone || null,
         })) : undefined,
         items: items.filter(it => it.description.trim()).map(it => ({ description: it.description, detail: it.detail.trim() || null, quantity: it.quantity, unit_price: it.unit_price })),
+        // 첨부 — 새로 만들 때만(편집 모드는 첨부 칸이 즉시 저장한다). 실패하면 서버가 생성 전체를 취소한다.
+        attachments: isEdit ? undefined : pendingAttachments.map(a => (a.file_id
+          ? { file_id: a.file_id, client_visible: a.client_visible }
+          : { post_id: a.post_id as number, client_visible: a.client_visible })),
       };
       // 누락 보완 값 → 고객 정보(비어 있던 칸만) — 청구서보다 **먼저** 저장한다.
       //   실패하면 여기서 멈추고 알린다(뒤에 하면 청구서는 이미 생겨 다시 누르면 두 장이 된다). 체크를 끄면 청구서에만 남는다.
@@ -1019,6 +1028,20 @@ export default function NewInvoiceModal({ open, onClose, prefillSplit, prefillPo
                   )}
                 </>
               )}
+            </Section>
+          )}
+
+          {/* ─── 첨부 (출처 문서와 다른 칸 — 여러 개 · 항목을 채우지 않는다) ─── */}
+          {businessId && (
+            <Section>
+              <InvoiceAttachmentsField
+                businessId={businessId}
+                invoiceId={isEdit ? editInvoiceId! : null}
+                canEdit
+                projectId={projectId ?? null}
+                pending={pendingAttachments}
+                onPendingChange={setPendingAttachments}
+              />
             </Section>
           )}
 

@@ -80,6 +80,10 @@ async function collectRaw(files) {
     if (out.has(r.c)) push(r.c, 'invoice', r.id);
   }
 
+  // live — 청구서 첨부(invoice_attachments · 가리키기만 한다)
+  for (const r of await q(
+    `SELECT file_id, invoice_id FROM invoice_attachments WHERE business_id = :b AND file_id IN (:ids)`, { ids, b: businessId })) push(r.file_id, 'invoice', r.invoice_id);
+
   // live — 고객 연락처 사진
   for (const r of await q(
     `SELECT photo_file_id AS file_id, client_id FROM client_contacts WHERE business_id = :b AND photo_file_id IN (:ids)`, { ids, b: businessId })) push(r.file_id, 'contact', r.client_id);

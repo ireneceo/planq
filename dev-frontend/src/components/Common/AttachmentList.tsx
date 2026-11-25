@@ -43,6 +43,8 @@ export interface AttachmentListItem {
   driveEditable?: boolean;
   /** 이름 아래 한 줄(크기·올린 사람·시각 등) — rows 에서만 */
   sub?: React.ReactNode;
+  /** 이름 칸 **밖** 오른쪽에 붙는 컨트롤(청구서 «고객에게 보이기» 스위치 등) — 이름 칸은 버튼이라 그 안에 버튼을 못 넣는다. rows 에서만 */
+  trailing?: React.ReactNode;
   canRemove?: boolean;
 }
 
@@ -179,6 +181,7 @@ export default function AttachmentList({ items, businessId, layout = 'rows', onR
                 <Name>{it.name}</Name>
                 {(it.sub || it.size) && <Sub>{it.sub ?? fmtSize(it.size)}</Sub>}
               </Meta>
+              {it.trailing}
               {it.downloadUrl && !it.postId && (
                 <IconBtn type="button" onClick={() => void download(it)} title={dlLabel} aria-label={`${dlLabel}: ${it.name}`} data-attach-download>{DlIcon}</IconBtn>
               )}
