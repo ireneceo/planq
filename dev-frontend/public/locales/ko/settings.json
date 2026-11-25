@@ -1322,6 +1322,12 @@
       "owner_email": "대표 이메일 인증"
     },
     "criteriaHint": "✗ 항목을 채우면 공개를 신청할 수 있어요.",
+    "needCriteria": "공개하려면 아래 ✗ {{n}}개를 채워 주세요. 모두 이 화면에서 채울 수 있어요.",
+    "needSlug": "공개하려면 아래 공개 주소를 먼저 고쳐 주세요.",
+    "fixGo": "채우러 가기",
+    "taglineLabel": "한 줄 소개",
+    "taglinePh": "예: 작은 브랜드의 첫 로고부터 패키지까지",
+    "taglineHint": "설정 › 브랜드의 «한 줄 소개» 와 같은 값이에요.",
     "confirmOnTitle": "«회사 찾기» 공개를 신청할까요?",
     "confirmOnBody": "승인되면 아래 정보를 누구나 볼 수 있고, 검색·AI 검색에 나옵니다.",
     "confirmOnOk": "공개 신청",

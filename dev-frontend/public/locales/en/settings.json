@@ -1322,6 +1322,12 @@
       "owner_email": "Owner email verified"
     },
     "criteriaHint": "Fill the ✗ items to request listing.",
+    "needCriteria": "To list, fill the {{n}} ✗ items below. You can fill them all on this screen.",
+    "needSlug": "To list, fix the public address below first.",
+    "fixGo": "Go fill",
+    "taglineLabel": "Tagline",
+    "taglinePh": "e.g. From a small brand's first logo to its packaging",
+    "taglineHint": "Same value as «Tagline» in Settings › Brand.",
     "confirmOnTitle": "Request listing in «Find a company»?",
     "confirmOnBody": "Once approved, anyone can see the items below, and they appear in search / AI search.",
     "confirmOnOk": "Request listing",

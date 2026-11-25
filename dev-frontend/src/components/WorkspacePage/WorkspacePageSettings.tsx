@@ -19,7 +19,7 @@ import StandardModal from '../Common/StandardModal';
 import { Switch, SwitchKnob } from '../Common/switchShell';
 import { SegmentedToggle, SegmentedBtn } from '../Common/segmentedToggle';
 import CustomerEntrySection from '../Permissions/CustomerEntrySection';
-import PublicListingCard from './PublicListingCard';
+import PublicListingCard, { type CriteriaGoKey } from './PublicListingCard';
 import EntryInfoView from '../../pages/Guest/EntryInfoView';
 import type { EntryInfo } from '../../pages/Guest/GuestWorkspacePage';
 import { formatWorkHours, type WorkHours } from '../../utils/workHoursText';
@@ -54,6 +54,15 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
   const [askDelete, setAskDelete] = useState<number | null>(null);
   const [svcErr, setSvcErr] = useState<string | null>(null);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [listingReload, setListingReload] = useState(0);
+  /** 공개 카드의 ✗ 기준을 누르면 — 같은 화면의 그 칸으로 스크롤하고 손댈 곳에 포커스 */
+  const goToCriteria = useCallback((key: CriteriaGoKey) => {
+    const [box, focus] = key === 'intro' ? ['wspage-intro-text', 'wspage-intro-text']
+      : key === 'services' ? ['wspage-services', 'wspage-service-add']
+        : ['wspage-form', 'wspage-form-toggle-enabled'];
+    document.querySelector(`[data-testid="${box}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    (document.querySelector(`[data-testid="${focus}"]`) as HTMLElement | null)?.focus({ preventScroll: true });
+  }, []);
 
   const entryRef = useRef(entry);
   entryRef.current = entry;
@@ -90,6 +99,7 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.success) throw new Error(j?.message || `save_failed_${r.status}`);
     if (j.data?.preview) setPreview(j.data.preview);
+    setListingReload((n) => n + 1); // 소개글·서비스·문의 폼이 바뀌면 공개 기준(✓/✗)을 다시 받는다
     return j.data?.customer_entry as Entry | undefined;
   }, [businessId]);
 
@@ -197,7 +207,7 @@ export default function WorkspacePageSettings({ businessId, isOwner }: Props) {
         <CustomerEntrySection businessId={businessId} isOwner={isOwner} />
 
         {/* 공개(회사 찾기·검색) — 확인 창에 «누구나 보게 되는 항목» 을 적는다(지금 보임으로 켜 둔 것만) */}
-        <PublicListingCard businessId={businessId} isOwner={isOwner}
+        <PublicListingCard businessId={businessId} isOwner={isOwner} reloadKey={listingReload} onGoTo={goToCriteria}
           shownItems={[
             t('wspage.auto.name', '회사 이름·로고') as string,
             ...autoKeys.filter((k) => !entry.hidden.includes(k) && autoValue(k)).map((k) => autoLabel(k) as string),
