@@ -19,7 +19,7 @@ async function chatUnreadForBadge(userId, businessId) {
          ON cp.conversation_id = m.conversation_id AND cp.user_id = :uid
       WHERE m.conversation_id IN (:cids)
         AND m.sender_id != :uid
-        AND (m.is_deleted IS NULL OR m.is_deleted = 0)
+        AND ${require('../utils/messageVisibility').staffVisibleSql('m')} /* 거절한 Cue 초안은 세지 않는다 */
         AND (cp.last_read_at IS NULL OR m.created_at > cp.last_read_at)
         AND cp.muted_at IS NULL /* 알림 끈 방은 앱 아이콘 숫자에서 뺀다(docs/QTALK_MUTE_DESIGN.md §3-4) */`,
     { replacements: { uid: userId, cids } }

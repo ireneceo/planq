@@ -129,7 +129,9 @@ function snip(s, max = 500) {
 async function getConversationHistory(conversationId, limit = HISTORY_TURN_LIMIT) {
   if (!conversationId) return [];
   const msgs = await Message.findAll({
-    where: { conversation_id: conversationId, is_deleted: false, is_internal: false },
+    // ★ 고객이 실제로 본 글만 — 미승인·거절 Cue 초안은 «Cue 가 한 말» 이 아니다(2026-11-25: 거절한 말을 Cue 가
+    //   자기가 한 말로 읽고 이어 갔다). 고객 술어 한 벌을 그대로 쓴다(삭제·내부 메모는 원래도 뺐다).
+    where: { conversation_id: conversationId, ...require('../utils/messageVisibility').CLIENT_VISIBLE_MESSAGE_WHERE },
     attributes: ['id', 'sender_id', 'content', 'is_ai', 'created_at'],
     include: [{ model: User, as: 'sender', attributes: ['id', 'name'], required: false }],
     order: [['created_at', 'DESC']],

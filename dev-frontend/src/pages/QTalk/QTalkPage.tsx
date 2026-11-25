@@ -145,12 +145,16 @@ function apiConversationToMock(c: qtalkApi.ApiConversation): MockConversation {
   };
 }
 
+// 거절한 Cue 초안 — 서버가 감사용으로 행을 남기지만 대화에는 그리지 않는다(utils/messageVisibility NOT_REJECTED_DRAFT_WHERE 와 같은 규칙).
+//   옛 매퍼가 본문을 비워 그려 «Cue: (빈칸)» 줄이 박혔다(2026-11-25 Irene «거절을 했더니 내용없이 입력이 되었어»).
+const isRejectedCueDraft = (m: qtalkApi.ApiMessage) => !!m.is_ai && (m.ai_draft_approved === false || (m.ai_draft_approved as unknown) === 0);
+const mapVisibleMessages = (list: qtalkApi.ApiMessage[]) => list.filter((m) => !isRejectedCueDraft(m)).map(apiMessageToMock);
+
 function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
   // Cue AI 메시지 + draft 미승인 → cue_draft 카드 표시.
   // 백엔드와 같은 정의를 쓴다 (routes/conversations.js: is_ai && ai_mode_used='draft' && approved!==true).
   // auto 모드로 이미 발송된 Cue 답변은 approved=true 라 여기 걸리지 않는다.
   const isDraft = m.is_ai && m.ai_mode_used === 'draft' && m.ai_draft_approved === null;
-  const isRejectedDraft = m.is_ai && m.ai_draft_approved === false;
 
   // 다국어 이름 — viewer 의 i18n 언어 기준 (사이클 F)
   const senderObj = m.sender as ({ name?: string; name_localized?: Record<string,string> | null } | undefined);
@@ -167,7 +171,7 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
     //   **링크를 받은 제3자가 우리 직원처럼 보인다** (#259).
     sender_role: m.is_ai ? 'cue' : ((m.sender as { is_guest?: boolean } | undefined)?.is_guest ? 'guest' : 'member'),
     sender_color: m.is_ai ? '#F43F5E' : '#64748B',
-    body: isRejectedDraft ? '' : m.content,  // 거절된 draft는 빈 body
+    body: m.content,
     created_at: m.created_at,
     reply_to_message_id: m.reply_to_message_id,
     is_question: !m.is_ai && m.content.trim().endsWith('?'),
@@ -689,6 +693,8 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       const mapped = apiMessageToMock(msg);
       setMessages((prev) => {
         const arr = prev[mapped.conversation_id] || [];
+        // 다른 직원이 거절한 Cue 초안 — 자리째 뺀다(빈 줄로 바꿔 끼우지 않는다).
+        if (isRejectedCueDraft(msg)) return { ...prev, [mapped.conversation_id]: arr.filter((m) => m.id !== mapped.id) };
         // 수정 신호에 없는 칸(반응·첨부·읽음 수)은 지금 값을 둔다 — 통째로 바꾸면 고친 순간 반응·읽음 표시가 사라진다
         return { ...prev, [mapped.conversation_id]: arr.map((m) => (m.id === mapped.id ? {
           ...mapped,
@@ -945,7 +951,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     if (s && !s.connected) s.connect();
     if (activeConversationId) {
       qtalkApi.listConversationMessages(activeConversationId).then(msgs => {
-        const fresh = msgs.map(apiMessageToMock);
+        const fresh = mapVisibleMessages(msgs);
         setMessages(prev => {
           // 최신 창(50건)은 **서버 값이 정본**이다 (편집·삭제 반영 — feedback_visibility_refresh_server_fresh).
           // ★ 2026-09-10 — 다만 그 창보다 **더 과거로 이미 불러온 것은 버리지 않는다.**
@@ -1001,7 +1007,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
           setOtherWsConv({ convId: activeConversationId, bizId: Number(convBizId) });
           return;
         }
-        const loaded = msgs.map(apiMessageToMock);
+        const loaded = mapVisibleMessages(msgs);
         setOlderState((prev) => ({ ...prev, [activeConversationId]: { hasMore, loading: false } }));
         const loadedIds = new Set(loaded.map((m) => m.id));
         setMessages((prev) => {
@@ -1050,7 +1056,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       setMessages((prev) => {
         const existing = prev[convId] || [];
         const existIds = new Set(existing.map((m) => m.id));
-        const fresh = older.map(apiMessageToMock).filter((m) => !existIds.has(m.id));
+        const fresh = mapVisibleMessages(older).filter((m) => !existIds.has(m.id));
         if (fresh.length === 0) return prev;
         return { ...prev, [convId]: [...fresh, ...existing] };
       });
@@ -1072,7 +1078,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
     for (let i = 0; i < 10 && list.length > 0; i += 1) {
       const { messages: older, hasMore } = await qtalkApi.loadOlderMessages(convId, list[0].id, 200);
       const existIds = new Set(list.map((m) => m.id));
-      const fresh = older.map(apiMessageToMock).filter((m) => !existIds.has(m.id));
+      const fresh = mapVisibleMessages(older).filter((m) => !existIds.has(m.id));
       list = [...fresh, ...list];
       setMessages((prev) => {
         const cur = prev[convId] || [];
@@ -1282,7 +1288,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
             try {
               const msgs = await qtalkApi.listConversationMessages(c.id);
               if (cancelled) return;
-              const loaded = msgs.map(apiMessageToMock);
+              const loaded = mapVisibleMessages(msgs);
               const loadedIds = new Set(loaded.map((m) => m.id));
               setMessages((prev) => {
                 const existing = prev[c.id] || [];
@@ -1664,7 +1670,7 @@ const QTalkPage: React.FC<QTalkPageProps> = ({ embedded = false, initialConvId =
       if (hasPosts) {
         try {
           const fresh = await qtalkApi.listConversationMessages(convId);
-          setMessages((prev) => ({ ...prev, [convId]: fresh.map(apiMessageToMock) }));
+          setMessages((prev) => ({ ...prev, [convId]: mapVisibleMessages(fresh) }));
         } catch { /* skip */ }
       }
       // 번역 폴링 fallback — Socket.IO `message:translated` 이벤트가 안 도착해도

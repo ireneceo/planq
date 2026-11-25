@@ -964,7 +964,7 @@ async function collectChats(businessId, userId) {
   const viewerScope = await getUserScope(userId, businessId).catch(() => null);
   const visSql = viewerScope?.isClient
     ? `AND ${clientVisibleSql('m')}`
-    : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
+    : `AND ${require('../utils/messageVisibility').staffVisibleSql('m')}`;
 
   // ★ LIMIT 은 아래에서 «응대 중 문의» 와 합친 뒤 한 번 건다(docs/QTALK_CARE_DESIGN.md) — 방 수만큼만 행이 나온다(convIds 범위).
   const [rows] = await sequelize.query(

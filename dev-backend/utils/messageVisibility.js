@@ -61,4 +61,33 @@ function isVisibleToClient(m) {
   return true;
 }
 
-module.exports = { CLIENT_VISIBLE_MESSAGE_WHERE, isVisibleToClient, clientVisibleSql };
+// ─────────────────────────────────────────────────────────
+// 직원(멤버 이상)에게 보이는 메시지 — **거절한 Cue 초안은 대화에서 빠진다** (2026-11-25).
+//   거절은 행을 지우지 않는다(감사·누가 언제 거절했나). 그런데 직원 목록이 그 행을 그대로 주고
+//   화면이 본문을 비워 그려서 «Cue: (빈칸)» 줄이 대화에 박혔다(Irene «거절을 했더니 내용없이 입력이 되었어»).
+//   삭제 메시지는 직원에게 마스킹으로 남기므로 Sequelize 판은 **거절 초안만** 뺀다. 긍정형 OR(위 NULL 주석 그대로).
+const NOT_REJECTED_DRAFT_WHERE = {
+  [Op.or]: [
+    { is_ai: false },
+    { is_ai: null },
+    { ai_draft_approved: null },
+    { ai_draft_approved: true },
+  ],
+};
+// raw SQL 판 — 직원 안읽음·목록 미리보기(삭제도 빼던 자리)에 그대로 쓴다: 삭제 아님 + 거절 초안 아님.
+function staffVisibleSql(alias = 'm') {
+  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(alias)) throw new Error('bad alias');
+  const a = `${alias}.`;
+  return `(${a}is_deleted IS NULL OR ${a}is_deleted = 0)
+            AND (${a}is_ai IS NULL OR ${a}is_ai = 0 OR ${a}ai_draft_approved IS NULL OR ${a}ai_draft_approved = 1)`;
+}
+// 메모리 판 — 소켓 payload 등. TINYINT 1/0 은 truthy 로 환산(위 주석).
+function isRejectedDraft(m) {
+  if (!m || !truthy(m.is_ai)) return false;
+  return m.ai_draft_approved === false || m.ai_draft_approved === 0 || m.ai_draft_approved === '0';
+}
+
+module.exports = {
+  CLIENT_VISIBLE_MESSAGE_WHERE, isVisibleToClient, clientVisibleSql,
+  NOT_REJECTED_DRAFT_WHERE, staffVisibleSql, isRejectedDraft,
+};

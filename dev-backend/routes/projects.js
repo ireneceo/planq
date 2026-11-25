@@ -33,7 +33,7 @@ function cueReadOf(f) {
 }
 const { serializeMessageAttachments, isRenderableImage } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
-const { CLIENT_VISIBLE_MESSAGE_WHERE, isVisibleToClient } = require('../utils/messageVisibility');
+const { CLIENT_VISIBLE_MESSAGE_WHERE, isVisibleToClient, NOT_REJECTED_DRAFT_WHERE } = require('../utils/messageVisibility');
 const { authenticateToken } = require('../middleware/auth');
 const { createAuditLog } = require('../middleware/audit');
 const { logAudit, auditDiff } = require('../services/auditService');
@@ -1943,6 +1943,7 @@ router.get('/conversations/:id/messages', authenticateToken, async (req, res, ne
     const { getUserScope } = require('../middleware/access_scope');
     const viewer = await getUserScope(req.user.id, conv.business_id).catch(() => null);
     if (viewer?.isClient) Object.assign(msgWhere, CLIENT_VISIBLE_MESSAGE_WHERE);
+    else Object.assign(msgWhere, NOT_REJECTED_DRAFT_WHERE);  // 직원: 거절한 Cue 초안은 대화에서 빠진다
     const [msgsDesc, parts] = await Promise.all([
       Message.findAll({
         where: msgWhere,

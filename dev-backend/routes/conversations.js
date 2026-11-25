@@ -8,7 +8,7 @@ const { attachWorkspaceScope, conversationListWhere, canAccessConversation, isMe
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 const { serializeMessageAttachments } = require('../services/filePreview');
 const { maskDeletedMessages } = require('../utils/deletedMessage');
-const { CLIENT_VISIBLE_MESSAGE_WHERE, clientVisibleSql, isVisibleToClient } = require('../utils/messageVisibility');
+const { CLIENT_VISIBLE_MESSAGE_WHERE, clientVisibleSql, isVisibleToClient, NOT_REJECTED_DRAFT_WHERE, staffVisibleSql } = require('../utils/messageVisibility');
 const { createAuditLog } = require('../middleware/audit');
 const { touchOwnRow, ownRows, mutedConversationIds, joinParticipant, promoteSpeaker, removeRows, countOthers } = require('../services/convParticipants');
 const cueOrchestrator = require('../services/cue_orchestrator');
@@ -61,7 +61,7 @@ router.get('/me/unread-total-all', authenticateToken, async (req, res, next) => 
       const viewerScope = await getUserScope(uid, bizId).catch(() => null);
       const visSql = viewerScope?.isClient
         ? `AND ${clientVisibleSql('m')}`
-        : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
+        : `AND ${staffVisibleSql('m')}`;
       const convs = await Conversation.findAll({
         where: { ...baseWhere, status: 'active', archived_at: null },
         attributes: ['id'],
@@ -141,7 +141,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     //   실측 회귀: 고객 목록 미리보기에 **내부 메모 본문**이 그대로 나갔다.
     const listVisSql = req.scope?.isClient
       ? `AND ${clientVisibleSql('m')}`
-      : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
+      : `AND ${staffVisibleSql('m')}`;
     const convIds = conversations.map(c => c.id);
     if (convIds.length > 0) {
       const [rows] = await sequelize.query(
@@ -165,7 +165,7 @@ router.get('/:businessId', authenticateToken, attachWorkspaceScope(), async (req
     // 미리보기도 같은 술어 — 고객에게 '마지막 메시지' 는 **고객이 볼 수 있는 마지막 메시지**다.
     const previewVisSql = req.scope?.isClient
       ? `AND ${clientVisibleSql('msg')}`
-      : 'AND (msg.is_deleted IS NULL OR msg.is_deleted = 0)';
+      : `AND ${staffVisibleSql('msg')}`;
     if (convIds.length > 0) {
       // 워크스페이스 표시명 우선 — BusinessMember.name → users.name fallback.
       // 같은 conv 리스트는 단일 business_id 안이라 bm JOIN 1회로 충분.
@@ -434,7 +434,7 @@ router.get('/:businessId/unread-total', authenticateToken, attachWorkspaceScope(
     //   안 그러면 뱃지 2인데 열면 1건이라 "찾을 수 없는 안읽음" 이 남는다 (실측 회귀).
     const totVisSql = req.scope?.isClient
       ? `AND ${clientVisibleSql('m')}`
-      : 'AND (m.is_deleted IS NULL OR m.is_deleted = 0)';
+      : `AND ${staffVisibleSql('m')}`;
     const [rows] = await sequelize.query(
       `SELECT m.conversation_id AS cid, COUNT(m.id) AS cnt, MAX(cp.muted_at IS NOT NULL) AS muted
          FROM messages m
@@ -992,7 +992,7 @@ router.get('/:businessId/:id', authenticateToken, attachWorkspaceScope(), async 
   try {
     // 고객이면 **가져오기 전에** 거른다 — post-filter 는 limit 200 slot 을 삭제·내부 메모에
     //   먹혀 고객 화면이 비는 원인이었다 (projects.js 목록과 같은 술어·같은 이유).
-    const msgWhereForViewer = req.scope?.isClient ? { ...CLIENT_VISIBLE_MESSAGE_WHERE } : undefined;
+    const msgWhereForViewer = req.scope?.isClient ? { ...CLIENT_VISIBLE_MESSAGE_WHERE } : { ...NOT_REJECTED_DRAFT_WHERE };  // 직원: 거절한 Cue 초안 뺌
     const conversation = await Conversation.findOne({
       where: { id: req.params.id, business_id: req.params.businessId },
       include: [
