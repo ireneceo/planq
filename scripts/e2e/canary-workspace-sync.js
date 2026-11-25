@@ -33,11 +33,23 @@ async function waitFor(fn, ms = 8000, step = 250) {
 }
 // ★ 누를 창을 앞으로 — headless 는 뒤에 있는 탭의 click 이 IntersectionObserver 를 기다리다 멈춘다
 //   (첫 실행: tab2 를 연 뒤 main 이 뒤로 밀려 Runtime.callFunctionOn protocolTimeout FATAL)
+// ★ 바로 전 전환으로 이 창이 다시 부팅되는 중이면 찾은 단추가 1초 안에 새 문서로 바뀐다(2026-11-26 실측:
+//   load 46.8s → 47.0s 에 옛 단추를 찾고 48.0s 클릭 = No element found). 다시 뜬 화면에서 세 번까지 다시 연다.
 async function switchVia(page, bizId) {
   await page.bringToFront();
-  await page.click('[data-testid="ws-switcher-trigger"]');
-  await page.waitForSelector(`[data-testid="ws-switcher-item-${bizId}"]`, { visible: true, timeout: 5000 });
-  await page.click(`[data-testid="ws-switcher-item-${bizId}"]`);
+  const item = `[data-testid="ws-switcher-item-${bizId}"]`;
+  for (let i = 0; ; i++) {
+    try {
+      await page.waitForSelector('[data-testid="ws-switcher-trigger"]', { visible: true, timeout: 15000 });
+      await page.click('[data-testid="ws-switcher-trigger"]');
+      await page.waitForSelector(item, { visible: true, timeout: 5000 });
+      break;
+    } catch (e) {
+      if (i >= 2) throw e;
+      await b.sleep(1500);
+    }
+  }
+  await page.click(item);
 }
 
 async function run() {

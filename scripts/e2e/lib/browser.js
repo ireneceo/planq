@@ -43,6 +43,12 @@ async function login(page, creds = CREDS) {
   }, creds);
   if (!res || !res.ok) throw new Error('login failed for ' + creds.email);
 
+  // ★ «데스크탑 앱에서 열까요?» 띠 (2026-11-25 8c558ed4) — 데스크탑 카나리가 시험 계정에 «받을 수 있는 앱 세션» 을
+  //   남기면 그 계정의 모든 브라우저 창 오른쪽 위(머리줄 단추 자리)에 떠 있는 카드가 뜬다. 첫날 wspage 가
+  //   «[우리 페이지] 보임» 을 이 카드에 먹혔다(tablet·desktop). 사용자가 «여기서 볼게요 + 기억하기» 를 고른 것과
+  //   같은 값(localStorage pq_desktop_links=browser)을 심는다. 이 띠 자체를 재는 카나리는 지우고 잰다.
+  await page.evaluate(() => { try { localStorage.setItem('pq_desktop_links', 'browser'); } catch { /* */ } }).catch(() => null);
+
   // ★ 약관 재동의를 **API 로 먼저 통과시킨다** (2026-09-14).
   //   약관을 개정해 platform_settings.terms_version 을 올리면 이 계정의 버전이 뒤처져
   //   앱 화면마다 재동의 모달이 전면에 뜬다 — 그 모달은 `aria-modal="true"` 라 "모달이 떴는가"
@@ -84,7 +90,24 @@ async function login(page, creds = CREDS) {
 
 // 출근 묻는 창을 «아직이에요»(1시간 조용)로 미룬다 — 토큰 하나로(node 쪽 fetch). login() 이 부르고,
 //   dev-login 처럼 login() 을 거치지 않는 카나리는 받은 토큰으로 직접 부른다. 기록(출근·퇴근 시각)은 건드리지 않는다.
+// ★ bizId 를 안 주면 **그 사람의 모든 워크스페이스**를 미룬다 (2026-11-26) — 처음 워크스페이스만 미뤘더니
+//   카나리가 다른 워크스페이스로 옮긴 뒤(전환·삭제 후 착지) 그쪽 창이 떴다. 근무 시작 2시간 전(KST 07:00)부터
+//   묻기 때문에 밤 전체 검사 뒤쪽(22:40 UTC~)에서만 wsdelete ⑦(375·834)·wssync ②(스위처 가림)가 사흘 연속 빨갰다.
 async function snoozeAttendancePrompt(token, bizId = null) {
+  if (token && !bizId) {
+    let ids = [];
+    try {
+      const me = await fetch(`${BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = me.ok ? (await me.json()).data : null;
+      ids = [...new Set([d?.business_id, ...((d?.workspaces || []).map((w) => w.business_id))].filter(Boolean))];
+    } catch { /* 아래 한 건 경로가 이유를 남긴다 */ }
+    if (ids.length > 1) {
+      const out = [];
+      for (const id of ids) out.push(await snoozeAttendancePrompt(token, id));
+      return out.find((a) => a === 'snoozed') || out[0];
+    }
+    if (ids.length === 1) return snoozeAttendancePrompt(token, ids[0]);
+  }
   let attn;
   if (!token) attn = 'no-token';
   else {
