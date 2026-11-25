@@ -217,6 +217,23 @@ async function dismissBlockers(page) {
     cleared.push('출근 자동기록 알림');
     await sleep(700);
   }
+
+  // ★ «출근하셨어요?» 묻는 창 (2026-11-26) — login() 을 안 거치는 카나리(dev-login)는 API 미루기를 못 받는다.
+  //   근무 시작 2시간 전(KST 07:00)부터 떠서 밤 전체 검사 뒤쪽 qtalkautojoin ①(23:26 UTC)이 이 창에 먹혔다.
+  //   사용자처럼 «아직이에요»(1시간 조용 · 기록 불변)를 누른다.
+  const later = await page.$('[data-testid="attn-prompt-later"]').catch(() => null);
+  if (later) { await later.click().catch(() => null); cleared.push('출근 묻는 창'); await sleep(700); }
+
+  // «데스크탑 앱에서 열까요?» 띠 — login() 과 같은 선택(«여기서 볼게요» + 기억하기)
+  if (await page.$('[data-testid="desktop-handoff-offer"]').catch(() => null)) {
+    await page.evaluate(() => {
+      try { localStorage.setItem('pq_desktop_links', 'browser'); } catch { /* */ }
+      const bs = document.querySelectorAll('[data-testid="desktop-handoff-offer"] button');
+      bs[bs.length - 1]?.click();
+    }).catch(() => null);
+    cleared.push('데스크탑 앱 띠');
+    await sleep(400);
+  }
   return cleared;
 }
 
