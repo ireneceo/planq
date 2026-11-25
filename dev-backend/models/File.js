@@ -160,6 +160,13 @@ File.init({
     defaultValue: 'L3',
   },
   // N+74 — L2-members 분기 (project_id 없이 명시 멤버 리스트)
+  // «검색에서 숨김» — 제한 자료(L2)를 워크스페이스가 «잠금으로 보이기» 로 켜도 이 항목은 존재를 안 보인다(2026-11-25 · docs/FILE_SEARCH_DISCOVERY_DESIGN.md §2).
+  //   올린 사람·작성자·대표·관리자가 공개 범위 창에서 켠다. 판정은 services/lockedDiscovery 한 곳.
+  hide_existence: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  },
   target_member_ids: {
     type: DataTypes.JSON,
     allowNull: true,

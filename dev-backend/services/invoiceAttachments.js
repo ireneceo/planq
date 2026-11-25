@@ -60,6 +60,15 @@ async function canReadTarget(user, file, post, scope) {
   return false;
 }
 
+/** 요청자가 이 원본을 **밖으로 내보낼** 수 있는가 — «고객에게 보이기» 를 켤 때(만들 때 켜기 포함).
+ *  열람 요청 승인(읽기 전용)은 빼고 본다 — 승인으로만 읽는 사람이 원본을 무인증 공개 링크로 내보내지 못하게
+ *  (access_scope.canShareFile · postAccess.canSharePost, 2026-11-25 Fable 완료 검증 2차). */
+async function canShareTarget(user, file, post, scope) {
+  if (file) return !file.deleted_at && await require('../middleware/access_scope').canShareFile(scope, user.id, file);
+  if (post) return !post.deleted_at && await require('./postAccess').canSharePost(user, post);
+  return false;
+}
+
 /** 행들의 원본(File·Post)을 읽는다 — 지워진 것도 같이(내부 목록은 «삭제된 자료» 로 그린다). */
 async function loadTargets(rows, businessId, { transaction } = {}) {
   const { File, Post } = require('../models');
@@ -116,6 +125,7 @@ async function attachableRows({ list, businessId, invoiceId, user, existing = []
     }
     const visible = a.client_visible === true;
     if (visible) {
+      if (!(await canShareTarget(user, file, post, scope))) throw new AttachError('attachment_target_not_found', 404);
       const why = publicTargetReason({ file_id: fid, post_id: pid }, file, post);
       if (why) throw new AttachError(`attachment_not_shareable:${why}`);
     }
@@ -168,8 +178,10 @@ async function copyForDuplicate({ srcInvoiceId, copy, user, transaction }) {
       const p = posts.get(r.post_id);
       if (!p || p.deleted_at || !(await canReadPost(user, p))) continue;
     }
+    // «고객에게 보이기» 는 복제하는 사람이 밖으로 내보낼 수 있을 때만 이어받는다(열람 요청 승인 = 읽기 전용)
+    const visible = !!r.client_visible && await canShareTarget(user, files.get(r.file_id) || null, posts.get(r.post_id) || null, scope);
     rows.push({ business_id: copy.business_id, invoice_id: copy.id, file_id: r.file_id, post_id: r.post_id,
-      client_visible: !!r.client_visible, sort_order: r.sort_order, created_by: user.id });
+      client_visible: visible, sort_order: r.sort_order, created_by: user.id });
   }
   if (rows.length) await InvoiceAttachment.bulkCreate(rows, { transaction });
   return rows.length;
@@ -230,5 +242,5 @@ async function publicList(invoice, token) {
 
 module.exports = {
   MAX_ATTACHMENTS, AttachError, publicTargetReason, publicAttachmentReason, loadTargets,
-  canReadTarget, attachableRows, previewTargets, setOnCreate, copyForDuplicate, memberList, publicList,
+  canReadTarget, canShareTarget, attachableRows, previewTargets, setOnCreate, copyForDuplicate, memberList, publicList,
 };

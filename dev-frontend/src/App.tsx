@@ -101,6 +101,7 @@ const QCalendarPage = lazy(() => import('./pages/QCalendar/QCalendarPage'));
 const QDocsPage = lazy(() => import('./pages/QDocs/QDocsPage'));
 const BriefViewerPage = lazy(() => import('./pages/QDocs/BriefViewerPage'));
 const ReceivedSignaturesPage = lazy(() => import('./pages/Signatures/ReceivedSignaturesPage'));
+const AccessRequestsPage = lazy(() => import('./pages/AccessRequests/AccessRequestsPage'));
 const PublicDocPage = lazy(() => import('./pages/QDocs/PublicDocPage'));
 const PublicPostPage = lazy(() => import('./pages/QDocs/PublicPostPage'));
 const PublicTaskPage = lazy(() => import('./pages/Public/PublicTaskPage'));
@@ -585,6 +586,12 @@ function ShellApp() {
           </ProtectedRoute>
         } />
 
+        {/* 받은 «열람 요청» — 승인·거절·회수 (2026-11-25 · docs/FILE_SEARCH_DISCOVERY_DESIGN.md §3) */}
+        <Route path="/access-requests" element={
+          <ProtectedRoute>
+            <MainLayout><AccessRequestsPage /></MainLayout>
+          </ProtectedRoute>
+        } />
         {/* 받은 서명 archive — 이전 /docs?tab=received-signatures 에서 분리 (2026-05-03) */}
         <Route path="/signatures/received" element={
           <ProtectedRoute>

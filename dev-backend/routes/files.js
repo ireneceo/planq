@@ -19,7 +19,7 @@ const gdrive = require('../services/gdrive');
 const planEngine = require('../services/plan');
 const { decodeOriginalName, buildContentDisposition } = require('../services/filename');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
-const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope, canDownloadFile } = require('../middleware/access_scope');
+const { attachWorkspaceScope, fileListWhereByLevel, canAccessFileByLevel, isMemberOrAbove, getUserScope, canDownloadFile, canShareFile } = require('../middleware/access_scope');
 const { successResponse, errorResponse, parsePagination, paginatedResponse } = require('../middleware/errorHandler');
 // 영구 삭제는 services/filePurge.js 단일 착지점. cron(uploadCleanup)도 같은 함수를 부른다 —
 //   두 벌로 두었더니 cron 이 휴지통을 영영 못 비우는 상태가 됐었다.
@@ -119,7 +119,7 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     const scope = await getUserScope(req.user.id, file.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
     // 볼 수 있는 사람만 밖으로 내보낸다 — 남의 «나만 보기»(L1) 파일에도 링크를 뽑을 수 있었다(2026-09-27 점검).
-    if (!(await require('../middleware/access_scope').canAccessFileByLevel(req.user.id, file, scope))) {
+    if (!(await require('../middleware/access_scope').canShareFile(scope, req.user.id, file))) {   // 공유 문 = 원래 권한(열람 요청 승인은 읽기 전용)
       return errorResponse(res, 'forbidden', 403);
     }
     // 보안등급 — share-link 경로에는 있고 이 경로에만 없었다(대외비 파일도 공개 링크가 나갔다).
@@ -151,7 +151,7 @@ router.delete('/:id/share', authenticateToken, async (req, res, next) => {
     const scope = await getUserScope(req.user.id, file.business_id, req.user.platform_role);
     if (!isMemberOrAbove(scope)) return errorResponse(res, 'forbidden', 403);
     // 끊는 사람도 **만들 수 있는 사람과 같은 술어**(0-J) — 옛: 멤버면 남의 L1 파일 링크까지 끊었다.
-    if (!(await require('../middleware/access_scope').canAccessFileByLevel(req.user.id, file, scope))) {
+    if (!(await require('../middleware/access_scope').canShareFile(scope, req.user.id, file))) {   // 공유 문 = 원래 권한(열람 요청 승인은 읽기 전용)
       return errorResponse(res, 'forbidden', 403);
     }
     await file.update({
@@ -1012,7 +1012,7 @@ router.post('/:businessId/:id/drive-edit', authenticateToken, checkBusinessAcces
       if (!file) return errorResponse(res, 'File not found', 404);
       // ★ 다운로드와 **같은 술어**를 쓴다(canDownloadFile 이 단일 원천). 여기만 따로 쓰면
       //   "받을 수는 없는데 편집으로는 열리는" 구멍이 생긴다.
-      if (!(await canDownloadFile(req.scope, req.user.id, file))) {
+      if (!(await canShareFile(req.scope, req.user.id, file))) {
         return errorResponse(res, 'forbidden', 403);
       }
 
@@ -1173,6 +1173,8 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
     //   미러는 부수효과이므로 응답을 막지 않는다(`setImmediate`). 실패는 미러 로그에 남는다.
     const regained = !file.gdrive_mirror_id && stillEligible && !driveWasEligibleBefore;
     await file.update(visPatch);
+    // «나만 보기» 로 바꾸면 이 파일의 열람 요청(대기·승인)을 닫는다 — 다시 L2 가 돼도 옛 승인이 살아나지 않게(services/accessGrants)
+    if (level === 'L1') await require('../services/accessGrants').closeForPrivate(file.business_id, 'file', file.id).catch(() => {});
     // ★ 재미러는 **저장한 뒤**에 건다 (2026-09-17, Fable 9차 C3 — 내 «고쳤다» 가 거짓이었다).
     //   `setImmediate` 를 `update` **앞**에 걸었더니 `mirrorOnUpload` 가 **갱신 전 행**(아직 L1)을
     //   읽어 `isEligible=false` 로 조용히 끝났다. 실측 L1→L3 **4/4 미러 없음**.
@@ -1768,7 +1770,7 @@ router.post('/:businessId/:id/share-link', authenticateToken, checkBusinessAcces
     {
       const as = require('../middleware/access_scope');
       const sc = await as.getUserScope(req.user.id, file.business_id, req.user.platform_role);
-      if (!(await as.canDownloadFile(sc, req.user.id, file))) return errorResponse(res, 'forbidden', 403);
+      if (!(await as.canShareFile(sc, req.user.id, file))) return errorResponse(res, 'forbidden', 403);
     }
 
     // D4 #62 — 보안등급 게이트: 일반(general) 외 외부 공유 링크 발급 차단
@@ -1823,7 +1825,7 @@ router.delete('/:businessId/:id/share-link', authenticateToken, checkBusinessAcc
     {
       const as = require('../middleware/access_scope');
       const sc = await as.getUserScope(req.user.id, file.business_id, req.user.platform_role);
-      if (!(await as.canDownloadFile(sc, req.user.id, file))) return errorResponse(res, 'forbidden', 403);
+      if (!(await as.canShareFile(sc, req.user.id, file))) return errorResponse(res, 'forbidden', 403);
     }
     const hadToken = !!file.share_token;
     const prevExpiresAt = file.share_expires_at;

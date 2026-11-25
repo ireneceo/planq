@@ -23,6 +23,14 @@ async function canReadPost(user, post) {
   return await canAccessPostByLevel(user.id, post, scope);
 }
 
+// 문서를 **밖으로 내보낼 수 있는가**(공유 링크 발급·끊기·메일 공유) — 읽기와 같지만 열람 요청 승인은 빼고 본다
+//   (승인 = 읽기 전용 · access_scope.canShareFile 과 같은 규칙, 2026-11-25 Fable 완료 검증 차단 1).
+async function canSharePost(user, post) {
+  const scope = await getUserScope(user.id, post.business_id, user.platform_role);
+  if (scope.isClient) return canReadPost(user, post);
+  return require('../middleware/access_scope').postLevelAllows(user.id, post, scope);
+}
+
 // 문서 편집 권한 — **작성자 + 작성자가 지정한 공동 편집자** (2026-10-23, docs/DOC_COEDITORS_DESIGN.md · Fable DESIGN-OK).
 //   Irene: *"모두 서로 서로 막 작성자 본인 아닌데 편집되는 건 아니지?"* → «작성자가 공동 편집자를 지정(구글 문서처럼)».
 //   문서 PUT·상세 can_edit·이력 복원·서명 요청·설문 관리·같이 편집(presence)·AI 앱 쓰기·첨부 추가/삭제가 **이 함수 하나**를 쓴다.
@@ -73,4 +81,5 @@ async function canMovePostProject(userId, post, platformRole) {
   return !!(scope.isOwner || scope.isPlatformAdmin);
 }
 
-module.exports = { canReadPost, canEditPost, canManagePostEditors, canMovePostProject, isActiveWorkspaceMember };
+module.exports = {
+  canSharePost, canReadPost, canEditPost, canManagePostEditors, canMovePostProject, isActiveWorkspaceMember };

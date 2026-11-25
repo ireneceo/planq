@@ -101,6 +101,7 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         // 2026-11-18 — Drive 사본이 PlanQ 와 다른데 반영 못 한 이유(gdriveMirrorSync §4.2 B-5). 세 직렬화가 같이 싣는다.
         drive_sync_issue: f.drive_sync_issue || null,
         visibility: f.visibility,
+        hide_existence: !!f.hide_existence,   // «검색에서 숨기기»(services/lockedDiscovery) — 파일 상세의 숨김 칸이 읽는다
         project_id: f.project_id,
         description: f.description,
         tags: f.tags || [],

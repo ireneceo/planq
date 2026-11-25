@@ -32,9 +32,11 @@ interface Props {
   title?: string;
   hint?: string;
   confirmLabel?: string;
+  /** 범위 아래 덧붙일 칸 — 예: 제한(L2) 문서의 «검색에서 숨기기»(즉시 저장, 확인 단추와 별개) */
+  extra?: React.ReactNode;
 }
 
-const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp, currentProjectId = null, currentTargetMemberIds = null, notice, title, hint, confirmLabel }) => {
+const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = true, projects = [], members = [], clients = [], onConfirm, onClose, onOpenShare, hide: hideProp, currentProjectId = null, currentTargetMemberIds = null, notice, title, hint, confirmLabel, extra }) => {
   const { t } = useTranslation('common');
   const cur = (current || 'L3') as string;
   // L2 는 특정 멤버가 있으면 «특정 멤버», 아니면 «특정 프로젝트»(지금 연결된 프로젝트를 미리 고른다)
@@ -96,6 +98,7 @@ const VisibilityChangeModal: React.FC<Props> = ({ open, current, canChooseL2 = t
           members={members}
           hide={hide}
         />
+        {extra}
 
         {onOpenShare && (
           <ExternalLink type="button" onClick={() => { onClose(); onOpenShare(); }}>

@@ -91,8 +91,9 @@ async function folderLinkExcludeReason(f, issuerScope) {
     const targets = Array.isArray(f.target_member_ids) ? f.target_member_ids : [];
     if (targets.length > 0 || !f.project_id) return 'targeted';
   }
-  const { canAccessFileByLevel } = require('../middleware/access_scope');
-  return (await canAccessFileByLevel(issuerScope.userId, f, issuerScope)) ? null : 'no_access';
+  // 발급자의 **원래 권한**만 — 열람 요청 승인은 읽기 전용이라 남에게 내보내는 근거가 못 된다(access_scope.canShareFile)
+  const { canShareFile } = require('../middleware/access_scope');
+  return (await canShareFile(issuerScope, issuerScope.userId, f)) ? null : 'no_access';
 }
 async function isFolderLinkFile(f, issuerScope) {
   return (await folderLinkExcludeReason(f, issuerScope)) === null;

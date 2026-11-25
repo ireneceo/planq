@@ -3,6 +3,21 @@
   "_db": "planq_dev_db",
   "_note": "스키마 변경 후 `node scripts/dump-schema.js` 로 갱신할 것. guard-invariants schemacol 이 읽는다.",
   "tables": {
+    "access_requests": [
+      "id",
+      "business_id",
+      "entity_type",
+      "entity_id",
+      "requester_id",
+      "approver_id",
+      "status",
+      "message",
+      "decided_by",
+      "decided_at",
+      "decision_note",
+      "created_at",
+      "updated_at"
+    ],
     "agent_clients": [
       "id",
       "client_id",
@@ -1304,7 +1319,8 @@
       "origin_provider",
       "drive_md5",
       "drive_sync_issue",
-      "purge_after"
+      "purge_after",
+      "hide_existence"
     ],
     "focus_sessions": [
       "id",
@@ -1437,6 +1453,18 @@
       "note",
       "title",
       "edited_by",
+      "created_at",
+      "updated_at"
+    ],
+    "invoice_attachments": [
+      "id",
+      "business_id",
+      "invoice_id",
+      "file_id",
+      "post_id",
+      "client_visible",
+      "sort_order",
+      "created_by",
       "created_at",
       "updated_at"
     ],
@@ -2251,7 +2279,8 @@
       "security_level",
       "deleted_at",
       "purge_after",
-      "share_password_hash"
+      "share_password_hash",
+      "hide_existence"
     ],
     "project_clients": [
       "id",

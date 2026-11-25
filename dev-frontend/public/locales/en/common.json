@@ -2279,5 +2279,62 @@
     "otherTitle": "This link is for another account",
     "otherSub": "The app is signed in to a different account than the browser, so it wasn't opened. Switch accounts and open it again.",
     "close": "Close"
+  },
+  "accessRequest": {
+    "lockedGroup": "Restricted — no access",
+    "lockedSub": "Shared by {{name}} · You don't have access",
+    "lockedSubNoName": "You don't have access",
+    "request": "Request access",
+    "requested": "Requested",
+    "denied": "Declined",
+    "modalBody": "Ask {{owner}} for access to «{{item}}». If approved, you can open this item only.",
+    "modalBodyNoOwner": "Ask the workspace owner or admins for access to «{{item}}». If approved, you can open this item only.",
+    "messageLabel": "Message (optional)",
+    "messagePlaceholder": "Saying why you need it helps them decide",
+    "send": "Send request",
+    "cancel": "Cancel",
+    "err": {
+      "recently_denied": "This request was declined recently — you can ask again in 7 days",
+      "daily_limit": "You can send up to 10 access requests a day",
+      "not_found": "You can't request this item right now",
+      "generic": "Couldn't send the request. Please try again"
+    },
+    "kind": {
+      "file": "File",
+      "post": "Document"
+    },
+    "page": {
+      "title": "Access requests",
+      "pending": "Received",
+      "approved": "Approved",
+      "empty": "No access requests",
+      "emptyApproved": "No approved requests",
+      "approve": "Approve",
+      "deny": "Decline",
+      "revoke": "Revoke",
+      "denyTitle": "Decline access request",
+      "denyNoteLabel": "Reason (optional — the requester will see it)",
+      "revokeTitle": "Revoke access",
+      "revokeMsg": "{{name}} will no longer be able to open this item.",
+      "hiddenItem": "(an item you can't see now)",
+      "missingItem": "(deleted item)",
+      "requestedBy": "Requested by {{name}}",
+      "someone": "A member",
+      "hint": "Approving lets only the requester open this item. Its sharing settings stay the same, and you can revoke access any time.",
+      "loadFailed": "Couldn't load requests",
+      "actionFailed": "Couldn't complete that. Please try again",
+      "open": "Open"
+    },
+    "settings": {
+      "title": "Show restricted items as locked in search",
+      "desc": "When on, members searching can see the name and owner of project- or member-restricted files and documents they can't open, shown as locked, and can request access. «Only me» items stay invisible, and clients see nothing. Items with sensitive titles can be hidden from search one by one. Documents raised to restricted for signing (such as contracts) may also show their titles as locked.",
+      "inboxLink": "View access requests",
+      "on": "On",
+      "off": "Off"
+    },
+    "hide": {
+      "label": "Hide from search",
+      "hint": "When on, members without access won't see this item even as locked"
+    }
   }
 }

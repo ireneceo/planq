@@ -139,6 +139,7 @@ router.get('/workspace/:bizId/all-files', authenticateToken, async (req, res, ne
         drive_sync_issue: f.drive_sync_issue || null,
         // N+67 — visibility 노출 (frontend file detail drawer 에 표시 + 변경 UI)
         visibility: f.visibility,
+        hide_existence: !!f.hide_existence,   // «검색에서 숨기기»(services/lockedDiscovery) — 파일 상세의 숨김 칸이 읽는다
         project_id: f.project_id,
         // 검색용 메타 — 이 둘이 빠지면 편집해도 목록·검색에는 옛 값만 남는다
         description: f.description,

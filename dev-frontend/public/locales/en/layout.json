@@ -201,7 +201,8 @@
     "support": "Help rooms",
     "followup": "New customers",
     "publicPage": "Public page",
-    "publicPages": "Public page review"
+    "publicPages": "Public page review",
+    "accessRequests": "Access requests"
   },
   "user": {
     "profile": "My Profile",

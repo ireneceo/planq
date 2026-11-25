@@ -59,6 +59,13 @@ Post.init({
   },
   // L2-members 분기 — 워크스페이스 안 특정 user 만 접근 (KbDocument/File 정합).
   // [user_id1, user_id2, ...] 형식. access_scope.postListWhereByLevel / canAccessPostByLevel 가 참조.
+  // «검색에서 숨김» — 제한 자료(L2)를 워크스페이스가 «잠금으로 보이기» 로 켜도 이 항목은 존재를 안 보인다(2026-11-25 · docs/FILE_SEARCH_DISCOVERY_DESIGN.md §2).
+  //   올린 사람·작성자·대표·관리자가 공개 범위 창에서 켠다. 판정은 services/lockedDiscovery 한 곳.
+  hide_existence: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  },
   target_member_ids: {
     type: DataTypes.JSON,
     allowNull: true,

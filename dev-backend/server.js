@@ -639,6 +639,8 @@ app.use('/api/files', require('./routes/file_trash'));
 app.use('/api/content-trash', require('./routes/content_trash'));
 // 파일 «연결된 곳» 읽기(2026-11-25) — files.js 가 2천 줄이라 따로 둔다(god-file 래칫)
 app.use('/api/files', require('./routes/file_usage'));
+// 열람 요청 · 잠금 줄 · «검색에서 숨김» (2026-11-25 · docs/FILE_SEARCH_DISCOVERY_DESIGN.md)
+app.use('/api/access-requests', require('./routes/access_requests'));
 app.use('/api/files', require('./routes/files'));
 app.use('/api/export', require('./routes/export'));
 // 폴더 공유 링크(#469) — 공개 무인증 경로를 품으므로 file_folders 보다 **앞**에(순서가 계약).

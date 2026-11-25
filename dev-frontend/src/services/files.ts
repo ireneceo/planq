@@ -67,6 +67,8 @@ export interface ProjectFile {
   drive_sync_issue?: string | null;
   // N+67 — visibility 필드 (source='direct' 일 때만 변경 가능)
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
+  /** «검색에서 숨기기» — 제한(L2) 자료가 잠금 줄로도 안 나온다(services/lockedDiscovery). */
+  hide_existence?: boolean;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   /** Cue 가 이 파일 **내용**을 읽는가. 판정은 서버의 `services/fileIndex.indexability`
    *  한 함수다 — 화면에서 다시 계산하지 않는다(공식이 두 벌이면 이미 갈라져 있다).

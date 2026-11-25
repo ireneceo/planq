@@ -115,6 +115,13 @@ router.get('/', authenticateToken, async (req, res, next) => {
       gates.meeting_notes ? S.searchMeetingNotes(w, M, opt).then((r) => r.items).catch(() => []) : none(),
     ]);
 
+    // 못 보는 제한 자료(L2)의 «잠금 줄» — 워크스페이스 설정이 켜졌을 때 멤버에게만, 이름으로 맞은 것만(services/lockedDiscovery · 2026-11-25).
+    //   Q docs·Q file 메뉴가 숨겨진 멤버에게는 그 종류를 안 낸다(보통 결과와 같은 메뉴 축).
+    const lockedTypes = isClient ? [] : await require('../services/lockedDiscovery').allowedTypes(businessId, req.user, ['file', 'post']);
+    const locked = lockedTypes.length
+      ? await require('../services/lockedDiscovery').searchLocked(w.scope, businessId, M, { types: lockedTypes, limit }).catch(() => ({ files: [], posts: [] }))
+      : { files: [], posts: [] };
+
     // 메뉴 권한 — Q task·Q sale 이 «숨김» 인 멤버에게는 검색에서도 그 결과를 내지 않는다(services/searchGates).
     await searchGates.applyMenuGates({ tasks, clients }, businessId, req.user, isClient);
 
@@ -137,6 +144,9 @@ router.get('/', authenticateToken, async (req, res, next) => {
       project_notes: projectNotes,
       meeting_notes: meetingNotes,
       // 화면이 «메일 첨부 포함» 칸을 그릴지 — 메일을 못 보는 사람에게는 칸도 없다.
+      // 잠금 줄 — { id, name, kind, owner:{id,name}, locked:true, request:{id,status}|null } 만(화이트리스트)
+      locked_files: locked.files,
+      locked_posts: locked.posts,
       mail_files_allowed: !!gates.mail && await require('../services/mailAttachmentFiles').mailFilesAllowed(businessId, req.user, isClient).catch(() => false),   // 판정 한 벌(searchFiles 와 같은 함수)
     });
   } catch (err) { next(err); }

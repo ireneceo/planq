@@ -819,9 +819,14 @@ async function canAccessPost(userId, post, scope) {
 
 // File — N+74 vlevel 컬럼 우선 (legacy visibility 도 fallback). Post 와 동일 정책.
 //   L1=uploader / L2=project_id 또는 target_member_ids / L3=workspace / L4=workspace member + share_token
+// ★ 열람 요청 승인(services/accessGrants)은 술어가 거절한 뒤에만 본다 — 그 사람·그 항목 하나·L2 일 때만(2026-11-25).
 async function canAccessFileByLevel(userId, file, scope) {
   if (!file) return false;
   if (!scope) scope = await getUserScope(userId, file.business_id);
+  if (await fileLevelAllows(userId, file, scope)) return true;
+  return require('../services/accessGrants').hasGrant(scope, 'file', file);
+}
+async function fileLevelAllows(userId, file, scope) {
   if (scope.isPlatformAdmin) return true;
   // 본인 업로드 무조건 OK
   if (file.uploader_id === userId) return true;
@@ -931,13 +936,21 @@ function fileListWhereByLevel(scope) {
   }
   // 올린 사람 밖의 조건은 보이는 프로젝트로 감싼다(2026-10-16) — `File` 자격은 where 키라 Sequelize 가 붙인다.
   const fconds = [mineF, ...scopedOr(scope, conds)];
+  // 열람 요청 승인 — 그 사람·그 항목(L2)만. 프로젝트 범위로 감싸지 않는다(승인이 곧 «이름 박힌 사람» 이다).
+  const grant = require('../services/accessGrants').grantListCond(scope, 'file');
+  if (grant) fconds.push(grant);
   return { business_id: scope.businessId, [Op.or]: fconds };
 }
 
 // Post (vlevel) — 동일 패턴
+// ★ 열람 요청 승인(services/accessGrants)은 술어가 거절한 뒤에만 본다 — 파일과 같은 규칙(2026-11-25).
 async function canAccessPostByLevel(userId, post, scope) {
   if (!post) return false;
   if (!scope) scope = await getUserScope(userId, post.business_id);
+  if (await postLevelAllows(userId, post, scope)) return true;
+  return require('../services/accessGrants').hasGrant(scope, 'post', post);
+}
+async function postLevelAllows(userId, post, scope) {
   if (scope.isPlatformAdmin) return true;
   // 본인 작성 무조건 OK
   if (post.author_id === userId) return true;
@@ -994,6 +1007,9 @@ function postListWhereByLevel(scope) {
   }
   // 작성자 본인(앞 두 줄) 밖은 보이는 프로젝트로 감싼다(2026-10-16 프로젝트 가시성)
   const pconds = [...conds.slice(0, 2), ...scopedOr(scope, conds.slice(2))];
+  // 열람 요청 승인 — 그 사람·그 문서(L2)만(services/accessGrants · 파일과 같은 규칙).
+  const grant = require('../services/accessGrants').grantListCond(scope, 'post');
+  if (grant) pconds.push(grant);
   return { business_id: scope.businessId, [Op.or]: pconds };
 }
 
@@ -1178,6 +1194,16 @@ function attachWorkspaceScope(opts = {}) {
  *    넓어지면서 그 술어를 다른 곳에서도 불러야 했고, 라우트 안에 있으면 **복사할 수밖에 없다**.
  *    복사하면 고객(Client) 분기처럼 한쪽에만 있는 규칙이 조용히 사라진다. 그래서 여기로 옮겼다.
  *  고객은 자기 참여 프로젝트 파일 또는 본인이 올린 것만. 그 외에는 등급 판정을 따른다. */
+// ★ 밖으로 내보내는 문(공개 링크 발급·끊기 · Drive 편집 열기 · 공용 공유 · 폴더 링크 포함)은 **원래 권한**만 본다 —
+//   열람 요청 승인(services/accessGrants)은 «그 사람이 그 항목을 읽는다» 까지다. 승인받은 사람이 링크를 뽑거나
+//   Drive writer 를 받으면 «읽기» 가 «공유» 로 넓어진다(2026-11-25 Fable 완료 검증 FAIL 차단 1 · 실측 200).
+//   넓히는 일은 승인자가 공개 범위 화면에서 직접 한다.
+async function canShareFile(scope, userId, file) {
+  if (!file) return false;
+  if (scope && scope.isClient) return canDownloadFile(scope, userId, file);   // 고객 판정은 원래 승인 영향이 없다
+  if (!scope) scope = await getUserScope(userId, file.business_id);
+  return fileLevelAllows(userId, file, scope);
+}
 async function canDownloadFile(scope, userId, file) {
   if (!file) return false;
   if (scope && scope.isClient) {
@@ -1233,8 +1259,11 @@ module.exports = {
   canAccessPost,
   // 사이클 N+9 — 4단계 Visibility 옵션 A
   canAccessFileByLevel,
+  canShareFile,
+  fileLevelAllows,
   fileListWhereByLevel,
   canAccessPostByLevel,
+  postLevelAllows,
   postListWhereByLevel,
   canAccessKbDocumentByLevel,
   kbDocumentsListWhereByLevel,

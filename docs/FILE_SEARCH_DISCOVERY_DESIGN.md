@@ -51,14 +51,30 @@
 | 술어 | `access_scope.lockedDiscoverableWhere(scope, entity)` 한 곳 + 응답 `services/lockedDiscovery.js`(화이트리스트) |
 | 종류 | 2단계 = 파일 + 문서. 업무·Q info = 3단계(같은 모듈) |
 
-## 3. 열람 요청 (2단계가 켜졌을 때만)
+## 2-구현. 2단계 구현 (2026-11-25, Irene «권고대로» ①)
 
-- 표 `access_requests`(business_id · entity_type · entity_id · requester_id · status pending/approved/denied/expired · message · decided_by · decided_at · expires_at).
-- 받는 사람: 올린 사람·작성자, 비활성이면 대표·관리자. 요청자에게 승인자 이름 표시 OK(멤버끼리 아는 이름).
-- **승인 = 그 항목 `target_member_ids` 에 요청자만 추가** — 등급(vlevel)은 자동으로 안 바꾼다. 넓히려면 승인자가 공개 범위 화면에서 직접.
-- 알림: 앱 + 푸시, 신호만(제목 복사 금지). 메일 없음.
-- 남용 방지: 항목×요청자 대기 1건 · 거절 뒤 7일 재요청 불가 · 1인 하루 10건 · 14일 뒤 만료. 승인·거절·회수 AuditLog.
-- 요청 API 는 잠금 술어를 통과한 id 만 — 없는 id·L1·숨김·남의 워크스페이스·설정 꺼짐은 **모두 같은 404**.
+- 설정: `businesses.permissions.restricted_discoverable`(기본 꺼짐) · 설정 › 권한 «제한 자료를 검색에서 잠금으로 보이기»(`components/Permissions/RestrictedDiscoverySection`, 대표·관리자)
+- 항목 숨김: `files.hide_existence`·`posts.hide_existence`(기본 0) · 파일 상세 «공개» 칸 아래 · 문서 «공개 범위 변경» 창 아래(`components/AccessRequest/HideExistenceToggle` — 설정이 켜졌고 L2 일 때만, 올린 사람·작성자·대표·관리자)
+- 판정: `services/lockedDiscovery`(잠금 술어 한 곳 — 후보 = 이름 일치 L2·숨김 아님·남이 올린 것 ≤40건 → **단건 읽기 술어가 거절하는 것만**) · 응답 화이트리스트 `{id,name,kind,owner{id,name},locked,request}`
+- 표면: 통합 검색(`/api/search` → `locked_files`·`locked_posts`, Q file·Q docs 메뉴가 숨겨진 멤버는 그 종류 없음) · Q file 검색(`GET /api/access-requests/:biz/locked?types=file`, 워크스페이스 Q file 에서만)
+- **설계와 다른 한 곳(Fable 검증 대상)** — 승인을 `target_member_ids` 추가로 하지 않았다. 실측: `access_scope.canAccessFileByLevel`·`canAccessPostByLevel` 은 **프로젝트에 묶인 L2 항목에서 target_member_ids 를 보지 않고**, 목록 술어도 지정 멤버 조건을 «보이는 프로젝트» 로 감싸서 숨은 프로젝트 자료는 승인해도 안 열린다.
+  → **승인된 `access_requests` 행 자체가 «그 사람·그 항목 하나·지금 L2 일 때만» 의 권한**(`services/accessGrants` — 읽기 술어 네 벌이 거절한 뒤에만 본다). 항목의 공개 범위는 안 바뀌고, 회수(`revoked`)하면 닫히고, 항목이 «나만 보기» 로 바뀌면 닫히고, 멤버가 아니게 되면 닫힌다.
+- API `routes/access_requests.js`(멤버 이상): locked · 요청(POST, 잠금 술어 통과한 것만 — 아니면 같은 404) · inbox · approve/deny/revoke/cancel · settings · hide
+- 화면: 잠금 줄 `LockedResultRow` + `AccessRequestButton`(보내기 창) · 받은 요청 `/access-requests`(`pages/AccessRequests`, 알림 링크) · 실시간 `access_request:changed` 신호(사람 방)
+- 운영: `dev-backend/scripts/migrate-access-requests.js`(멱등 · 배포 슬롯 · PM2 reload 전)
+
+## 3. 열람 요청 (2단계가 켜졌을 때만) — 구현 기준
+
+- 표 `access_requests`(business_id · entity_type file|post · entity_id · requester_id · approver_id · status pending/approved/denied/expired/canceled/revoked · message · decided_by · decided_at · decision_note).
+- 받는 사람(approver_id): 올린 사람·작성자가 지금 직원이면 그 사람, 아니면 NULL → 대표·관리자 전원. 받은 요청함(`/access-requests`)은 approver_id = 나, 대표·관리자는 워크스페이스 전부. 요청자에게 받는 사람 이름 표시 OK.
+- **승인 = 그 사람·그 항목 하나의 «읽기» 권한**(`services/accessGrants` — 승인 행 자체, §2-구현). 항목 공개 범위는 안 바뀐다.
+  - **읽기 전용** — 밖으로 내보내는 문(파일 공개 링크 발급·끊기 · Drive 편집 열기 · 공용 공유 · 폴더 링크 포함 · 문서 공유 링크·메일 공유)은 승인을 빼고 본다: `access_scope.canShareFile` · `postAccess.canSharePost`(Fable 완료 검증 1차 FAIL 차단 1 → 고침). 편집·삭제·숨김은 원래부터 올린 사람·작성자·관리 축이라 승인과 무관.
+  - 승인할 때: 결정자가 **원래 권한으로** 읽을 수 있어야 · 항목이 지금 L2 · 요청자가 지금 멤버(아니면 409).
+  - 닫히는 경우: 회수(revoked) · 항목이 «나만 보기»(L1)로 바뀜(그 순간 대기·승인을 닫는다 — `closeForPrivate`, L2 로 돌아와도 안 살아남) · L2 가 아님 · 요청자가 멤버가 아님.
+- 알림: 앱 + 푸시, 신호만(항목 이름 없음). 메일 없음.
+- 남용 방지: 하루 10건(잠금 판정 **앞** — 한도에 걸리면 무엇이든 같은 429) · 항목×요청자 대기 1건(있으면 그것) · 거절 뒤 7일 · 14일 뒤 만료 · 분당 20회. 승인·거절·회수·취소 AuditLog.
+- 요청 API 는 잠금 술어를 통과한 id 만 — 없는 id·L1·숨김·남의 워크스페이스·설정 꺼짐·이미 볼 수 있음·메뉴 숨김은 **모두 같은 404**.
+- 잠금 후보에서 빼는 것: 메일 첨부 보관분 · 문서 초안 · 한 글자 검색.
 
 ## 4. 단계 · 게이트
 

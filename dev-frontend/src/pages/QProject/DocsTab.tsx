@@ -15,6 +15,8 @@ import type { FolderSel } from './docs/folderSel';
 import { useFileOpen } from './docs/useFileOpen';
 import { srcsOf, homeSrcOf, sourceShortLabel, srcStyle, passesMailSearch } from './docs/fileSource';
 import IncludeMailToggle from '../../components/Common/IncludeMailToggle';
+import LockedFilesSection from '../../components/AccessRequest/LockedFilesSection';
+import HideExistenceToggle from '../../components/AccessRequest/HideExistenceToggle';
 import { useFolderDrop, isExternalFileDrag } from './docs/folderDrop';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
@@ -1742,6 +1744,7 @@ const DocsTab: React.FC<Props> = (props) => {
               {moreFiles && <IncrementalSentinel ref={fileSentinelRef} />}
             </ListTable>
           )}
+          {isWorkspace && <LockedFilesSection businessId={businessId} query={query} />}
           {marquee && (
             <MarqueeBox style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }} />
           )}
@@ -1948,6 +1951,11 @@ const DocsTab: React.FC<Props> = (props) => {
                     members={members}
                     hide={{ L4: true }}  // file 외부 share 는 ShareModal 흐름이 표준
                   />
+                  {preview.visibility === 'L2' && (
+                    <HideExistenceToggle businessId={scope.businessId} kind="file" id={Number(String(preview.id).replace(/^direct-/, ''))}
+                      initial={!!preview.hide_existence} canEdit={Number(preview.uploader_id) === Number(cacheUser?.id) || ['owner', 'admin'].includes(String(cacheUser?.business_role))}
+                      onChanged={(h) => setPreview(prev => prev ? { ...prev, hide_existence: h } : prev)} />
+                  )}
                   {/* D4 #62 — 보안등급 (visibility 와 별개 축. 내부·기밀은 외부 공유 차단) */}
                   <SectionLabel style={{ marginTop: 14 }}>{t('securityLevel.label', { defaultValue: '보안등급' }) as string}</SectionLabel>
                   <PlanQSelect

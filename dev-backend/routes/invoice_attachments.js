@@ -122,7 +122,8 @@ router.patch('/:businessId/:id/attachments/:attId', authenticateToken, checkBusi
       // 켜는 사람이 원본을 읽을 수 있어야 한다 — 못 읽으면 붙이기와 같은 404(존재를 알리지 않는다)
       const { getUserScope } = require('../middleware/access_scope');
       const scope = await getUserScope(req.user.id, invoice.business_id, req.user.platform_role);
-      if (!(await svc.canReadTarget(req.user, file, post, scope))) return errorResponse(res, 'attachment_target_not_found', 404);
+      // 켜는 사람이 원본을 **밖으로 내보낼** 수 있어야 한다(읽기만 — 열람 요청 승인 — 으로는 안 된다)
+      if (!(await svc.canShareTarget(req.user, file, post, scope))) return errorResponse(res, 'attachment_target_not_found', 404);
       const why = svc.publicTargetReason(row, file, post);
       if (why) return errorResponse(res, `attachment_not_shareable:${why}`, 400);
     }

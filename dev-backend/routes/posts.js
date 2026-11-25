@@ -74,7 +74,7 @@ async function assertMember(userId, businessId, isPlatformAdmin) {
 
 // 문서를 **읽을 수 있는가** — services/postAccess.canReadPost 한 벌(2026-10-04 AI 에이전트 M3-b 에서 옮겼다, 동작 무변경).
 //   본문·서명본·복사·공유·첨부 연결·Q info 가져오기·AI 앱 get_document 가 같은 함수를 쓴다.
-const { canReadPost } = require('../services/postAccess');
+const { canReadPost, canSharePost } = require('../services/postAccess');   // canSharePost = 공유 문(열람 요청 승인 제외)
 
 // 워크스페이스 + client 통합 (조회 액션용)
 async function assertWorkspaceOrClient(userId, businessId, platformRole) {
@@ -1114,6 +1114,8 @@ router.put('/:id/visibility', authenticateToken, async (req, res, next) => {
     //   다음 자동저장이 낙관적 잠금(base_updated_at)에 걸려 «다른 사람이 저장했어요» 가 뜬다 — editor_id 도
     //   안 바뀌므로 by_me=false 다(2026-10-22 Irene «혼자 수정 중인데 떠» · 공유 링크 만들기·끄기로 재현).
     await post.update(patch, { silent: true });
+    // «나만 보기» 로 바꾸면 이 문서의 열람 요청(대기·승인)을 닫는다(services/accessGrants)
+    if (level === 'L1') await require('../services/accessGrants').closeForPrivate(post.business_id, 'post', post.id).catch(() => {});
     broadcastPost(req, post, 'post:updated');
     // 감사 — 공개 범위가 바뀐다(L4 면 공유 토큰이 자동 발급된다, AUDIT_GAPS 1순위). 토큰은 싣지 않는다.
     require('../services/auditService').logAudit(req, { action: 'post.visibility_change', targetType: 'post', targetId: post.id, businessId: post.business_id,
@@ -1471,7 +1473,7 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     }
     // 볼 수 있는 사람만 밖으로 내보낼 수 있다 — 멤버라는 것만 보면 남의 «나만 보기»(L1) 문서에도
     //   링크를 뽑아 열어 볼 수 있었다(2026-09-27 점검). 읽기와 **같은 술어**(canReadPost).
-    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
+    if (!(await canSharePost(req.user, post))) return errorResponse(res, 'forbidden', 403);
     // D4 #62 — 보안등급 게이트
     if (blocksExternalShare(post)) {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -1589,7 +1591,7 @@ router.post('/:id/share/email', authenticateToken, ...postShareEmailLimiter, asy
     }
     // 볼 수 있는 사람만 밖으로 내보낼 수 있다 — 멤버라는 것만 보면 남의 «나만 보기»(L1) 문서에도
     //   링크를 뽑아 열어 볼 수 있었다(2026-09-27 점검). 읽기와 **같은 술어**(canReadPost).
-    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
+    if (!(await canSharePost(req.user, post))) return errorResponse(res, 'forbidden', 403);
     // D4 #62 — 보안등급 게이트
     if (blocksExternalShare(post)) {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -1637,7 +1639,7 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
     }
     // 볼 수 있는 사람만 밖으로 내보낼 수 있다 — 멤버라는 것만 보면 남의 «나만 보기»(L1) 문서에도
     //   링크를 뽑아 열어 볼 수 있었다(2026-09-27 점검). 읽기와 **같은 술어**(canReadPost).
-    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
+    if (!(await canSharePost(req.user, post))) return errorResponse(res, 'forbidden', 403);   // 링크를 자동 발급하는 공유 문 — 원래 권한만(열람 요청 승인은 읽기 전용)
     const conv = await Conversation.findOne({ where: { id: convId, business_id: post.business_id } });
     if (!conv) return errorResponse(res, 'invalid conversation_id', 400);
     // 내가 들어가 있지 않은 대화방에 카드를 꽂지 않는다(같은 워크스페이스라도).

@@ -93,6 +93,7 @@ import {
   PrintOnlyTitle, Layout, Sidebar, TitleGroup, HeaderBtnRow, NewBtn, NewBtnWrap, NewDropdown, NewItem, NewItemTitle, NewItemDesc, ModalBackdrop, ModalDialog, ModalHead, ModalTitle, ModalClose, ModalBody, ModalSub, TplGrid, TplCard, TplCardIcon, TplBadgeSys, TplSearchInput, PinDot, ParentLink, SaveTplField, SaveTplLabel, SaveTplError, ModalFooter, TplCardBody, TplCardName, TplCardDesc, Empty, SearchWrap, FilterSection, FilterGroupLabel, Chip, Count, ColorDot, AddCatBtn, NewCatInput, RowList, RowItem, RowPinBtn, RowTitle, RowPreview, CardPreview, CardAuthor, RowVisChip, SectionGap, AiRegenRow, KindToggle, KindBtn, ShareMini, RowMeta, Dim, Content, StickyBands, StickyPanelHeader, Body, EditBody, TitleInput, AutoSaveMark, WideOnly, PhoneOnly, AutoSaveText, DraftTag, SignTag, ViewMeta, MetaLeft, MetaRight, AiEditDoneBar, AiEditUndoBtn, AiEditCloseBtn, MetaActions, HeaderActions, PinTag, ProjectTag, CategoryTag, MetaField, MetaRow, MetaSummaryBtn, MetaSummaryLabel, MetaSummaryValue, MetaSummaryChevron, VisibilityChip, ShareTag, CategoryMini, AttachSection, AttachTitle, AttachScopeHint, AttachList, AttachRow, RemoveBtn, CatActions, CatIconBtn, ErrorBar, DescAddBtn, DescToggleHeader, DescBoxLabel, DescChevron, PrimaryBtn, EditBtn, IconActionBtn, SignBtn, LeaveBlockedNote, SecondaryBtn, TitleRow, MobileBackBtn, KnowledgeToast, SignedBody,
 } from './PostsPage.styles';
 import { pickableMembers } from '../../utils/pickableMembers';
+import HideExistenceToggle from '../AccessRequest/HideExistenceToggle';
 
 // 좌측 필터: 전체(기본) / 프로젝트 그룹 / 카테고리
 // '내 문서'·'기본' 섹션은 제거. 상단 통합검색이 프로젝트명·제목·본문·카테고리를 모두 커버.
@@ -3119,6 +3120,11 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
             } catch (e) { /* keep modal open on error */ throw e; }
           }}
           onClose={() => setVisModalOpen(false)}
+          extra={detail.vlevel === 'L2' ? (
+            <HideExistenceToggle businessId={scope.businessId} kind="post" id={detail.id} initial={!!detail.hide_existence}
+              canEdit={Number(detail.author?.id) === Number(user?.id) || ['owner', 'admin'].includes(String(user?.business_role))}
+              onChanged={(h) => setDetail(prev => prev ? { ...prev, hide_existence: h } : prev)} />
+          ) : undefined}
         />
       )}
 

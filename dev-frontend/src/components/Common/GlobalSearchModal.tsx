@@ -24,6 +24,8 @@ import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { postSubline } from '../../utils/postSubline';
 import { displayName } from '../../utils/displayName';
 import IncludeMailToggle from './IncludeMailToggle';
+import LockedResultRow from '../AccessRequest/LockedResultRow';
+import type { LockedItem } from '../../services/accessRequests';
 
 interface Props {
   /**
@@ -65,6 +67,9 @@ interface SearchResult {
   files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null; created_at?: string | null; uploader?: PersonLite | null; project?: { id: number; name: string } | null; source?: 'mail'; mail_thread_id?: number | null } & WithMatch>;
   /** 이 사람이 메일 첨부를 검색할 수 있는가(Q mail 을 볼 수 있음) — 아니면 «메일 첨부도 검색» 칸을 그리지 않는다. */
   mail_files_allowed?: boolean;
+  /** 못 보는 제한 자료(L2)의 잠금 줄 — 워크스페이스 설정이 켜졌을 때만 온다(services/lockedDiscovery). */
+  locked_files?: LockedItem[];
+  locked_posts?: LockedItem[];
   conversations?: Array<{ id: number; title?: string; display_name?: string; project_id?: number | null } & WithMatch>;
   knowledge?: Array<{ id: number; title: string; category?: string | null; scope?: string } & WithMatch>;
   // ★ clients 에는 `email` 컬럼이 없다 — 서버는 invite_email / billing_contact_email 을 준다.
@@ -264,6 +269,15 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   //   **아래로** 깔렸다(Irene 신고: "화살표 버튼이 검색창 위로 나와"). 사이드바 검색(⌘K)은 같은
   //   컴포넌트인데도 부모가 stacking context 가 아니라 멀쩡했다 — 그래서 한쪽만 이상해 보였다.
   //   집을 옮기지 않고 z-index 만 올리면 다음 부모에서 같은 일이 반복된다.
+  // 볼 권한이 없는 제한 자료 — 이름·올린 사람만, 누를 곳은 [열람 요청] 뿐(2026-11-25 · docs/FILE_SEARCH_DISCOVERY_DESIGN.md §2)
+  const lockedItems: LockedItem[] = query.trim() ? [...(result.locked_files || []), ...(result.locked_posts || [])] : [];
+  const lockedBlock = lockedItems.length > 0 && businessId ? (
+    <div data-testid="gsearch-locked">
+      <GroupTitle>{t('accessRequest.lockedGroup', '볼 권한이 없는 자료') as string}</GroupTitle>
+      {lockedItems.map((it) => <LockedResultRow key={`${it.kind}-${it.id}`} businessId={businessId} item={it} query={query} />)}
+    </div>
+  ) : null;
+
   const node = (
     <Backdrop onClick={onClose}>
       <Dialog onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t('search.title', '통합 검색') as string}>
@@ -367,7 +381,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
               ? <FootHint>{t('search.hint')}</FootHint>
               : <Hint>{t('search.hint')}</Hint>
           ) : allHits.length === 0 ? (
-            (loading || menuHits.length === 0) && (
+            lockedItems.length > 0 ? lockedBlock : (loading || menuHits.length === 0) && (
               <Hint>{loading ? t('search.searching', '검색 중...') : t('search.noResults', '결과 없음')}</Hint>
             )
           ) : (
@@ -393,6 +407,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
                   </Hit>
                 );
               })}
+              {lockedBlock}
             </>
           )}
         </Results>

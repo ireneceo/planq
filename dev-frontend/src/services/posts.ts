@@ -15,6 +15,8 @@ export interface PostRow {
   // N+67 — 통합 visibility (L1-L4). 옛 internal/public 와 hook 양방향 동기.
   vlevel?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   target_member_ids?: number[] | null;
+  /** «검색에서 숨기기» — 제한(L2) 문서가 잠금 줄로도 안 나온다(서버 services/lockedDiscovery). */
+  hide_existence?: boolean;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   is_pinned: boolean;
   view_count: number;

@@ -38,6 +38,7 @@ const MyCardsPage = lazy(() => import('../pages/MyCards/MyCardsPage'));
 const QDocsPage = lazy(() => import('../pages/QDocs/QDocsPage'));
 const BriefViewerPage = lazy(() => import('../pages/QDocs/BriefViewerPage'));
 const ReceivedSignaturesPage = lazy(() => import('../pages/Signatures/ReceivedSignaturesPage'));
+const AccessRequestsPage = lazy(() => import('../pages/AccessRequests/AccessRequestsPage'));
 const ProfilePage = lazy(() => import('../pages/Profile/ProfilePage'));
 const ProfileIntegrationsPage = lazy(() => import('../pages/Profile/ProfileIntegrationsPage'));
 const MyWorkSettingsPage = lazy(() => import('../pages/Profile/MyWorkSettingsPage'));
@@ -118,6 +119,7 @@ export const APP_ROUTES: AppRouteDef[] = [
   { path: '/me/feedback', element: <MyFeedbackPage /> },
   { path: '/docs', element: <QDocsPage /> },
   { path: '/docs/brief/:id', element: <BriefViewerPage /> },
+  { path: '/access-requests', element: <AccessRequestsPage /> },   // 받은 «열람 요청» (2026-11-25)
   { path: '/signatures/received', element: <ReceivedSignaturesPage /> },
   { path: '/signatures/sent', element: <ReceivedSignaturesPage /> },
   { path: '/profile', element: <ProfilePage /> },

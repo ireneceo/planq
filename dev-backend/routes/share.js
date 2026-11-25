@@ -72,7 +72,8 @@ async function shareDenied(entityType, entity, req, scope) {
     return null;
   }
   if (entityType === 'file') {
-    if (!(await as.canDownloadFile(scope, uid, entity))) return { status: 403, code: 'forbidden' };
+    // 열람 요청 승인만으로 읽는 사람은 밖으로 못 낸다(access_scope.canShareFile — 승인 = 읽기 전용)
+    if (!(await as.canShareFile(scope, uid, entity))) return { status: 403, code: 'forbidden' };
     return null;
   }
   if (entityType === 'kb_document') {

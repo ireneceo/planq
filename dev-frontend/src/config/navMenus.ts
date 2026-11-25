@@ -226,6 +226,7 @@ const EXTRA_PAGE_LABELS: Array<[string, string]> = [
   ['/notifications', 'nav.notifications'],
   ['/me/work-settings', 'nav.myWorkEnv'],
   ['/signatures/received', 'nav.signatures'],
+  ['/access-requests', 'nav.accessRequests'],
   ['/signatures/sent', 'nav.signatures'],
   // 인덱스 경로 — 하위로 리다이렉트되지만 탭은 이 경로로 먼저 만들어진다(짧은 순간 "설정" 이 보인다).
   ['/stats', 'nav.statsOverview'],
