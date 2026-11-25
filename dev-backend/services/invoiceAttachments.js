@@ -48,7 +48,8 @@ function publicAttachmentReason(att, file, post) {
 }
 
 /**
- * 요청자가 이 원본을 지금 읽을 수 있는가 — 붙이기·켜기·복제가 **같은 함수**를 쓴다(공유·참조 규칙 ⑤).
+ * 요청자가 이 원본을 지금 읽을 수 있는가 — 켜기(PATCH)가 쓴다(공유·참조 규칙 ⑤). 붙이기(attachableRows)·복제(copyForDuplicate)·
+ *   목록(memberList)은 같은 두 술어(canAccessFileByLevel·canReadPost)를 각자 부른다 — 다음에 손댈 때 이 함수로 모은다(Fable 2차 비차단 1).
  *   Fable 완료 검증 차단 1(2026-11-25): PATCH(켜기)만 이 검사가 빠져, 멤버가 직접 받기 403 인 파일을
  *   «고객에게 보이기» 로 켜서 무인증 공개 링크로 받았다.
  */
