@@ -4,6 +4,13 @@
 
 
 
+### ✅ 공개 페이지 묶음 3건 (방 3e435e15 · 2026-11-25 · [Opus] · Fable 미검증(자체 검증) — 화면·문구, 서버 판정 불변)
+- ① 홈페이지 표기 acb9332c — `EntryInfoView` siteLabel(https:// 유지 · 경로 없는 끝 / 뗌) + SEO 본문 같은 규칙. href 는 그대로
+- ② «공개» 토글 b70bc371 — 기준 미달이어도 누를 수 있음 → 안내 줄 + 첫 ✗ 칸 포커스 · 기준 목록을 토글 바로 아래(✗ = 버튼) · 한 줄 소개를 카드에서 입력(PUT /brand 같은 문) · 소개글·서비스·문의 폼 저장 때 기준 다시 받음. 서버 기준·자격·criteria_unmet 그대로
+- ③ 문서 공개 링크 비회원 댓글 — 질문 답만(안 됨 · 설계상 · 바꾸려면 무인증 쓰기 표면이라 Fable 설계). 코드 변경 0
+- 검증: build EXIT 0·error TS 0 · guard i18n/parity/autosave/autosavekey/brandwrite/godfile/spalink/enterime 통과 · 실호출(ws6 GET public-page·PUT brand 같은 값 200·무인증 401·미리보기 website 끝 / 확인) · 브라우저 3폭 36/36(기준 미달은 응답 가로채기로 재현 · 저장/신청 0건)
+- 운영 반영: 다음 배포 때
+
 ### ✅ 파일 «연결된 곳» — 옮겨도 안 끊김 · 끊기는 일은 알림 · 통합 보기 (방 8b8344b4 · 2026-11-25 · [Opus] 구현 · Fable 설계 DESIGN-CHANGE 반영 + 완료 검증 PASS)
 - 사용처 한 곳 `services/fileUsage`(live: 문서 첨부·본문 그림·일정·프로젝트 연결·청구 증빙·연락처 사진 / copy: 업무·채팅 사본) · API usage·usage-summary(`routes/file_usage.js`)
 - 화면: 파일 상세 «연결된 곳» · 지우기 확인창(단건·여러 개·폴더째) · 범위 좁히기 확인창 — 막지 않고 알림 · 문서 첨부 «휴지통에 있음»+복구 · 못 보는 첨부 숫자 · 본문 그림 대체 문구
