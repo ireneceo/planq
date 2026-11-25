@@ -1249,7 +1249,7 @@
     "docKind": "Document",
     "fileKind": "File",
     "reason": {
-      "private": "This file is “Only me”, so it can't be shown to the client",
+      "private": "“Only me” or member-restricted files can't be shown to the client",
       "confidential": "Items with a security level can't be shown to the client",
       "post_not_shared": "Share the document externally first",
       "deleted": "The original was deleted, so the client can't see it",

@@ -30,6 +30,9 @@ function publicTargetReason(att, file, post) {
     if (blocksExternalShare(file)) return 'confidential';
     const v = file.vlevel || file.visibility;
     if (!v || v === 'L1') return 'private';
+    // L2 지정 멤버 — 사람이 일부러 좁힌 값. 폴더 공유 링크(shareOpenable.folderLinkExcludeReason 'targeted')와 같은 폭으로 뺀다
+    //   (Fable 완료 검증 비차단 1 — 두 공개 문의 폭이 달랐다).
+    if (v === 'L2' && Array.isArray(file.target_member_ids) && file.target_member_ids.length > 0) return 'private';
     return null;
   }
   if (!post || post.deleted_at) return 'deleted';
@@ -42,6 +45,18 @@ function publicTargetReason(att, file, post) {
 function publicAttachmentReason(att, file, post) {
   if (!att.client_visible) return 'internal';
   return publicTargetReason(att, file, post);
+}
+
+/**
+ * 요청자가 이 원본을 지금 읽을 수 있는가 — 붙이기·켜기·복제가 **같은 함수**를 쓴다(공유·참조 규칙 ⑤).
+ *   Fable 완료 검증 차단 1(2026-11-25): PATCH(켜기)만 이 검사가 빠져, 멤버가 직접 받기 403 인 파일을
+ *   «고객에게 보이기» 로 켜서 무인증 공개 링크로 받았다.
+ */
+async function canReadTarget(user, file, post, scope) {
+  const as = require('../middleware/access_scope');
+  if (file) return !file.deleted_at && await as.canAccessFileByLevel(user.id, file, scope);
+  if (post) return !post.deleted_at && await require('./postAccess').canReadPost(user, post);
+  return false;
 }
 
 /** 행들의 원본(File·Post)을 읽는다 — 지워진 것도 같이(내부 목록은 «삭제된 자료» 로 그린다). */
@@ -180,9 +195,11 @@ async function memberList(invoice, user) {
       // 켤 수 있는가(토글 비활성 + 이유) — client_visible 을 뺀 원본 판정
       shareable_reason: publicTargetReason(r, file, post) };
     const gone = r.file_id ? (!file || file.deleted_at) : (!post || post.deleted_at);
-    if (gone) { out.push({ ...base, deleted: true, name: null }); continue; }
+    // 지워졌거나 못 읽는 줄은 원본 id 를 싣지 않는다(화이트리스트 — Fable 비차단 3)
+    const hidden = { ...base, file_id: null, post_id: null, shareable_reason: null };
+    if (gone) { out.push({ ...hidden, deleted: true, name: null }); continue; }
     const readable = r.file_id ? await as.canAccessFileByLevel(user.id, file, scope) : await canReadPost(user, post);
-    if (!readable) { out.push({ ...base, locked: true, name: null }); continue; }
+    if (!readable) { out.push({ ...hidden, locked: true, name: null }); continue; }
     if (file) out.push({ ...base, name: file.file_name, size: Number(file.file_size) || 0, mime_type: file.mime_type || null });
     else out.push({ ...base, name: post.title, category: post.category || null });
   }
@@ -212,5 +229,5 @@ async function publicList(invoice, token) {
 
 module.exports = {
   MAX_ATTACHMENTS, AttachError, publicTargetReason, publicAttachmentReason, loadTargets,
-  attachableRows, previewTargets, setOnCreate, copyForDuplicate, memberList, publicList,
+  canReadTarget, attachableRows, previewTargets, setOnCreate, copyForDuplicate, memberList, publicList,
 };

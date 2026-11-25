@@ -22,6 +22,11 @@ router.param('token', (req, res, next, token) => {
   return require('../services/shareOpenable').workspaceAliveParam([[M.Invoice, 'share_token']])(req, res, next, token);
 });
 
+// 숫자 아닌 :id·:attId 는 404 — NaN 이 where 에 들어가 500 이 나던 것(Fable 완료 검증 차단 2). 무인증 문도 같다.
+const intParam = (req, res, next, v) => (/^[1-9]\d{0,9}$/.test(String(v)) ? next() : errorResponse(res, 'not_found', 404));
+router.param('id', intParam);
+router.param('attId', intParam);
+
 function signal(req, invoice) {
   const io = req.app.get('io');
   // 신호만 — 받는 화면이 자기 권한으로 다시 읽는다(invoices.js broadcastInvoice 와 같은 모양).
@@ -112,7 +117,13 @@ router.patch('/:businessId/:id/attachments/:attId', authenticateToken, checkBusi
     if (!Object.keys(patch).length) return errorResponse(res, 'nothing_to_update', 400);
     if (patch.client_visible === true) {
       const { files, posts } = await svc.loadTargets([row], invoice.business_id);
-      const why = svc.publicTargetReason(row, files.get(row.file_id) || null, posts.get(row.post_id) || null);
+      const file = files.get(row.file_id) || null;
+      const post = posts.get(row.post_id) || null;
+      // 켜는 사람이 원본을 읽을 수 있어야 한다 — 못 읽으면 붙이기와 같은 404(존재를 알리지 않는다)
+      const { getUserScope } = require('../middleware/access_scope');
+      const scope = await getUserScope(req.user.id, invoice.business_id, req.user.platform_role);
+      if (!(await svc.canReadTarget(req.user, file, post, scope))) return errorResponse(res, 'attachment_target_not_found', 404);
+      const why = svc.publicTargetReason(row, file, post);
       if (why) return errorResponse(res, `attachment_not_shareable:${why}`, 400);
     }
     const old = { client_visible: !!row.client_visible, sort_order: row.sort_order };

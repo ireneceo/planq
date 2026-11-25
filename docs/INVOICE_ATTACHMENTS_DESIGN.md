@@ -35,8 +35,10 @@
 
 - 생성 `POST /api/invoices/:biz` 가 `attachments:[{file_id|post_id, client_visible}]` 를 받아 **같은 트랜잭션**에 넣는다 — 실패하면 생성 전체 취소. PUT 은 첨부를 받지 않는다(저장 뒤엔 위 라우트로 즉시).
 - 붙일 때: 같은 워크스페이스 · 미삭제 · 붙이는 사람이 읽을 수 있음(파일 `canAccessFileByLevel`, 문서 `canReadPost`). 없음·남의 것·못 읽음 = 같은 404 `attachment_target_not_found`.
+- **켜기(PATCH client_visible:true)도 켜는 사람이 원본을 읽을 수 있어야 한다**(`canReadTarget` — 붙이기·켜기·복제가 같은 함수, 못 읽으면 404). 숫자 아닌 `:id`·`:attId` 는 404(`router.param`).
+- 못 읽는·지워진 줄은 원본 id 도 싣지 않는다(이름·file_id·post_id 모두 null).
 - 상태: `canceled` 만 변경 불가(400 `invoice_canceled`). 모든 CUD 감사 `invoice.attachment.add|update|remove`.
-- **밖으로 나가는 술어** `publicAttachmentReason` — `client_visible` ∧ (파일: 미삭제·미purge·보안등급 일반·L1 아님 / 문서: A-2). 공개 목록·공개 내려받기·고객 GET·스위치 저장이 같은 함수.
+- **밖으로 나가는 술어** `publicAttachmentReason` — `client_visible` ∧ (파일: 미삭제·미purge·보안등급 일반·L1 아님·**L2 지정 멤버 아님**(폴더 공유 링크 `targeted` 와 같은 폭 — 완료 검증 비차단 1) / 문서: A-2). 공개 목록·공개 내려받기·고객 GET·스위치 저장이 같은 함수.
 - 공개 내려받기: 토큰 → `shareOpenReason('invoice')` null(초안·취소 404, 만료 410) → 행이 이 청구서 것 ∧ 파일 행 → File 같은 워크스페이스 → 술어 → `readAttachmentBody`(Drive 포함) · attachment · nosniff.
 - 업로드는 새 저장 경로 없음 — 일정 미팅자료와 같은 `attach_for=event`(L2/L3)로 올려 file_id 연결. 기본 L1 이면 «고객에게 보이기» 가 영영 안 켜진다.
 - `services/fileUsage.js` 에 `invoice_attachments` 조회 추가(kind `invoice`) — 파일 지우기·범위 좁히기 경고에 잡힌다.
@@ -54,3 +56,9 @@
 - 화면 3폭(1440·768·390) 36/36 — 드로어 3줄·스위치 2 켜짐/1 막힘·가림 없음 · 스위치 끄기/켜기 PATCH 정확히 1건씩·DB·공개 응답 반영 · 발행 창 칸·추가 입력 · 공개 페이지 2건·내부용 이름 없음·가로 넘침 없음.
 - 발행 창 화면 동선 5/5 — 파일 올리기 → 칩(저장 전 DB 0) → «고객에게 보이기» → 임시 저장 → 청구서+첨부 1행·보이기 1 · 올린 파일 L3.
 - 확인 못 함: 발행 창에서 «기존 문서 검색» 으로 고르는 화면 동선(미리보기 API 로 대신) · «발행하고 보내기»(외부 발송이라 누르지 않음).
+
+## F. Fable 완료 검증 1차 FAIL → 고침 (2026-11-25)
+- 차단 1: PATCH(켜기)가 요청자 읽기 권한을 안 봐서, 멤버가 직접 받기 403 인 파일을 켜 무인증 공개 링크로 받았다(재현) → `canReadTarget` 추가.
+- 차단 2: 숫자 아닌 attId 로 무인증 500 → `router.param` 정수 검사 404.
+- 비차단 반영: L2 지정 멤버 파일 공개 제외(1) · 못 읽는 줄 id 제거(3). 남김: 이미 보낸 청구서에서 켤 때 확인 창(2 — 발송 확인 창 자체가 없음, 별건) · DB «정확히 하나» CHECK 제약 없음(4 — 서버 강제, 설계대로).
+- 재측정 19/19: 재현 C5 404·C6 404(음성) · 대표 켜기 → 공개 200 + 본문 일치(양성) · 멤버가 읽을 수 있는 파일 켜기 200 · 지정 멤버로 좁히면 공개 404 · NaN 8경로 404 · 기존 상세·공개 200.
