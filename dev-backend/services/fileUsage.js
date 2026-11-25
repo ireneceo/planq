@@ -157,7 +157,8 @@ function makeResolver(viewer, businessId, scope) {
   };
   return async (kind, id) => {
     const k = `${kind}:${id}`;
-    if (!memo.has(k)) memo.set(k, await resolveOne(kind, id).catch(() => null));
+    // 판정 중 오류는 «볼 수 없는 곳» 으로 세되(새지 않는 쪽) 조용히 삼키지 않는다 — 로그를 남긴다(Fable 비차단 5)
+    if (!memo.has(k)) memo.set(k, await resolveOne(kind, id).catch((e) => { console.warn('[fileUsage] 곳 판정 실패', kind, id, e.message); return null; }));
     return memo.get(k);
   };
 }

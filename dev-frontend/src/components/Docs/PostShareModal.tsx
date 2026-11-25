@@ -42,7 +42,7 @@ const PostShareModal: React.FC<Props> = ({ open, onClose, post, onChanged }) => 
   const [attachVersion, setAttachVersion] = useState(0);   // 바꾼 뒤 다시 그리기용
   const attachments = useMemo(() => {
     void attachVersion;
-    return (post.attachments || []).filter(a => a.file).map(a => ({
+    return (post.attachments || []).filter(a => a.file && a.state !== 'trashed').map(a => ({
       id: a.file!.id,
       name: a.file!.file_name,
       isPublic: a.file!.vlevel === 'L4' || (!a.file!.vlevel && a.file!.visibility === 'L4'),
