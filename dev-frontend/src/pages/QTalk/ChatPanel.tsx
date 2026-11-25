@@ -28,6 +28,7 @@ import { openDocWindow } from '../../utils/docWindow';
 import SignatureLinkModal from '../../components/QTalk/SignatureLinkModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import SendNameCardModal from '../../components/NameCard/SendNameCardModal';
+import ChatAddEntity, { type ChatAddKind } from './ChatAddEntity';
 import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
 import ChatPinnedBar, { AnnouncementHead } from './ChatPinnedBar';
@@ -771,6 +772,7 @@ const ChatPanel: React.FC<Props> = ({
   const [stagedPostMeta, setStagedPostMeta] = useState<Record<number, { title: string }>>({});
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   const [nameCardOpen, setNameCardOpen] = useState(false);
+  const [addKind, setAddKind] = useState<ChatAddKind | null>(null);   // «+» 업무·일정 추가
   const [dragOver, setDragOver] = useState(false);
   // 드래그 enter/leave 깊이 카운터 — 자식 요소 경계마다 leave 가 fire 돼도 0 일 때만 해제.
   const dragDepthRef = useRef(0);
@@ -2623,7 +2625,7 @@ const ChatPanel: React.FC<Props> = ({
             placement="up"
             align="start"
             triggerVariant="ghost"
-            label={t('chat.input.more', '파일·명함 보내기') as string}
+            label={t('chat.input.more', '보내기·추가') as string}
             triggerIcon={(
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
                 <path d="M12 5v14M5 12h14" />
@@ -2651,6 +2653,26 @@ const ChatPanel: React.FC<Props> = ({
                   </svg>
                 ),
                 onClick: () => setNameCardOpen(true),
+              }, {
+                key: 'task',
+                label: t('chat.add.task', '업무 추가') as string,
+                testId: 'chat-plus-task',
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <path d="M9 11l3 3 8-8" /><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9" />
+                  </svg>
+                ),
+                onClick: () => setAddKind('task'),
+              }, {
+                key: 'event',
+                label: t('chat.add.event', '일정 추가') as string,
+                testId: 'chat-plus-event',
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+                  </svg>
+                ),
+                onClick: () => setAddKind('event'),
               }] : []),
             ] as OverflowItem[])}
           />
@@ -2780,6 +2802,11 @@ const ChatPanel: React.FC<Props> = ({
           businessId={Number(businessId)}
           conversationId={Number(activeConversationId)}
         />
+      )}
+      {businessId && activeConversationId && addKind && (
+        <ChatAddEntity kind={addKind} businessId={Number(businessId)} conversationId={Number(activeConversationId)}
+          projectId={activeConv?.project_id ?? null} customerVisible={activeConv?.channel_type !== 'internal'}
+          onClose={() => setAddKind(null)} onNotice={showMuteNotice} />
       )}
       {businessId && userPopover && (
         <UserInfoPopover

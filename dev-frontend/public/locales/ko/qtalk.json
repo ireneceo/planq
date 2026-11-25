@@ -378,7 +378,7 @@
       "extracting": "추출 중...",
       "extractNow": "업무 추출",
       "attach": "파일 첨부",
-      "more": "파일·명함 보내기",
+      "more": "보내기·추가",
       "attachExisting": "기존 파일 (재업로드 X)",
       "placeholder": "메시지 입력",
       "hint": "Enter 전송 · Shift+Enter 줄바꿈",
@@ -409,7 +409,22 @@
     "guestBadgeHint": "로그인 없이 초대 링크로 들어온 상대입니다",
     "dropHere": "여기에 놓아 업로드",
     "sharedBand": "공유한 내용이 담겨 있어요 — 확인하고 보내기를 누르세요",
-    "clientEmptyTitle": "대화방을 골라 주세요"
+    "clientEmptyTitle": "대화방을 골라 주세요",
+    "add": {
+      "task": "업무 추가",
+      "event": "일정 추가",
+      "taskWord": "업무",
+      "eventWord": "일정",
+      "taskTitle": "업무 추가 · 이 대화방에 카드로",
+      "taskTitleCustomer": "업무 추가 · 이 대화방에 카드로 (고객도 봄)",
+      "sendsTo": "만들면 이 대화방에 카드로 올라갑니다.",
+      "sendsToCustomer": "만들면 이 대화방에 카드로 올라갑니다 — 고객도 봅니다.",
+      "whyPrivateEvent": "나만 보기·팀 비공개 일정이라",
+      "whySecurity": "보안 등급이 있는 업무라",
+      "whyOther": "카드를 보내지 못해",
+      "cardFailed": "{{what}}은(는) 만들었지만 {{why}} 이 대화방에 카드로 보내지 않았어요.",
+      "meetFailed": "일정은 만들었지만 화상 미팅 링크를 만들지 못했어요. 일정 상세에서 다시 만들 수 있어요."
+    }
   },
   "page": {
     "title": "Q talk",

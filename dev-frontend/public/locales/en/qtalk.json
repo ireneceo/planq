@@ -433,7 +433,7 @@
       "extracting": "Extracting...",
       "extractNow": "Extract tasks",
       "attach": "Attach file",
-      "more": "Add file or card",
+      "more": "Send · add",
       "attachExisting": "Existing file (no re-upload)",
       "placeholder": "Type a message",
       "hint": "Enter to send · Shift+Enter for newline",
@@ -464,7 +464,22 @@
     "guestBadgeHint": "Joined through an invite link, without signing in",
     "dropHere": "Drop here to upload",
     "sharedBand": "Your shared content is in the message box — check it and press Send",
-    "clientEmptyTitle": "Pick a conversation"
+    "clientEmptyTitle": "Pick a conversation",
+    "add": {
+      "task": "Add task",
+      "event": "Add event",
+      "taskWord": "The task",
+      "eventWord": "The event",
+      "taskTitle": "Add task · posts a card here",
+      "taskTitleCustomer": "Add task · posts a card here (customer sees it)",
+      "sendsTo": "Once created, a card is posted in this chat.",
+      "sendsToCustomer": "Once created, a card is posted in this chat — the customer sees it too.",
+      "whyPrivateEvent": "it's a private or team-only event, so it",
+      "whySecurity": "it has a security level, so it",
+      "whyOther": "the card failed, so it",
+      "cardFailed": "{{what}} was created, but {{why}} wasn't posted as a card in this chat.",
+      "meetFailed": "The event was created, but the video meeting link failed. You can create it again from the event details."
+    }
   },
   "page": {
     "title": "Q talk",

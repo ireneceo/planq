@@ -49,6 +49,8 @@ interface Props {
   onCreate: (payload: Partial<CalendarEvent>) => Promise<CalendarEvent | void> | void;
   /** Cue·음성 카드 [자세히 편집] (2026-11-18 Fable 설계) — 카드 값 그대로. 시각은 이미 워크스페이스 벽시계(utils/cueFormSeed) */
   seed?: EventFormSeed | null;
+  /** 폼 맨 위 안내 한 줄 — 채팅 «+» 에서 열면 «이 대화방에 카드로 올라감» (2026-11-25) */
+  notice?: React.ReactNode;
   fromTask?: { linkedTask: { id: number; title: string }; actionId: number | null; notice: React.ReactNode } | null; // 업무 «결과물 액션» 에서 열림(TASK_ACTIONS_DESIGN §4.2) — 업무 미리 연결 · 액션 id(담당자만) · 안내 띠
 }
 
@@ -79,7 +81,7 @@ const TIME_OPTIONS = (() => {
   return arr;
 })();
 
-const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, initialProjectId, businessId, onClose, onCreate, fromTask, seed }) => {
+const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDescription, initialAllDay, projects, initialProjectId, businessId, onClose, onCreate, fromTask, seed, notice }) => {
   const { t, i18n } = useTranslation('qcalendar');
   const { t: tSale } = useTranslation('qsale');   // 고객 관계 글자(utils/clientLabel)
   const { t: tc } = useTranslation('common');   // 연결 문구 정본
@@ -429,7 +431,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       submitLabel={t('button.create')}
       submitDisabled={!title.trim()} submitTestId="calendar-new-submit"
     >
-          {fromTask?.notice}{plainNew && <DraftRestoredNote draft={draftNote} />}<Field>
+          {notice}{fromTask?.notice}{plainNew && <DraftRestoredNote draft={draftNote} />}<Field>
             <TitleInput data-testid="new-event-title"
               ref={titleRef}
               value={title}
