@@ -36,6 +36,7 @@ import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
 import { uploadMyFile, uploadProjectFile, updateFileVisibility } from '../../services/files';
+import { TrashedAttachmentRow, HiddenAttachNote } from './TrashedAttachmentRow';
 import { LinkedPdfBtn, DlIcon, OpenIcon, AttachText } from './LinkedDocPdfBtn';
 import ConfirmDialog from '../Common/ConfirmDialog';
 import TrashDrawer from '../Trash/TrashDrawer';
@@ -2540,10 +2541,10 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 {/* 알아야 하는 운영 기준은 **그 자리에서 한 줄로**(Irene 2026-08-30).
                     규칙을 설명하지 않고 "이 문서 기준으로 어떻게 되는지" 상태로 쓴다 —
                     안 쓰면 "왜 다른 사람에겐 안 보이지" 를 나중에 겪는다(#378). */}
-                <AttachScopeHint>{attachScopeHint}</AttachScopeHint>
+                <AttachScopeHint>{attachScopeHint}</AttachScopeHint><HiddenAttachNote n={detail?.hidden_attachment_count} />
                 {mode === 'edit' && detail && detail.attachments.length > 0 && (
                   <AttachList>
-                    {detail.attachments.map(a => (
+                    {detail.attachments.map(a => a.state === 'trashed' ? <TrashedAttachmentRow key={a.id} att={a} businessId={scope.businessId} onChanged={() => { void fetchPost(detail.id).then(setDetail); }} onRemove={() => detachOne(a.id)} /> : (
                       <AttachRow key={a.id}>
                         {/* 링크로 열면 401 이다(라우트가 Bearer 요구) — 인증 fetch 로 받는다.
                             받는 동안 이름 옆에 진행 상태를 붙여 "안 눌리는 것" 처럼 보이지 않게 한다. */}
@@ -2910,16 +2911,16 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
 
 
               {/* 보기 모드 — 첨부도 연결도 없으면 섹션 자체 숨김 */}
-              {(detail.attachments.length > 0 || (detail.linked_posts && detail.linked_posts.length > 0)) && (
+              {(detail.attachments.length > 0 || !!detail.hidden_attachment_count || (detail.linked_posts && detail.linked_posts.length > 0)) && (
                 <AttachSection>
                   <AttachTitle>{t('attachments', '첨부 파일·문서')}</AttachTitle>
                 {/* 알아야 하는 운영 기준은 **그 자리에서 한 줄로**(Irene 2026-08-30).
                     규칙을 설명하지 않고 "이 문서 기준으로 어떻게 되는지" 상태로 쓴다 —
                     안 쓰면 "왜 다른 사람에겐 안 보이지" 를 나중에 겪는다(#378). */}
-                <AttachScopeHint>{attachScopeHint}</AttachScopeHint>
+                <AttachScopeHint>{attachScopeHint}</AttachScopeHint><HiddenAttachNote n={detail?.hidden_attachment_count} />
                   {detail.attachments.length > 0 && (
                     <AttachList>
-                      {detail.attachments.map(a => (
+                      {detail.attachments.map(a => a.state === 'trashed' ? <TrashedAttachmentRow key={a.id} att={a} businessId={scope.businessId} onChanged={() => { void fetchPost(detail.id).then(setDetail); }} onRemove={() => detachOne(a.id)} /> : (
                         <AttachRow key={a.id}>
                           <AttachText title={a.file?.file_name || ''}>{a.file?.file_name || '—'}</AttachText>
                           {/* 이름은 글자, 받기는 글자 붙은 단추(2026-11-03 Irene «누르면 열릴 것 같은데 갑자기 다운로드 되서») */}

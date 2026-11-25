@@ -1375,6 +1375,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
       return errorResponse(res, '본인 업로드 · 오너 · 프로젝트 PM 만 삭제할 수 있습니다', 403);
     }
 
+    const livePlaces = await require('../services/fileUsage').summarize([file], { id: req.user.id, platform_role: req.user.platform_role }).then((u) => u.live_places).catch(() => null);   // 감사용 — 빠지는 곳 수(2026-11-25)
     const t = await sequelize.transaction();
     try {
       const mq = [];   // ★ 요청 스코프 — 전역이면 롤백 잔여가 다음 요청에서 터진다(Fable 9차 N1)
@@ -1386,7 +1387,7 @@ router.delete('/:businessId/:id', authenticateToken, checkBusinessAccess, async 
         action: 'file.delete',
         targetType: 'file',
         targetId: file.id,
-        oldValue: { name: file.original_filename, size: Number(file.size_bytes) || 0 },
+        oldValue: { name: file.file_name, size: Number(file.file_size) || 0, live_places: livePlaces },
       });
       broadcastFile(req, { id: file.id, business_id: file.business_id, project_id: file.project_id }, 'file:deleted');
       successResponse(res, null, 'File deleted');

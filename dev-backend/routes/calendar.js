@@ -101,8 +101,10 @@ const INCLUDE_DETAIL = [
 
 // 고객 참석자에게는 **열 수 있는 미팅자료만** 보인다(2026-09-27 점검 — 고객에게 내부 문서 제목·파일명이 보였다).
 //   멤버 참석자는 그대로다: 미팅자료는 참석자에게 보여 주려고 붙이는 것이고, 붙일 때 이미 붙이는 사람의 권한을 본다.
+//   ★ 2026-11-25 — 멤버에게도 같은 술어(docs/FILE_USAGE_DESIGN.md §11): 붙인 뒤 «나만 보기»로 바뀌었거나 휴지통에 넣은 파일은
+//     이름은 보이고 열면 막히는 자리였다. 볼 수 없는 자료는 뺀다.
 async function stripClientMaterials(eventsJson, userId, scope) {
-  if (!scope || !scope.isClient) return eventsJson;
+  if (!scope) return eventsJson;
   const as = require('../middleware/access_scope');
   const { File: FileM, Post: PostM } = require('../models');
   const memo = new Map();
@@ -110,8 +112,8 @@ async function stripClientMaterials(eventsJson, userId, scope) {
     const k = kind + id;
     if (memo.has(k)) return memo.get(k);
     let ok = false;
-    if (kind === 'f') { const f = await FileM.findByPk(id); ok = !!f && await as.canDownloadFile(scope, userId, f); }
-    else { const p = await PostM.findByPk(id); ok = !!p && await as.canAccessPost(userId, p, scope); }
+    if (kind === 'f') { const f = await FileM.findByPk(id); ok = !!f && !f.deleted_at && await as.canDownloadFile(scope, userId, f); }
+    else { const p = await PostM.findByPk(id); ok = !!p && (scope.isClient ? await as.canAccessPost(userId, p, scope) : await as.canAccessPostByLevel(userId, p, scope)); }
     memo.set(k, ok);
     return ok;
   };

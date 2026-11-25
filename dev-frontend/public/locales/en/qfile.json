@@ -15,5 +15,33 @@
   "tabs": {
     "personal": "My files (Drive)",
     "workspace": "Company files"
+  },
+  "usage": {
+    "title": "Used in",
+    "loading": "Loading…",
+    "failed": "Couldn't load where this file is used.",
+    "empty": "Not used anywhere yet.",
+    "untitled": "(Untitled)",
+    "liveHead": "Linked in {{n}} — deleting this file removes it from these",
+    "copyHead": "Copied to {{n}} — task and chat copies stay even if you delete this file",
+    "hidden": "{{n}} place(s) you can't see",
+    "checking": "Checking where this file is used…",
+    "warnDelete": "This file will be removed from {{n}} linked place(s). Restoring it from the trash brings it back.",
+    "warnNarrow": "In {{n}} place(s) this file is attached to, people outside the new visibility won't see it.",
+    "more": "and {{n}} more",
+    "copyStays": "{{n}} copy(ies) in tasks and chats will stay.",
+    "truncated": "Many files — only the first 200 were checked.",
+    "narrowTitle": "Narrow the visibility?",
+    "narrowConfirm": "Narrow",
+    "kind": {
+      "post": "Doc",
+      "post_image": "Doc image",
+      "event": "Event",
+      "project": "Project",
+      "invoice": "Billing record",
+      "contact": "Client contact",
+      "task": "Task",
+      "chat": "Chat"
+    }
   }
 }

@@ -59,6 +59,8 @@ function shareOpenReason(kind, entity) {
  */
 function isPublicFile(f) {
   if (!f) return false;
+  // 휴지통에 넣은 파일은 어느 공개 문으로도 나가지 않는다(2026-11-25 — L4 인 채 지운 첨부가 공개 문서 링크로 이름·내려받기가 남았다)
+  if (f.deleted_at || f.purged_at) return false;
   // 보안등급(internal·confidential)은 L4 여도 밖으로 내보내지 않는다 — L4 인 채로 등급만 올린 파일이
   //   문서·업무 공개 첨부로 무인증 다운로드되던 구멍(2026-09-27 점검).
   if (f.security_level && f.security_level !== 'general') return false;

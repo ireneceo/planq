@@ -945,7 +945,8 @@
       "fromTableHint": "Make a chart from this table's values and insert it below (the table stays)",
       "aiDropped": "AI rewriting dropped {{count}} chart(s). Try regenerating with the instruction \"keep the charts\".",
       "cancel": "Cancel"
-    }
+    },
+    "imageUnavailable": "This image can't be shown"
   },
   "tab": {
     "title": "Docs",
@@ -1053,7 +1054,12 @@
     "scopeHintWorkspace": "Files you add follow this document — workspace members can see them.",
     "scopeHintPublic": "Anyone with the public link can download files you add here.",
     "scopeHintPrivate": "This document is private, so files you add stay private too.",
-    "download": "Download"
+    "download": "Download",
+    "trashed": "In trash",
+    "restore": "Restore",
+    "restoreFailed": "Restore failed",
+    "trashedHint": "The person who deleted it or the owner can restore it",
+    "hiddenCount": "{{n}} attachment(s) you don't have access to"
   },
   "autosave": {
     "saving": "Saving draft…",

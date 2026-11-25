@@ -51,6 +51,9 @@ export interface PostAttachment {
   id: number;
   file_id: number;
   sort_order: number;
+  /** 원본 파일이 휴지통에 있음 — 내려받기 주소 없음(2026-11-25 · FILE_USAGE_DESIGN §11) */
+  state?: 'trashed';
+  can_restore?: boolean;
   file: {
     id: number;
     file_name: string;
@@ -69,6 +72,8 @@ export interface PostAttachment {
 export interface PostDetail extends PostRow {
   content_json: TiptapDoc;
   attachments: PostAttachment[];
+  /** 보는 사람이 열 수 없는 첨부 수 — 멤버 이상에게만(2026-11-25) */
+  hidden_attachment_count?: number;
   // kind='table' 일 때 백엔드가 같이 보내주는 QRecord 메타
   qrecord?: {
     id: number;

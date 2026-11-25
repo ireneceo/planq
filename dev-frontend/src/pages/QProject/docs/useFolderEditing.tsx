@@ -4,6 +4,8 @@ import { isEnterAction } from '../../../utils/imeKey';
 import { FolderName, RenameInput, SharedMark } from './treeStyles';
 import { LinkSvg } from './treeIcons';
 import { Modal, Dialog, DTitle, DBody, DFooter, SecondaryBtn, DangerBtn } from './dialogStyles';
+import { useAuth } from '../../../contexts/AuthContext';
+import UsageWarning, { useUsageSummary } from '../../../components/FileUsage/UsageWarning';
 
 /**
  * 폴더 이름 변경(인라인) + 삭제 확인 — 두 트리(FolderTree · Q file 의 ProjectGroups)가 **같은 것**을 쓴다.
@@ -28,6 +30,7 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr, tr
   /** 휴지통 보관 일수(요금제) — 있으면 «N일 안에», 없으면 «요금제에 따라» (0-D) */
   trashDays?: number | null;
 }) {
+  const { user } = useAuth();
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [deleteTarget, setDeleteTargetRaw] = useState<FileFolder | null>(null);
@@ -60,6 +63,8 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr, tr
   const fileCountInFolder = (folderId: number): number => (countDeep ? countDeep(folderId) : (counts.byFolder[folderId] || 0));
   // 삭제 확인 모달 — 두 트리가 같은 것을 쓴다.
   const deleteCount = deleteTarget ? fileCountInFolder(deleteTarget.id) : 0;
+  // «파일도 함께 삭제» 가 빠뜨리는 연결된 곳(2026-11-25 · docs/FILE_USAGE_DESIGN.md §8) — 하위 폴더 포함, 서버가 센다
+  const folderUsage = useUsageSummary(user?.business_id, deleteTarget && deleteCount > 0 ? { folderId: deleteTarget.id } : null);
   const deleteModal = deleteTarget && onDelete && (
     <Modal onMouseDown={e => { if (e.target === e.currentTarget) setDeleteTarget(null); }}>
       <Dialog>
@@ -73,6 +78,7 @@ export function useFolderEditing({ onRename, onDelete, counts, countDeep, tr, tr
               <p>{trashDays != null
                 ? String(tr('docs.folder.deleteChoiceTrashWithDays', '「파일도 함께 삭제」를 고르면 파일도 휴지통으로 갑니다. {{days}}일 안에 되돌릴 수 있습니다.')).replace('{{days}}', String(trashDays))
                 : tr('docs.folder.deleteChoiceTrash')}</p>
+              <UsageWarning summary={folderUsage} mode="delete" />
               {blockedCount > 0 && (
                 <p role="alert" data-testid="folder-delete-blocked">{fmt(tr('docs.folder.deleteBlocked', '삭제 권한이 없는 파일이 {{n}}개 있어 함께 삭제할 수 없습니다. 파일을 상위 폴더로 옮기고 폴더만 삭제할 수 있습니다.'), blockedCount)}</p>
               )}

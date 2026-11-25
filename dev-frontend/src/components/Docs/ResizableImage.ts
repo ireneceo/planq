@@ -3,6 +3,7 @@
 import Image from '@tiptap/extension-image';
 import type { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import type { NodeView } from '@tiptap/pm/view';
+import i18n from '../../i18n';
 
 // Image extension 확장 — width attribute (사이즈 조정용, 사이클 N+9)
 //
@@ -48,6 +49,10 @@ export const ResizableImage = Image.extend({
         if (n.attrs.title) img.title = String(n.attrs.title); else img.removeAttribute('title');
         setWidth(n.attrs.width ? String(n.attrs.width) : '');
       };
+      // 그림을 못 불러오면(원본 파일을 휴지통에 넣었거나 볼 권한이 없음) 빈 자리 대신 중립 문구 한 줄 —
+      //   그림 주소는 무인증이라 이유를 내려 주지 않는다(2026-11-25 · docs/FILE_USAGE_DESIGN.md §12)
+      img.addEventListener('error', () => { wrap.dataset.pqImgBroken = String(i18n.t('qdocs:editor.imageUnavailable', { defaultValue: '그림을 표시할 수 없습니다' })); });
+      img.addEventListener('load', () => { delete wrap.dataset.pqImgBroken; });
       paint(node);
       wrap.appendChild(img);
 

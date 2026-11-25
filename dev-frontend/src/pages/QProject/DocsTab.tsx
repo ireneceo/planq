@@ -58,6 +58,7 @@ import { useIncrementalList, IncrementalSentinel } from '../../hooks/useIncremen
 import TrashDrawer from '../../components/Trash/TrashDrawer';
 import TrashButton from '../../components/Trash/TrashButton';
 import { joinRoom, leaveRoom, onSocket } from '../../services/socket';
+import FileUsagePanel from '../../components/FileUsage/FileUsagePanel'; import UsageWarning, { useUsageSummary } from '../../components/FileUsage/UsageWarning'; import { useNarrowConfirm } from '../../components/FileUsage/useNarrowConfirm'; import { fileIdOfRow } from '../../components/FileUsage/fileUsageApi';
 import { useFileDragOut, isMovableInApp } from '../../hooks/useFileDragOut';
 import { isEnterAction } from '../../utils/imeKey';
 import { openDriveEditor } from '../../utils/driveEdit';
@@ -479,6 +480,9 @@ const DocsTab: React.FC<Props> = (props) => {
 
   const selectedFiles = useMemo(() => files.filter(f => selectedIds.has(f.id)), [files, selectedIds]);
   const selectedDeletable = selectedFiles.filter(f => f.deletable);
+  // 지우기·범위 좁히기 확인창의 «연결된 곳»(2026-11-25 · docs/FILE_USAGE_DESIGN.md) — 막지 않고 알린다
+  const delUsage = useUsageSummary(scope.businessId, deleteConfirm ? { fileIds: [fileIdOfRow(deleteConfirm) || 0] } : bulkDeleteOpen ? { fileIds: selectedDeletable.map(f => fileIdOfRow(f) || 0).filter(Boolean) } : null);
+  const narrow = useNarrowConfirm(scope.businessId);
 
   const [pendingUpload, setPendingUpload] = useState<File[] | null>(null);
   const [workspaceUploadProject, setWorkspaceUploadProject] = useState<number | null>(null);
@@ -1875,9 +1879,6 @@ const DocsTab: React.FC<Props> = (props) => {
                 <MetaItem><MetaKey>{t('docs.col.date', '업로드')}</MetaKey><MetaVal>{formatDate(preview.uploaded_at)}</MetaVal></MetaItem>
                 <MetaItem><MetaKey>{t('docs.col.size', '크기')}</MetaKey><MetaVal>{formatBytes(preview.file_size)}</MetaVal></MetaItem>
                 <MetaItem><MetaKey>{t('docs.col.mime', '형식')}</MetaKey><MetaVal>{preview.mime_type || '—'}</MetaVal></MetaItem>
-                {preview.context && <MetaItem>
-                  <MetaKey>{t('docs.col.context', '출처')}</MetaKey><MetaVal>{preview.context.label}</MetaVal>
-                </MetaItem>}
                 {/* Cue 가 이 파일 내용을 읽는지 — 안 읽으면 **왜 안 읽는지**까지 한 줄로.
                     이 줄이 없으면 "왜 이 파일은 못 찾아?" 가 다음 신고가 된다
                     (memory: feedback_rules_must_be_explained_briefly). */}
@@ -1886,6 +1887,7 @@ const DocsTab: React.FC<Props> = (props) => {
                   <CueReadVal $ok={preview.cue_read.ok}>{cueReadText(preview, t)}</CueReadVal>
                 </MetaItem>}
               </MetaList>
+              {fileIdOfRow(preview) ? <FileUsagePanel key={`usage-${preview.id}`} businessId={scope.businessId} fileId={fileIdOfRow(preview)!} /> : preview.context && <MetaItem><MetaKey>{t('docs.col.context', '출처')}</MetaKey><MetaVal>{preview.context.label}</MetaVal></MetaItem>}
               {/* 연결 프로젝트(2026-10-27) — 소속은 하나, 다른 프로젝트에도 «연결». 직접 올린 파일만 걸고 떼며, 연결로 들어온 행은 소속만 보인다 */}
               {preview.source === 'direct' && parseFileId(preview.id) && (
                 <VisibilitySection data-testid="file-project-refs">
@@ -1917,7 +1919,7 @@ const DocsTab: React.FC<Props> = (props) => {
                       if (!fileIdNum) return;
                       const bizId = scope.businessId;
                       const ser = serializeVisibility(v);
-                      try {
+                      await narrow.guard(fileIdNum, { level: preview.visibility, projectId: preview.project_id ?? null }, { level: v.vlevel, projectId: ser.project_id ?? null }, async () => { try {
                         const rv = await updateFileVisibility(bizId, fileIdNum, {
                           level: v.vlevel,
                           ...(v.variant === 'L2_project' && ser.project_id ? { project_id: ser.project_id } : {}),
@@ -1931,7 +1933,7 @@ const DocsTab: React.FC<Props> = (props) => {
                             rv.drive_copy === 'is_origin' ? 'docs.security.driveOrigin' : 'docs.security.driveFailed',
                           ) as string);
                         }
-                      } catch (_) { /* skip */ }
+                      } catch (_) { /* skip */ } });
                     }}
                     projects={projects.map(p => ({ id: p.id, name: p.name }))}
                     clients={clients.map(c => ({ id: c.id, display_name: c.display_name, biz_name: c.biz_name, company_name: c.company_name }))}
@@ -1971,7 +1973,7 @@ const DocsTab: React.FC<Props> = (props) => {
         )}
       </DetailDrawer>
 
-      {shareFolderModal}{driveImportModal}
+      {shareFolderModal}{driveImportModal}{narrow.dialog}
       {/* 공유 모달 */}
       {shareTarget && (
         <ShareModal
@@ -1997,6 +1999,7 @@ const DocsTab: React.FC<Props> = (props) => {
               {/* ★ 휴지통이 생기면서 이 문구가 거짓말이 됐다 — 동작을 바꾸면 그 동작을 설명하는
                   문자열도 같이 바꾼다(memory feedback_new_behavior_makes_copy_lie). */}
               <p>{trashDays != null ? t('docs.confirmDelete.descTrashWithDays', { days: trashDays, defaultValue: '삭제한 파일은 휴지통으로 이동합니다. {{days}}일 안에 되돌릴 수 있습니다.' }) : t('docs.confirmDelete.descTrash')}</p>
+              <UsageWarning summary={delUsage} mode="delete" />
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => setDeleteConfirm(null)}>{t('members.cancel', '취소')}</SecondaryBtn>
@@ -2021,6 +2024,7 @@ const DocsTab: React.FC<Props> = (props) => {
                 )}
               </BulkFileList>
               <p>{trashDays != null ? t('docs.confirmDelete.descTrashWithDays', { days: trashDays, defaultValue: '삭제한 파일은 휴지통으로 이동합니다. {{days}}일 안에 되돌릴 수 있습니다.' }) : t('docs.confirmDelete.descTrash')}</p>
+              <UsageWarning summary={delUsage} mode="delete" />
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => setBulkDeleteOpen(false)}>{t('members.cancel', '취소')}</SecondaryBtn>

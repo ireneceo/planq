@@ -372,7 +372,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     //   (a) 문서를 **열기만 해도** updated_at 이 바뀌어 편집 낙관적 잠금(#252)이 즉시 거짓 409 를 낸다
     //   (b) 목록 정렬이 ['updated_at','DESC'] 라 남이 열어보기만 해도 순서가 뒤바뀐다
     await post.increment('view_count', { silent: true });
-    const result = serialize(post, true);
+    const result = await require('../services/postAttachmentView').applyViewerAttachments(serialize(post, true), post, req.user);   // 첨부는 보는 사람 기준(2026-11-25)
     // 문서 댓글 수 — 보는 사람 기준(고객은 shared 만). 범위 조건은 댓글 목록과 같은 함수(services/postComments).
     try {
       const pcs = require('../services/postComments');
@@ -518,7 +518,7 @@ router.post('/', authenticateToken, async (req, res, next) => { // audit-exempt:
         { model: PostAttachment, as: 'attachments', include: [{ model: File, as: 'file' }] },
       ],
     });
-    const out = serialize(full, true);
+    const out = await require('../services/postAttachmentView').applyViewerAttachments(serialize(full, true), full, req.user);
     if (r.data.warnings?.length) out.warnings = r.data.warnings;
     successResponse(res, out, 'Post created', 201);
   } catch (err) { next(err); }
@@ -624,7 +624,7 @@ router.post('/:id/duplicate', authenticateToken, async (req, res, next) => {
       newValue: { from_post_id: src.id, title: copy.title, attachments: attached },
     });
     broadcastPost(req, full, 'post:new');
-    return successResponse(res, serialize(full, true), 'Post duplicated', 201);
+    return successResponse(res, await require('../services/postAttachmentView').applyViewerAttachments(serialize(full, true), full, req.user), 'Post duplicated', 201);
   } catch (err) { next(err); }
 });
 
@@ -700,7 +700,7 @@ router.post('/:id/follow-up', authenticateToken, async (req, res, next) => {
       ],
     });
     broadcastPost(req, full, 'post:new');
-    return successResponse(res, serialize(full, true), 'Follow-up created', 201);
+    return successResponse(res, await require('../services/postAttachmentView').applyViewerAttachments(serialize(full, true), full, req.user), 'Follow-up created', 201);
   } catch (err) { next(err); }
 });
 
@@ -1053,7 +1053,7 @@ router.put('/:id', authenticateToken, async (req, res, next) => {
     if (full?.status !== 'draft') broadcastPost(req, full, 'post:updated');
     // 업무 «결과물 액션» — 임시저장 문서가 발행되는 순간 «작성 중» 액션을 완료로(services/taskActionItems)
     if (isPromotion) await require('../services/taskActionItems').onPostPublished(full, req.user.id);
-    const outPut = serialize(full, true);
+    const outPut = await require('../services/postAttachmentView').applyViewerAttachments(serialize(full, true), full, req.user);
     // 보기 화면이 저장 응답을 그대로 쓰므로 «업무:» 칩도 같이 싣는다(조회와 같은 함수 — 보는 사람 기준)
     outPut.linked_tasks = await require('../services/taskActionItems').linkedTasksOf('post', full.id, { id: req.user.id, platform_role: req.user.platform_role }, full.business_id);
     successResponse(res, outPut, 'Post updated');

@@ -167,3 +167,14 @@ Q file(`ProjectGroups`)과 프로젝트>파일(`FolderTree`)은 **같은 행**�
 - **커서 → 변경 → 적용 → 커서 저장은 워크스페이스당 한 줄**(`services/gdriveSyncRun`) — 웹훅·크론이 같은 함수. 커서는 적용 **뒤** 저장. 프로세스 안 잠금이라 PM2 를 여러 개로 늘리면 DB 잠금으로 옮긴다.
 - 끄는 스위치 `GDRIVE_FINDER_TRASH=0`(지움만 종전 미러 해제로). 회귀 `node scripts/health-check.js --category=drivesync`.
 - ★ PlanQ 에 파일 바이트를 고치는 길을 새로 만들면 충돌 판정(§4.2 B-7)을 다시 연다.
+
+## 파일 «연결된 곳» — 옮기면 안 끊기고, 끊기는 일은 알린다 (2026-11-25 박제)
+
+> Irene: *"파일 위치를 이동하거나 해도 연결해둔 문서에서 끊기지 않게 하거나 꼭 구조상 끊어야 하면 알려줘야 할 것 같아 … 서로 어디에 연결되어 있는지 제대로 다 알게 통합적인 UI"* · Fable 설계 · 정본 `docs/FILE_USAGE_DESIGN.md`
+
+- **사용처는 `services/fileUsage.js` 한 곳**(파일 상세 «연결된 곳» · 확인창 요약 · 감사 숫자). live(원본을 거쳐 열림: 문서 첨부·본문 그림·일정 미팅자료·project_refs·청구 증빙·연락처 사진) / copy(업무·채팅 첨부 — 경로 복사라 지워도 열림). **파일을 가리키는 새 칸을 만들면 여기 한 줄 더한다** — 안 그러면 지울 때 «0곳» 이라고 거짓말한다.
+- 경로 비교는 `fileRefs.pathVariants`(두 표기). 본문 그림은 `imageCtx.bodyHasImage` 로 확정.
+- **지우기·범위 좁히기는 막지 않고 알린다** — 확인창이 `UsageWarning`(단건·여러 개·폴더째)·`useNarrowConfirm`. 서버 409 를 넣지 않는다(Drive 동기화·폴더 삭제·내보내기가 같은 `trashFile` 을 쓴다).
+- **문서 첨부 응답은 보는 사람 기준**(`services/postAttachmentView`) — 휴지통 = `state:'trashed'`, 못 읽음 = 빼고 멤버에게만 숫자, 고객은 흔적 없음. 첨부를 싣는 새 문서 응답은 이 함수를 부른다.
+- 파일 삭제·범위 쓰기 AI 도구를 더하면 결과에 `fileUsage.summarize` 를 싣는다.
+- 휴지통 파일은 어느 공개 문으로도 안 나간다(`shareOpenable.isPublicFile`).

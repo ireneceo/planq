@@ -19,6 +19,8 @@ export function resizableImageCss(editable: boolean): string {
     /* nodeView 가 img 를 div 로 감싼다 — 선택 표시는 감싼 쪽에 붙는다(옛 규칙도 그대로 둔다). */
     .pq-img-wrap { position: relative; display: block; width: fit-content; max-width: 100%; margin: 12px 0; }
     .pq-img-wrap > img.editor-image { margin: 0; }
+    .pq-img-wrap[data-pq-img-broken] > img.editor-image { display: none; }
+    .pq-img-wrap[data-pq-img-broken]::after { content: attr(data-pq-img-broken); display: block; padding: 10px 12px; border: 1px dashed #CBD5E1; border-radius: 6px; color: #94A3B8; font-size: 0.8125rem; }
     .pq-img-wrap.ProseMirror-selectednode > img.editor-image { outline: ${editable ? '2px solid #14B8A6' : 'none'}; outline-offset: 2px; }
     .pq-img-handle { display: none; }
     ${editable ? `

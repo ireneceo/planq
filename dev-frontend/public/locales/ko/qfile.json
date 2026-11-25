@@ -15,5 +15,33 @@
   "tabs": {
     "personal": "내 파일 (Drive)",
     "workspace": "회사 파일"
+  },
+  "usage": {
+    "title": "연결된 곳",
+    "loading": "불러오는 중…",
+    "failed": "연결된 곳을 불러오지 못했습니다.",
+    "empty": "아직 연결된 곳이 없습니다.",
+    "untitled": "(제목 없음)",
+    "liveHead": "연결 {{n}}곳 — 이 파일을 지우면 여기서 빠집니다",
+    "copyHead": "사본 {{n}}곳 — 업무·채팅에 올린 사본이라 지워도 그대로 남습니다",
+    "hidden": "볼 수 없는 곳 {{n}}곳",
+    "checking": "연결된 곳을 확인하는 중…",
+    "warnDelete": "이 파일이 연결된 {{n}}곳에서 빠집니다. 휴지통에서 복구하면 돌아옵니다.",
+    "warnNarrow": "이 파일이 붙은 {{n}}곳에서, 새 공개 범위 밖의 사람에게는 보이지 않게 됩니다.",
+    "more": "외 {{n}}곳",
+    "copyStays": "업무·채팅에 올린 사본 {{n}}곳은 그대로 남습니다.",
+    "truncated": "파일이 많아 앞의 200개만 확인했습니다.",
+    "narrowTitle": "공개 범위를 좁힐까요?",
+    "narrowConfirm": "좁히기",
+    "kind": {
+      "post": "문서",
+      "post_image": "문서 그림",
+      "event": "일정",
+      "project": "프로젝트",
+      "invoice": "청구 증빙",
+      "contact": "고객 연락처",
+      "task": "업무",
+      "chat": "채팅"
+    }
   }
 }
