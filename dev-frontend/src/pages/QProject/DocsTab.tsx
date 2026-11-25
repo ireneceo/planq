@@ -13,7 +13,8 @@ import FolderTree from './docs/FolderTree';
 import SubfolderStrip, { childFoldersOf } from './docs/SubfolderStrip';
 import type { FolderSel } from './docs/folderSel';
 import { useFileOpen } from './docs/useFileOpen';
-import { srcsOf, homeSrcOf, sourceShortLabel, srcStyle } from './docs/fileSource';
+import { srcsOf, homeSrcOf, sourceShortLabel, srcStyle, passesMailSearch } from './docs/fileSource';
+import IncludeMailToggle from '../../components/Common/IncludeMailToggle';
 import { useFolderDrop, isExternalFileDrag } from './docs/folderDrop';
 import { useVisibilityRefresh } from '../../hooks/useVisibilityRefresh';
 import { useFileDownload } from '../../hooks/useFileDownload';
@@ -460,21 +461,25 @@ const DocsTab: React.FC<Props> = (props) => {
   }, [files, isWorkspace]);
   const { openDriveImport, driveImportModal } = useDriveImport({ enabled: cacheUser?.business_role !== 'client', businessId, mode: scope.type, projectId, projectName: props.projectName, folderSel, folders, projectGroups, onImported: reload });
 
+  const [includeMail, setIncludeMail] = useState(false);
+  const hasMailFiles = useMemo(() => files.some(f => srcsOf(f).includes('mail')), [files]);
   const visible = useMemo(() => {
     let r = filteredByFolder.slice();
     if (query.trim()) {
       const q = query.toLowerCase();
       // 파일명만으로는 영상·스캔본을 찾을 수 없다 — 설명·태그도 같이 본다.
-      r = r.filter(f =>
+      // 메일 첨부는 «메일 첨부도 검색» 을 켰거나 «메일» 칸에서 찾을 때만(fileSource.passesMailSearch)
+      const withMail = includeMail || folderSel === 'src:mail';
+      r = r.filter(f => passesMailSearch(f, withMail) && (
         f.file_name.toLowerCase().includes(q)
         || (f.description || '').toLowerCase().includes(q)
-        || (f.tags || []).some(tg => tg.toLowerCase().includes(q)));
+        || (f.tags || []).some(tg => tg.toLowerCase().includes(q))));
     }
     if (sort === 'name') r.sort((a, b) => (a.file_name || '').localeCompare(b.file_name || ''));
     else if (sort === 'size') r.sort((a, b) => (b.file_size || 0) - (a.file_size || 0));
     else r.sort((a, b) => (b.uploaded_at || '').localeCompare(a.uploaded_at || ''));
     return r;
-  }, [filteredByFolder, query, sort]);
+  }, [filteredByFolder, query, sort, includeMail, folderSel]);
   // 그리는 것만 나눈다(검색·전체 선택·건수는 visible 그대로) — 1천 개를 한 번에 그리면 폰이 2초 멈췄다
   const { items: shownFiles, more: moreFiles, sentinelRef: fileSentinelRef } = useIncrementalList(visible, `${JSON.stringify(folderSel)}|${query}|${sort}|${view}`);
 
@@ -1239,6 +1244,9 @@ const DocsTab: React.FC<Props> = (props) => {
           placeholder={tr('docs.search', '파일 검색')}
           width={260}
         />
+        {query.trim() && hasMailFiles && folderSel !== 'src:mail' && (
+          <IncludeMailToggle checked={includeMail} onChange={setIncludeMail} testId="docs-include-mail" />
+        )}
         <SortWrap>
           <PlanQSelect
             size="sm"

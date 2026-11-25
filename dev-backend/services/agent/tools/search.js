@@ -91,7 +91,8 @@ async function runGroup(kind, p, ctx, M, opt) {
       const mm = new Map(meta.map((x) => [x.id, x.toJSON()]));
       return rows.map((r) => {
         const m = mm.get(r.id) || {};
-        return { kind, id: r.id, title: r.file_name, snippet: null, date: iso(m.created_at), client_id: m.client_id || null, project_id: m.project_id || null, url: urlOf.file(r.id), restricted: isRestricted(m) };
+        const fromMail = r.source === 'mail';
+        return { kind, id: r.id, title: r.file_name, snippet: null, date: iso(m.created_at), client_id: m.client_id || null, project_id: m.project_id || null, url: fromMail && r.mail_thread_id ? urlOf.mail(r.mail_thread_id) : urlOf.file(r.id), restricted: isRestricted(m), ...(fromMail ? { source: 'mail' } : {}) };
       });
     }
     case 'event': {
@@ -174,7 +175,8 @@ async function searchAll(p, a) {
   if (!ctx) throw err('PERMISSION_DENIED', 'members_only');
   const M = S.makeMatcher(q);
   const limit = Math.min(MAX_ROWS, page * perKind + 1);
-  const opt = { limit, filters };
+  // 메일 첨부 파일은 기본으로 빼고, 물었을 때만 — 이 연결에 메일 권한(mail:read)이 있고 사람이 Q mail 을 볼 수 있을 때(searchFiles 가 다시 본다).
+  const opt = { limit, filters, includeMail: !!a.include_mail_attachments && (p.scopes || []).includes('mail:read') };
 
   const gates = await Promise.all(kinds.map((k) => gateOf(k, p)));
   if (gates.every((g) => g && g.status === 'not_granted')) {

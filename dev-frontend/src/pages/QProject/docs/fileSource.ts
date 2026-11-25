@@ -55,3 +55,17 @@ export function srcStyle(s: FileSource): string {
   }
 }
 
+
+/**
+ * 검색어로 찾을 때 이 파일을 낼 것인가 — 메일 첨부 규칙(2026-11-25, Irene «메일파일까지 검색하기 체크필터» · Fable 설계 A).
+ *   ① 메일에서 온 첨부는 기본으로 빼고, «메일 첨부도 검색» 을 켰거나 왼쪽에서 «메일» 칸을 고른 때만 낸다.
+ *   ② 낼 때도 서명·아이콘(20KB 미만 이미지)은 뺀다 — 서버 services/mailAttachmentFiles.isMailNoise 와 같은 선.
+ *   검색어가 없을 때의 목록(«메일» 칸 포함)은 이 함수를 쓰지 않는다 — 보이는 목록은 그대로다.
+ */
+export const MAIL_NOISE_MAX_BYTES = 20 * 1024;
+export function passesMailSearch(f: ProjectFile, includeMail: boolean): boolean {
+  if (!srcsOf(f).includes('mail')) return true;
+  if (!includeMail) return false;
+  const noise = String(f.mime_type || '').startsWith('image/') && Number(f.file_size || 0) < MAIL_NOISE_MAX_BYTES;
+  return !noise;
+}

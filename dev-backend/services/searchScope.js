@@ -292,19 +292,26 @@ async function searchPosts(ctx, M, { limit, filters } = {}) {
   return out;
 }
 
-async function searchFiles(ctx, M, { limit, filters } = {}) {
+// 메일 첨부 — 기본은 빼고, `includeMail` 이고 그 사람이 메일을 읽을 수 있을 때만 낸다(2026-11-25 Fable 설계 A).
+//   ★ 판정은 services/mailAttachmentFiles 한 곳. 통합 검색·AI search_all·Cue 가 이 함수를 같이 쓴다.
+//   ★ 포함해도 서명·아이콘(20KB 미만 이미지)은 뺀다. 결과 줄에 source:'mail' + 원 메일 스레드 id.
+async function searchFiles(ctx, M, { limit, filters, includeMail = false } = {}) {
+  const MF = require('./mailAttachmentFiles');
   const extra = [];
   if (filters) {
     if (filters.projectId) extra.push({ project_id: filters.projectId });
     if (filters.clientId) extra.push({ client_id: filters.clientId });
     extra.push(...dateRange('created_at', filters));
   }
+  const mailOk = includeMail && await MF.mailFilesAllowed(ctx.businessId, { id: ctx.userId, platform_role: ctx.platformRole }, ctx.isClient).catch(() => false);
+  extra.push(mailOk ? MF.notMailNoiseLiteral('File') : MF.notMailAttachmentLiteral('File'));
   const files = await File.findAll({
     // 이름·설명·태그 — Q file 화면 검색과 같은 범위(2026-10-07: 통합 검색만 이름으로 찾아 «파일 화면에선 찾히는데» 가 됐다)
-    where: { ...ctx.fileWhere, [Op.and]: [{ [Op.or]: [...M.likeAny('file_name'), { description: M.like }, sequelize.where(sequelize.cast(sequelize.col('tags'), 'CHAR'), M.like)] }, { deleted_at: null }, ...extra] },
+    where: { ...ctx.fileWhere, [Op.and]: [...(ctx.fileWhere[Op.and] || []), { [Op.or]: [...M.likeAny('file_name'), { description: M.like }, sequelize.where(sequelize.cast(sequelize.col('tags'), 'CHAR'), M.like)] }, { deleted_at: null }, ...extra] },
     attributes: ['id', 'file_name', 'file_size', 'mime_type', 'description', 'tags'],
     limit, order: [M.relevance('file_name'), ['created_at', 'DESC']],
   }).catch(() => []);
+  const threadOf = mailOk ? await MF.mailThreadOfFiles(ctx.businessId, files.map((f) => f.id)).catch(() => new Map()) : new Map();
   return files.map((m) => {
     const { description, tags, ...o } = toPlain(m);
     o.match = pickMatch([
@@ -312,6 +319,7 @@ async function searchFiles(ctx, M, { limit, filters } = {}) {
       { field: 'description', text: description },
       { field: 'tag', text: Array.isArray(tags) ? tags.join(' ') : (tags || '') },
     ], M.q);
+    if (threadOf.has(o.id)) { o.source = 'mail'; o.mail_thread_id = threadOf.get(o.id); }
     return o;
   });
 }

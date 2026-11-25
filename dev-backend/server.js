@@ -463,6 +463,9 @@ app.use('/api/payroll', require('./routes/payroll_runs'));    // 회차·칸·�
 app.use('/api/payroll', require('./routes/payroll_me'));      // 본인 명세서·계약(관리자 술어 없음 — 자기 것만)
 // 근태 «마지막 활동» — 사람이 직접 한 쓰기 목록만, 성공했을 때만(middleware/attendanceTouch). 라우터들보다 앞.
 app.use(require('./middleware/attendanceTouch').attendanceTouch);
+// 파일 집계(all-files · :id/files) — projects.js 에서 옮김(2026-11-25), 같은 접두 projects 바로 앞
+app.use('/api/projects', require('./routes/workspace_files'));
+app.use('/api/projects', require('./routes/project_files'));
 app.use('/api/projects', require('./routes/projects'));
 // (2026-10-08 0-J) routes/project_process.js(공정 표 — status-options·process-columns·process-parts) 삭제:
 //   화면(ProcessPartsTab)이 어디서도 import 되지 않아 호출처 0. 표는 Q 레코드로 이관됨(migrate-process-to-records).

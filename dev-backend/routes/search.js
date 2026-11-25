@@ -101,7 +101,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
       //   Q record 메뉴는 이미 폐지돼 Q docs 의 표(kind='table')로 흡수됐다(App.tsx:122, /records → /docs).
       //   응답 키는 빈 배열로 남긴다: 옛 프론트 번들이 아직 살아 있을 수 있어 undefined 로 깨뜨리지 않는다.
       Promise.resolve([]),
-      S.searchFiles(w, M, opt),
+      // 메일 첨부는 «메일 첨부 포함»(include_mail=1) + Q mail 을 볼 수 있는 사람만(services/mailAttachmentFiles · 2026-11-25)
+      S.searchFiles(w, M, { ...opt, includeMail: req.query.include_mail === '1' && gates.mail }),
       S.searchConversations(w, M, opt),
       S.searchKnowledge(w, M, opt).catch(() => []),
       S.searchClients(w, M, opt),
@@ -135,6 +136,8 @@ router.get('/', authenticateToken, async (req, res, next) => {
       interactions,
       project_notes: projectNotes,
       meeting_notes: meetingNotes,
+      // 화면이 «메일 첨부 포함» 칸을 그릴지 — 메일을 못 보는 사람에게는 칸도 없다.
+      mail_files_allowed: !!gates.mail && await require('../services/mailAttachmentFiles').mailFilesAllowed(businessId, req.user, isClient).catch(() => false),   // 판정 한 벌(searchFiles 와 같은 함수)
     });
   } catch (err) { next(err); }
 });

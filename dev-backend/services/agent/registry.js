@@ -460,6 +460,7 @@ const TOOLS = [
       until: z.string().max(40).optional().describe('ISO 8601'),
       per_kind: z.number().int().min(1).max(10).optional().describe('Items per group (default 5, max 10)'),
       page: z.number().int().min(1).max(50).optional().describe('Page number for every group, 1-based (default 1)'),
+      include_mail_attachments: z.boolean().optional().describe('Also search files that arrived as mail attachments (default false — they are excluded; needs email access). Results from mail carry source "mail" and link to the mail.'),
     },
     handler: (p, a) => search.searchAll(p, a),
   },

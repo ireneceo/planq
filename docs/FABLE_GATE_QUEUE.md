@@ -2,6 +2,12 @@
 
 
 
+### 2026-11-25 방 b6d0822b — 파일·문서 검색: 메일 첨부 분리(1단계) · 존재 공개·열람 요청(2·3단계 설계) — 설계 **A READY(수정 3) · B/C CHANGE** · 1단계 완료 검증 **PASS**
+- Irene «문서/파일 검색할 때 메일에 있는데 나오네 … 메일파일까지 검색하기 체크 … 보안상 못 보는 거 표시 … 열람요청하기 … 숨길지 보이고 열람만 안되게 할지» · 정본 docs/FILE_SEARCH_DISCOVERY_DESIGN.md
+- 설계 판정: 메일 첨부 기본 제외 + «메일 첨부도 검색» · 메일 못 보는 사람(Q mail 숨김)에게는 포함해도 0(권한 구멍 막음) · 서명·아이콘(20KB 미만 이미지)은 포함해도 제외 · 결과는 원 메일로. 존재 공개는 «전부 잠금 표시» 거부(제목=내용·탐지기) → L2 만·워크스페이스 설정 기본 꺼짐·항목별 숨김 필수·L1 영구 비공개 · 열람 요청 = target_member_ids 에 요청자만 추가
+- 완료 검증(1단계): 넓어진 곳 없음(호출처 2곳 부분집합) · SQL 조각 alias 상수·주입 불가·폴더 조인 실측 ambiguous 0 · 옛 id 목록과 동치 5=5 · AI 게이트 9/9 재실행 · 라우트 이동(projects.js → workspace_files.js·project_files.js) HEAD diff 메일 게이트 줄만 · 실HTTP 21/21 재실행
+- 비차단: N1 체크 칸 표시 판정 한 벌로(반영) · N2 list_files 가 연결 scope mail:read 를 안 봄(2단계) · N3 메일 첨부이면서 문서·업무에 붙은 파일도 기본 검색 제외 · N4 project_files where 를 Op.and 로(반영) · 단건 내려받기(L3) 메일 게이트는 2단계 canDownloadFile 과 함께
+
 ### 2026-11-25 방 c1868e32 — 채팅에서 고객 정보·멤버 정보 공유(명함 아니어도) — 설계 **DESIGN: CHANGE → 5건 반영** · 완료 검증 1차 **FAIL**(차단 2) → 고침 → 2차 **PASS**
 - Irene «고객 정보나 멤버 정보도 서로 공유할 수 있으면 좋겠다. 명함 아니여도.» · 설계 docs/CHAT_PROFILE_CARDS_DESIGN.md 5절
 - 설계 판정: 팀 방 전용(channel_type internal·group 허용 목록 + client_id NULL + client 참여자 0(viewer 포함) + 살아 있는 게스트 링크 0) · 메시지엔 id 만(이름 0) · 볼 때 보는 사람 권한(권한 먼저) · 고객·게스트에겐 자리도 없음 · 고객 방 소개는 명함

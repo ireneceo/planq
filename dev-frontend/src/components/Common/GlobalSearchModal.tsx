@@ -23,6 +23,7 @@ import type { SearchMatchInfo } from '../../utils/searchMatch';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { postSubline } from '../../utils/postSubline';
 import { displayName } from '../../utils/displayName';
+import IncludeMailToggle from './IncludeMailToggle';
 
 interface Props {
   /**
@@ -61,7 +62,9 @@ type PersonLite = { id: number; name: string; name_localized?: Record<string, st
 interface SearchResult {
   tasks?: Array<{ id: number; title: string; status?: string; project_id?: number | null; due_date?: string | null; assignee?: PersonLite | null; creator?: PersonLite | null; project?: { id: number; name: string } | null } & WithMatch>;
   posts?: Array<{ id: number; title: string; category?: string | null; project_id?: number | null; created_at?: string | null; author?: { id: number; name: string; name_localized?: Record<string, string> | null } | null; project?: { id: number; name: string } | null } & WithMatch>;
-  files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null; created_at?: string | null; uploader?: PersonLite | null; project?: { id: number; name: string } | null } & WithMatch>;
+  files?: Array<{ id: number; file_name: string; file_size?: number; mime_type?: string | null; created_at?: string | null; uploader?: PersonLite | null; project?: { id: number; name: string } | null; source?: 'mail'; mail_thread_id?: number | null } & WithMatch>;
+  /** 이 사람이 메일 첨부를 검색할 수 있는가(Q mail 을 볼 수 있음) — 아니면 «메일 첨부도 검색» 칸을 그리지 않는다. */
+  mail_files_allowed?: boolean;
   conversations?: Array<{ id: number; title?: string; display_name?: string; project_id?: number | null } & WithMatch>;
   knowledge?: Array<{ id: number; title: string; category?: string | null; scope?: string } & WithMatch>;
   // ★ clients 에는 `email` 컬럼이 없다 — 서버는 invite_email / billing_contact_email 을 준다.
@@ -109,6 +112,8 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
   const [query, setQuery] = useState('');
   const [result, setResult] = useState<SearchResult>({});
   const [loading, setLoading] = useState(false);
+  // «메일 첨부도 검색» — 기본 꺼짐(2026-11-25 Fable 설계 A). 메일로 들어온 첨부는 기본 검색에서 뺀다.
+  const [includeMail, setIncludeMail] = useState(false);
   // #305 — "검색이랑 상단 탭 열 때 최신글이나 문서 등 이런거 보여주는 거 기본 아니야? 검색 전에."
   //   빈 검색창은 아무것도 못 하는 화면이었다. 열자마자 최근에 손댄 것을 보여준다.
   const [recent, setRecent] = useState<SearchResult>({});
@@ -167,7 +172,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
     setLoading(true);
     const seq = ++reqSeq.current;
     const timer = setTimeout(async () => {
-      const r = await apiFetch(`/api/search?business_id=${businessId}&q=${encodeURIComponent(query)}&limit=8`);
+      const r = await apiFetch(`/api/search?business_id=${businessId}&q=${encodeURIComponent(query)}&limit=8${includeMail ? '&include_mail=1' : ''}`);
       if (seq !== reqSeq.current) return;        // 더 새로운 요청이 이미 나갔다 — 이 응답은 버린다
       if (!r.ok) { setLoading(false); return; }  // apiFetch 는 throw 하지 않는다
       const j = await r.json().catch(() => null);
@@ -176,7 +181,7 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
       setLoading(false);
     }, 120);
     return () => clearTimeout(timer);
-  }, [query, businessId, scope]);
+  }, [query, businessId, scope, includeMail]);
 
   // ★ 검색 결과와 '최근 항목' 은 **같은 변환기**를 쓴다. 두 벌로 만들면 한쪽만 링크가 바뀌어
   //   "검색으로 열면 되는데 최근에서 열면 안 되는" 상태가 된다.
@@ -195,7 +200,11 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
       x.project?.name,
     ]), to: `/tasks?task=${x.id}`, type: 'tasks', match: x.match }));
     (r.posts || []).forEach(x => h.push({ id: x.id, title: x.title, sub: join([x.category ? `#${x.category}` : '', postSubline(x, formatDate, i18n.language)]), to: `/docs?post=${x.id}`, type: 'posts', match: x.match }));
-    (r.files || []).forEach(x => h.push({ id: x.id, title: x.file_name, sub: join([nm(x.uploader), x.created_at ? formatDate(x.created_at) : '', x.project?.name]) || x.mime_type || undefined, to: `/files?file=${x.id}`, type: 'files', match: x.match }));
+    // 메일에서 온 첨부는 «메일에서 온 첨부» 를 앞에 적고 원 메일로 연다(파일 상세가 아니라 메일 맥락).
+    (r.files || []).forEach(x => {
+      const fromMail = x.source === 'mail';
+      h.push({ id: x.id, title: x.file_name, sub: join([fromMail ? t('search.fromMail', '메일에서 온 첨부') as string : '', nm(x.uploader), x.created_at ? formatDate(x.created_at) : '', x.project?.name]) || x.mime_type || undefined, to: fromMail && x.mail_thread_id ? `/mail?thread=${x.mail_thread_id}` : `/files?file=${x.id}`, type: 'files', match: x.match });
+    });
     (r.conversations || []).forEach(x => h.push({ id: x.id, title: x.display_name || x.title || `#${x.id}`, to: `/talk?conv=${x.id}`, type: 'conversations', match: x.match }));
     (r.knowledge || []).forEach(x => h.push({ id: x.id, title: x.title, sub: x.category || undefined, to: `/info?doc=${x.id}`, type: 'knowledge', match: x.match }));
     (r.clients || []).forEach(x => {
@@ -271,6 +280,11 @@ const GlobalSearchModal: React.FC<Props> = ({ open, onClose, businessId, onNavig
           {loading && <Spinner size={14} color="muted" />}
           <Kbd onClick={onClose}>Esc</Kbd>
         </SearchHeader>
+        {query.trim() && result.mail_files_allowed && (
+          <SearchOptions>
+            <IncludeMailToggle checked={includeMail} onChange={setIncludeMail} testId="gsearch-include-mail" />
+          </SearchOptions>
+        )}
 
         <Results>
           {/* Cue 진입 (Fable ③) — Irene: "cue 채팅창이 Q help 말고도 어디에 쉽게 들어가야 하지 않아? 검색창처럼."
@@ -419,6 +433,9 @@ const SearchHeader = styled.div`
   flex-shrink: 0;
 `;
 const SearchIconSvg = styled.svg`width: 16px; height: 16px; color: #94A3B8; flex-shrink: 0;`;
+const SearchOptions = styled.div`
+  display: flex; justify-content: flex-end; padding: 2px 12px; border-bottom: 1px solid #F1F5F9;
+`;
 const SearchInput = styled.input`
   flex: 1; height: 28px;
   border: none; outline: none;

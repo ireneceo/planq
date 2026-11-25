@@ -854,7 +854,9 @@
       "assignee": "담당 {{name}}",
       "creator": "작성 {{name}}",
       "due": "마감 {{date}}"
-    }
+    },
+    "includeMailFiles": "메일 첨부도 검색",
+    "fromMail": "메일에서 온 첨부"
   },
   "attach": {
     "toggle": "파일 첨부",

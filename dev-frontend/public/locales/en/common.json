@@ -854,7 +854,9 @@
       "assignee": "Assignee {{name}}",
       "creator": "By {{name}}",
       "due": "Due {{date}}"
-    }
+    },
+    "includeMailFiles": "Include mail attachments",
+    "fromMail": "Mail attachment"
   },
   "attach": {
     "toggle": "Attach files",

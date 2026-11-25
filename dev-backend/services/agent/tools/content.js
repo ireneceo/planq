@@ -173,12 +173,12 @@ async function listFiles(p, a) {
   if (a.folder_id) conds.push({ folder_id: a.folder_id });
   // 메일 첨부 보관분 — Q file 「메일」 칸 규칙: 기본 제외(수천 건이 쏟아진다), 명시 요청 때만
   const source = a.source || 'direct';
-  if (source !== 'all') {
-    const { mailAttachmentFileIds } = require('../../mailAttachmentFiles');
-    const mailIds = await mailAttachmentFileIds(p.businessId);
-    if (source === 'mail') conds.push({ id: { [Op.in]: mailIds.length ? mailIds : [-1] } });
-    else if (mailIds.length) conds.push({ id: { [Op.notIn]: mailIds } });
-  }
+  // ★ 메일 첨부는 메일을 읽을 수 있는 사람에게만(2026-11-25 Fable 설계 A-③) — 회사 메일함 첨부는 L3 라
+  //   파일 술어만으로는 Q mail 메뉴가 숨겨진 멤버에게도 나갔다. 판정 services/mailAttachmentFiles 한 곳.
+  const MF = require('../../mailAttachmentFiles');
+  const mailOk = source !== 'direct' && await MF.mailFilesAllowed(p.businessId, { id: p.userId, platform_role: p.platformRole }, scope.isClient);
+  if (source === 'mail') conds.push(mailOk ? MF.mailAttachmentLiteral('File') : { id: -1 });
+  else if (source === 'direct' || !mailOk) conds.push(MF.notMailAttachmentLiteral('File'));
   const pg = parsePage(a);
   const { rows, count } = await File.findAndCountAll({
     where: { [Op.and]: conds },
