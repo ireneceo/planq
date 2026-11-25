@@ -1,11 +1,14 @@
-// 요금제 페이지 — Free / Basic / Pro 3 plan + Addon + FAQ.
+// 요금제 페이지 — Free / Starter / Basic / Pro 4 plan + Addon + FAQ.
+// 2026-11-25 무료 재도입(docs/FREE_PLAN_PROPOSAL_2026-11-25.md) — 0원 칸 + «팀이라면 30일 팀 체험» + «무료 한도는 조정될 수 있음».
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LandingLayout from '../../components/Landing/LandingLayout';
 import { useReveal } from '../../hooks/useReveal';
 
-const PLANS = ['starter', 'basic', 'pro'] as const;
+const PLANS = ['free', 'starter', 'basic', 'pro'] as const;
+// 가입 화면 ?plan= — 무료는 혼자 체험(starter)으로 들어가 끝나면 무료로 내려온다(서버 trial.expireTrialToFree)
+const SIGNUP_PLAN: Record<typeof PLANS[number], string> = { free: 'starter', starter: 'starter', basic: 'basic', pro: 'pro' };
 const FAQ_KEYS = ['cancel', 'team', 'data', 'ownership', 'addon', 'enterprise'] as const;
 
 const Reveal: React.FC<{ children: React.ReactNode; as?: React.ElementType }> = ({ children, as = 'div' }) => {
@@ -48,11 +51,15 @@ const PricingPage: React.FC = () => {
                       </PlanItem>
                     ))}
                   </PlanList>
-                  <PlanCta to={`/register?plan=${p}`} $featured={p === 'basic'}>{t(`pricingPage.plans.${p}.cta`)}</PlanCta>
+                  <PlanCta data-testid={`pricing-cta-${p}`} to={`/register?plan=${SIGNUP_PLAN[p]}`} $featured={p === 'basic'}>{t(`pricingPage.plans.${p}.cta`)}</PlanCta>
                 </PlanCard>
               </Reveal>
             ))}
           </PlansGrid>
+          <PlansFoot>
+            <TeamTrialLink to="/register?plan=basic" data-testid="pricing-team-trial">{t('pricingPage.teamTrialCta', '팀이라면 30일 동안 다 같이 먼저 써 보세요')} →</TeamTrialLink>
+            <FreeNote data-testid="pricing-free-note">{t('pricingPage.freeNote', '무료 플랜의 한도는 서비스 운영에 따라 조정될 수 있습니다.')}</FreeNote>
+          </PlansFoot>
         </Container>
       </PlansSection>
 
@@ -142,16 +149,29 @@ const BizOnly = styled.p`
 `;
 const PlansSection = styled.section`padding: 64px 0 96px; background: #FFFFFF;`;
 const PlansGrid = styled.div`
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+  /* minmax(0,1fr) — 1fr 만 쓰면 큰 가격 글자의 최소 폭 때문에 칸 폭이 제각각이 된다(무료 칸이 찌그러졌다 2026-11-25 실측) */
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px;
   align-items: stretch;
+  @media (max-width: 1180px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   & > .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.7s ease-out, transform 0.7s ease-out; }
   & > .reveal.in { opacity: 1; transform: none; }
   @media (max-width: 900px) { grid-template-columns: 1fr; }
 `;
+const PlansFoot = styled.div`
+  margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+`;
+const TeamTrialLink = styled(Link)`
+  font-size: 0.9375rem; font-weight: 600; color: #0D9488; text-decoration: none;
+  min-height: 44px; display: inline-flex; align-items: center;
+  &:hover { text-decoration: underline; }
+`;
+const FreeNote = styled.p`
+  margin: 0; font-size: 0.8125rem; color: #64748B; line-height: 1.6;
+`;
 const PlanCard = styled.div<{ $featured?: boolean }>`
   position: relative;
   height: 100%;
-  padding: 40px 32px;
+  padding: 36px 24px;
   background: #FFFFFF;
   border: ${p => p.$featured ? '2px solid #14B8A6' : '1px solid #E2E8F0'};
   border-radius: 16px;
@@ -171,7 +191,7 @@ const PlanName = styled.div`
 `;
 const PlanPrice = styled.div`
   font-family: 'Outfit', sans-serif;
-  font-size: 2.5rem; font-weight: 600; color: #0F172A;
+  font-size: 2.125rem; font-weight: 600; color: #0F172A;
   letter-spacing: -1px; line-height: 1.1;
 `;
 const PlanSub = styled.div`font-size: 0.8125rem; color: #94A3B8; font-weight: 300;`;

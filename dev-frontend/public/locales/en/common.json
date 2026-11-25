@@ -1192,6 +1192,12 @@
       "cta_pro": "Switch to larger-team trial (Pro · 10)",
       "memberHint": "This workspace is on a trial. The workspace owner can switch to a team trial to invite more people.",
       "error": "Couldn't switch. Try again shortly, or change it on the plan page."
+    },
+    "teamTrial": {
+      "hint": "You're on the Free plan (1 member). Start a 30-day team trial to work with up to 5 people without paying. You can get it once.",
+      "memberHint": "This workspace is on the Free plan. The owner can start a 30-day team trial to invite more people.",
+      "cta": "Start 30-day team trial (5 members)",
+      "error": "Couldn't start it. Try again shortly or start it from the plan page."
     }
   },
   "trialBanner": {
@@ -1201,15 +1207,15 @@
     },
     "trialEnding": {
       "title": "{{days}} days left — pay to keep going",
-      "desc": "Settle the bill before the trial ends to avoid auto-lock.",
+      "desc": "If you don't pay, nothing locks — you move to the Free plan. Pay ahead to keep your current plan.",
       "titleNative": "{{days}} day(s) left in trial",
-      "descNative": "Some features will be restricted after the trial ends."
+      "descNative": "When the trial ends you move to the Free plan."
     },
     "pastDue": {
-      "title": "Trial ended — {{days}} days left to pay",
-      "desc": "The workspace will be locked if payment is not received.",
-      "titleNative": "Trial ended — {{days}} day(s) until access closes",
-      "descNative": "Workspace features will be restricted after this period."
+      "title": "Payment due in {{days}} days",
+      "desc": "If you don't pay, you move down to the Free plan. Your records stay.",
+      "titleNative": "Payment due in {{days}} days",
+      "descNative": "After that you move to the Free plan."
     },
     "canceled": {
       "title": "Workspace locked — pay to restore",

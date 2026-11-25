@@ -44,7 +44,9 @@ const LimitReachedDialog: React.FC = () => {
   const { user } = useAuth();
   // 체험 중 멤버 한도 → «팀 체험으로 바꾸기» (2026-10-09 Fable 설계 6). 가능 여부는 서버 판정
   //   (/status 의 trial_plan_switch = POST trial-plan 과 같은 함수)만 본다 — 화면이 체험·결제 이력으로 스스로 판정하지 않는다.
-  const [trialSwitch, setTrialSwitch] = useState<{ next: 'basic' | 'pro' } | null>(null);
+  // 무료(멤버 1명)에서 멤버 한도 → «30일 팀 체험 시작» (2026-11-25 · 서버 /status.team_trial = POST trial-plan 무료 → basic 과 같은 함수).
+  //   결제 화면이 아니라 체험으로 보낸다(Fable 권고 — 팀이 팀으로 먼저 써 보게).
+  const [trialSwitch, setTrialSwitch] = useState<{ next: 'basic' | 'pro'; fromFree?: boolean } | null>(null);
   const [switching, setSwitching] = useState(false);
   const [switchErr, setSwitchErr] = useState('');
   const bizId = user?.business_id || null;
@@ -56,7 +58,9 @@ const LimitReachedDialog: React.FC = () => {
     (async () => {
       try {
         const d = await fetchStatus(bizId);
-        if (!alive || !d?.trial_plan_switch?.available) return;
+        if (!alive) return;
+        if (d?.team_trial?.available && d.plan?.code === 'free') { setTrialSwitch({ next: 'basic', fromFree: true }); return; }
+        if (!d?.trial_plan_switch?.available) return;
         const cur = d.plan?.code;
         if (cur === 'starter') setTrialSwitch({ next: 'basic' });
         else if (cur === 'basic') setTrialSwitch({ next: 'pro' });
@@ -102,7 +106,9 @@ const LimitReachedDialog: React.FC = () => {
       window.dispatchEvent(new CustomEvent('planq:plan-changed', { detail: { business_id: bizId } }));
       close();
     } catch {
-      setSwitchErr(t('limit.trialSwitch.error', '바꾸지 못했어요. 잠시 뒤 다시 시도하거나 플랜 화면에서 바꿔 주세요.') as string);
+      setSwitchErr((trialSwitch.fromFree
+        ? t('limit.teamTrial.error', '시작하지 못했어요. 잠시 뒤 다시 시도하거나 플랜 화면에서 시작해 주세요.')
+        : t('limit.trialSwitch.error', '바꾸지 못했어요. 잠시 뒤 다시 시도하거나 플랜 화면에서 바꿔 주세요.')) as string);
     } finally { setSwitching(false); }
   };
 
@@ -132,9 +138,13 @@ const LimitReachedDialog: React.FC = () => {
         {/* App Store 3.1.1 — 체험 플랜 바꾸기(Basic·Pro 이름)도 요금제 고르기라 앱 안에서는 숨긴다(웹은 그대로) */}
         {trialSwitch && canPurchaseInApp() && (
           <AddonHint data-testid="limit-trial-switch-hint">
-            {isOwner
-              ? t(`limit.trialSwitch.hint_${trialSwitch.next}`)
-              : t('limit.trialSwitch.memberHint', '지금은 체험 중이에요. 워크스페이스 대표가 팀 체험으로 바꾸면 더 초대할 수 있어요.')}
+            {trialSwitch.fromFree
+              ? (isOwner
+                ? t('limit.teamTrial.hint')
+                : t('limit.teamTrial.memberHint'))
+              : (isOwner
+                ? t(`limit.trialSwitch.hint_${trialSwitch.next}`)
+                : t('limit.trialSwitch.memberHint', '지금은 체험 중이에요. 워크스페이스 대표가 팀 체험으로 바꾸면 더 초대할 수 있어요.'))}
           </AddonHint>
         )}
         {switchErr && <Desc>{switchErr}</Desc>}
@@ -144,7 +154,7 @@ const LimitReachedDialog: React.FC = () => {
               면제 워크스페이스도 같이 숨긴다 — 눌러도 체크아웃이 400 이라 막다른 길. */}
           {trialSwitch && isOwner && canPurchaseInApp() ? (
             <PrimaryBtn type="button" data-testid="limit-trial-switch" disabled={switching} onClick={doTrialSwitch}>
-              {t(`limit.trialSwitch.cta_${trialSwitch.next}`)}
+              {trialSwitch.fromFree ? t('limit.teamTrial.cta') : t(`limit.trialSwitch.cta_${trialSwitch.next}`)}
             </PrimaryBtn>
           ) : canPurchaseInApp() && !detail.exempt && (
             <PrimaryBtn type="button" onClick={() => { close(); navigate(upgradeUrl); }}>

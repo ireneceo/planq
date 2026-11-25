@@ -260,7 +260,7 @@
       "ai": "AI"
     },
     "createWorkspace": "Create new workspace",
-    "createDesc": "Create a new workspace you own. A 14-day free trial starts. We'll guide you through inviting your team next.",
+    "createDesc": "Create a new workspace you own. A free trial starts (14 days solo · 30 days for teams), and when it ends you keep going on the Free plan. We'll guide you through inviting your team next.",
     "createPlaceholder": "Workspace name (e.g. My Company)",
     "createError": "Failed to create",
     "creating": "Creating…",

@@ -7,7 +7,7 @@ const {
   Business, BusinessMember, Client, Project, Conversation,
   File, BusinessStorageUsage, CueUsage, QnoteUsage, BusinessPlanHistory,
 } = require('../models');
-const { getPlan, TRIAL_COST_CAPS, TRIAL_PLAN_CODES } = require('../config/plans');
+const { getPlan, trialCostCaps, TRIAL_PLAN_CODES, TEAM_TRIAL_PLAN_CODES } = require('../config/plans');
 const { activeMemberSeatWhere } = require('./inviteExpiry');
 const { billableClientWhere, prospectWhere } = require('./clientQuota');
 
@@ -130,8 +130,9 @@ async function getEffectiveLimits(businessId) {
   if (!biz) return base;
   // 체험 중에는 외부 비용이 드는 한도(Cue·Q note 녹음)를 고른 플랜과 무관하게 캡으로 덮는다(2026-10-09 Fable 설계 3).
   //   기본 체험이 Basic 이 되면서 결제 없이 Cue 1,500·녹음 15시간이 열리지 않게. 결제 확정(active)이면 trialing 이 아니라 풀린다.
+  //   2026-11-25: 캡은 체험 플랜마다(혼자 Starter 종전 · 팀 Basic·Pro Q Note 5시간·Cue 300) — config/plans.trialCostCaps 한 곳.
   if (biz.subscription_status === 'trialing' && !exempt) {
-    for (const [k, cap] of Object.entries(TRIAL_COST_CAPS)) {
+    for (const [k, cap] of Object.entries(trialCostCaps(plan.code))) {
       if (base[k] == null || base[k] > cap) base[k] = cap;
     }
   }
@@ -197,6 +198,34 @@ async function usageExceedsPlan(businessId, targetCode) {
 }
 
 function isTrialPlanCode(code) { return TRIAL_PLAN_CODES.includes(code); }
+
+/**
+ * 무료 워크스페이스가 «30일 팀 체험» 을 시작할 수 있는가 (2026-11-25 · docs/FREE_PLAN_PROPOSAL_2026-11-25.md §7).
+ * /status 의 team_trial 과 POST /api/plan/:biz/trial-plan(무료 → basic·pro)이 **이 함수 하나**를 쓴다.
+ *   무료 ∧ 면제 아님 ∧ 플랜 결제 0건(써 본 유료 고객에게 다시 체험을 주지 않는다) ∧ 팀 체험 이력 0건.
+ *   팀 체험 이력 = 플랜 이력에 Basic·Pro 가 체험 시작(trial_start → to) 또는 체험 끝(trial_end ← from)으로 남은 것.
+ *   (첫 체험이 Basic 이었으면 끝날 때 trial_end from=basic 이 남는다 — trial.js expireTrialToFree)
+ * 반환: { available, reason } — reason: not_found | exempt | not_free | already_paid | team_trial_used
+ */
+async function teamTrialAvailability(businessId) {
+  const { biz, exempt } = await getBusinessPlan(businessId);
+  if (!biz) return { available: false, reason: 'not_found' };
+  if (exempt) return { available: false, reason: 'exempt' };
+  if (biz.plan !== 'free') return { available: false, reason: 'not_free' };
+  const { isFirstPlanPayment } = require('./billing');   // billing 이 plan 을 불러 순환 — 지연 로드
+  if (!(await isFirstPlanPayment(businessId))) return { available: false, reason: 'already_paid' };
+  const used = await BusinessPlanHistory.count({
+    where: {
+      business_id: businessId,
+      [Op.or]: [
+        { reason: 'trial_start', to_plan: { [Op.in]: TEAM_TRIAL_PLAN_CODES } },
+        { reason: 'trial_end', from_plan: { [Op.in]: TEAM_TRIAL_PLAN_CODES } },
+      ],
+    },
+  });
+  if (used > 0) return { available: false, reason: 'team_trial_used' };
+  return { available: true, reason: null };
+}
 
 function limitForJson(v) {
   return v === Infinity ? null : v;
@@ -577,6 +606,7 @@ module.exports = {
   getBusinessPlan,
   getLimit,
   getEffectiveLimits,
+  teamTrialAvailability,
   getUsage,
   getSurveySendsThisMonth,
   can,

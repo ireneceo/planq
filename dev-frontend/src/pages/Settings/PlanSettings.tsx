@@ -381,7 +381,10 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
       {/* 체험 선택지 — 「지금 결제하면 1개월 추가」 (2026-09-23).
           canPurchaseInApp(): App Store 3.1.1 — 앱 안에서는 구매 표면을 띄우지 않는다.
           자격(prepay.available)은 서버 판정이라 화면이 결제 이력을 따로 세지 않는다. */}
-      {canPurchaseInApp() && prepay?.available && !status.exempt && prepay.months > 0 && (
+      {/* 무료(2026-11-25 — 체험 끝은 무료로 내려간다)에는 «지금 플랜» 이 유료가 아니라 이 카드가 고를 플랜이 없다 → 숨긴다.
+          무료에서 결제는 아래 플랜 카드 «업그레이드» 로 고른다. 그 창에는 «1개월 추가» 보너스가 보이지 않는다
+          (체험이 끝난 곳에 보너스를 줄지는 정책 선택 — 2026-11-25 Fable 비차단 지적, Irene 결정 전 그대로). */}
+      {canPurchaseInApp() && prepay?.available && !status.exempt && prepay.months > 0 && status.plan?.code !== 'free' && (
         <PrepayCard id="prepay" data-testid="plan-prepay-card">
           <PrepayHead>
             <PrepayLabel>{t('prepay.label', '체험 선택')}</PrepayLabel>
@@ -403,9 +406,12 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                     defaultValue: '1개월 요금으로 {{total}}개월을 이용합니다. 다음 결제는 {{total}}개월 뒤이고, 그 전에 해지하면 추가 청구가 없습니다.',
                   })}
               </PrepayHint>
-              <PrepayNote>
-                {t('prepay.refundNote', '체험이 끝나기 전에 해지하면 전액 환불됩니다. 체험이 끝난 뒤의 환불은 약관 제4조(환불 정책)를 따릅니다.')}
-              </PrepayNote>
+              {/* 체험이 끝난 곳에 «체험이 끝나기 전에 해지하면 전액 환불» 은 틀린 돈 안내다 — 체험 중에만 */}
+              {status.in_trial && (
+                <PrepayNote>
+                  {t('prepay.refundNote', '체험이 끝나기 전에 해지하면 전액 환불됩니다. 체험이 끝난 뒤의 환불은 약관 제4조(환불 정책)를 따릅니다.')}
+                </PrepayNote>
+              )}
             </PrepayInfo>
             <PrepayBtn type="button" data-testid="plan-prepay-bonus" onClick={openPrepay}>
               {t('prepay.cta', '지금 결제하기')}
@@ -583,9 +589,16 @@ const PlanSettings: React.FC<Props> = ({ businessId }) => {
                       <BtnPrimary type="button" onClick={() => handleAction(p.code)}>
                         {t('comparison.upgrade')}
                       </BtnPrimary>
+                      {/* 무료 → 체험. 체험을 이미 썼으면 «30일 팀 체험»(Basic·Pro) 한 번만 — 판정은 서버 status.team_trial */}
                       {currentPlan.code === 'free' && !status.trial_ends_at && (
                         <BtnLink type="button" onClick={() => handleStartTrial(p.code as 'starter' | 'basic' | 'pro')}>
                           {t('comparison.startTrial')}
+                        </BtnLink>
+                      )}
+                      {currentPlan.code === 'free' && !!status.trial_ends_at && !!status.team_trial?.available
+                        && (p.code === 'basic' || p.code === 'pro') && (
+                        <BtnLink type="button" data-testid={`plan-team-trial-${p.code}`} onClick={() => handleStartTrial(p.code as 'basic' | 'pro')}>
+                          {t('comparison.startTeamTrial', '30일 팀 체험')}
                         </BtnLink>
                       )}
                     </>

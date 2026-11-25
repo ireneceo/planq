@@ -100,10 +100,11 @@
     "year": "yr",
     "free": "Free",
     "vat": "VAT excluded",
-    "startTrial": "Start 14-day Free Trial",
+    "startTrial": "Start free trial",
     "upgrade": "Upgrade",
     "downgrade": "Downgrade",
-    "contactSales": "Contact Sales"
+    "contactSales": "Contact Sales",
+    "startTeamTrial": "30-day team trial"
   },
   "features": {
     "members": "Members",

@@ -28,9 +28,9 @@
   "create": {
     "title": "Create a new workspace",
     "namePlaceholder": "e.g. WOR-PRO Lab, Kim Design Studio",
-    "trialNotice": "A 14-day free trial starts now. Payment is required when it ends; otherwise the workspace is locked.",
-    "trialNotice_native": "Your new workspace starts with a 14-day trial. When the trial ends, the workspace may be locked.",
-    "submit": "Create with 14-day trial",
+    "trialNotice": "You start with a free trial (14 days solo · 30 days for teams). When it ends, the workspace doesn't lock — you keep going on the Free plan.",
+    "trialNotice_native": "Your new workspace starts with a trial. It doesn't lock when the trial ends.",
+    "submit": "Create with a free trial",
     "submitting": "Creating…",
     "nameRequired": "Please enter your business name.",
     "failed": "Couldn't create it. Please try again shortly.",

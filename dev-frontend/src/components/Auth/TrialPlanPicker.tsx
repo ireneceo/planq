@@ -6,7 +6,7 @@
 // ★ 한 벌이다 — 회원가입 화면과 «새 워크스페이스 만들기» 창이 같이 쓴다(따로 그리면 선택지·문구가 갈린다).
 // ★ 고른 값은 서버가 다시 거른다(config/plans.resolveTrialPlan — 모르는 값은 starter). 여기는 표시만.
 // ★ 플랜 이름·가격 글자는 요금제 화면과 같은 키(landing pricingPage.plans.*)를 읽는다 — 두 곳이 다른 가격을 말하면 안 된다.
-// ★ 체험 중 AI·녹음 한도는 플랜과 무관하게 같다(TRIAL_COST_CAPS) — 그래서 그 한 줄을 같이 보여 준다.
+// ★ 체험 기간·AI·녹음 한도는 혼자/팀으로 갈린다(2026-11-25 — 혼자 14일·팀 30일) — 고른 쪽의 한 줄을 보여 준다.
 import React from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
@@ -65,7 +65,10 @@ const TrialPlanPicker: React.FC<Props> = ({ value, onChange, disabled, compact }
           );
         })}
       </Options>
-      <Note>{t('trialPlan.note', '14일 무료 체험 · 체험 중 AI 실행 월 50회 · 녹음 60분 · 체험 중에 언제든 바꿀 수 있어요')}</Note>
+      {/* 2026-11-25 — 혼자 14일(끝나면 무료로 계속) · 팀 30일. 서버 config/plans TRIAL_DAYS_BY_PLAN·TRIAL_COST_CAPS_BY_PLAN 과 같은 숫자 */}
+      <Note data-testid="trial-plan-note">{value === 'starter'
+        ? t('trialPlan.noteSolo', '14일 체험 · 체험이 끝나도 잠기지 않고 무료로 계속 써요 · 체험 중 AI 실행 월 50회 · 녹음 60분')
+        : t('trialPlan.noteTeam', '30일 팀 체험 · 체험 중 AI 실행 300회 · 녹음 5시간 · 끝나면 결제하거나 무료로 계속 써요')}</Note>
     </Wrap>
   );
 };

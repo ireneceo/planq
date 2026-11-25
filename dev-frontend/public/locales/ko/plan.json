@@ -100,10 +100,11 @@
     "year": "년",
     "free": "무료",
     "vat": "VAT 별도",
-    "startTrial": "14일 무료 체험",
+    "startTrial": "무료 체험 시작",
     "upgrade": "업그레이드",
     "downgrade": "다운그레이드",
-    "contactSales": "영업 문의"
+    "contactSales": "영업 문의",
+    "startTeamTrial": "30일 팀 체험"
   },
   "features": {
     "members": "멤버",

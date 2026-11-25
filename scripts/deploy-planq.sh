@@ -668,6 +668,10 @@ sync_database() {
   #   (프로젝트마다 보관 안 된 첫 내부 방이 지금 멤버 전원을 덮을 때만 켬 · 고객방 0 · 아무도 빼지 않음 · 표시 audit_logs).
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 대화방 전체가 500. docs/PROJECT_ROOM_MEMBERSHIP_DESIGN.md
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-project-auto-join.js --apply 2>&1 | grep -E 'migrate-project-auto-join|^  #' | tail -30"
+  # 2026-11-25 무료 플랜 재도입 — 옛 «체험 끝 잠금»(canceled + trial_expired_no_payment) 워크스페이스를 무료로 다시 연다(자료 그대로).
+  #   스키마 변경 없음 · 멱등 · 다른 이유의 canceled(직접 해지 등)는 안 건드림 · 안내 메일 없음(외부 발송은 Irene 승인 뒤 따로).
+  #   docs/FREE_PLAN_PROPOSAL_2026-11-25.md §8
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-locked-trial-to-free.js --apply 2>&1 | tail -30"
   # 2026-10-07 일정 ↔ 업무 연결 — calendar_events.task_id INT NULL + 인덱스. 멱등.
   #   ★ 순서: PM2 reload 보다 먼저 — 모델이 이 칸을 SELECT 하므로 없으면 캘린더 전체가 500.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-calendar-task-link.js 2>&1 | tail -6"

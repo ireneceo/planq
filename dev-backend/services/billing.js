@@ -65,7 +65,8 @@ async function subscriptionConfirmability(sub, biz, { transaction } = {}) {
   if (sub.status !== 'canceled' || sub.cancel_reason !== 'trial_expired_no_payment') return { ok: false, reason: 'subscription_superseded' };
   const live = await Subscription.count({ where: { business_id: sub.business_id, status: { [Op.in]: LIVE_SUB } }, transaction });
   if (live > 0) return { ok: false, reason: 'subscription_superseded' };
-  if (biz && biz.plan !== sub.plan_code) return { ok: false, reason: 'plan_mismatch' };
+  // 2026-11-25: 체험 끝은 잠금이 아니라 무료로 내려간다(trial.expireTrialToFree) — 무료에서 그 입금 안내로 입금하면 원래 플랜으로 되살린다.
+  if (biz && biz.plan !== sub.plan_code && biz.plan !== 'free') return { ok: false, reason: 'plan_mismatch' };
   return { ok: true, revive: true };
 }
 

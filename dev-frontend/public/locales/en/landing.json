@@ -544,7 +544,7 @@
     },
     "cta": {
       "title": "Stop managing tools. Just work.",
-      "sub": "14 days free. No credit card required.",
+      "sub": "Free for up to 3 customers. No credit card required.",
       "btn": "Start free",
       "startGuide": "Worried there’s too much? — 5 stages for teams getting started"
     }
@@ -606,7 +606,7 @@
     },
     "cta": {
       "title": "Try it before reading about it",
-      "sub": "14 days free. No credit card required.",
+      "sub": "Free for up to 3 customers. No credit card required.",
       "btn": "Start free"
     },
     "readMinutes": "{{n}} min",
@@ -620,20 +620,20 @@
   "pricingPage": {
     "eyebrow": "PRICING",
     "title": "Start free, scale as needed",
-    "sub": "Work plans for businesses and teams. 14-day free trial, no credit card, cancel anytime.",
+    "sub": "Work plans for businesses and teams. Free for up to 3 customers — paid once your team works together. No credit card, and nothing locks when a trial ends.",
     "bizOnly": "PlanQ is a work tool for businesses and organizations (including sole proprietors). There are no consumer or family plans.",
     "recommended": "Recommended",
     "plans": {
       "starter": {
         "name": "Starter",
         "price": "₩9,900/mo",
-        "sub": "Sole-proprietor businesses · 14-day trial",
+        "sub": "The plan for working solo · 14-day trial",
         "features": [
           "1 member (add-on for more)",
-          "5 customers / 5 projects",
+          "10 customers / 10 projects",
           "2GB storage",
           "Cue (AI teammate) — 50 actions/mo",
-          "Q note — 60 minutes/mo",
+          "Q note — 180 minutes/mo",
           "Q talk · Q task · Q file · Q bill basics"
         ],
         "cta": "Start 14-day trial"
@@ -650,7 +650,7 @@
           "Q note — 15 hours/mo",
           "Google Drive integration"
         ],
-        "cta": "Start Basic"
+        "cta": "30-day team trial"
       },
       "pro": {
         "name": "Pro",
@@ -664,7 +664,21 @@
           "Q note — 60 hours/mo",
           "Priority support"
         ],
-        "cta": "Start Pro"
+        "cta": "30-day team trial"
+      },
+      "free": {
+        "name": "Free",
+        "price": "₩0",
+        "sub": "Getting started solo · freelancers and invited customers",
+        "features": [
+          "1 member (you)",
+          "3 customers / 2 active projects",
+          "500MB storage",
+          "Cue (AI teammate) — 20 actions/mo",
+          "Q note — 60 minutes/mo",
+          "Nothing locks when a trial ends · your records stay"
+        ],
+        "cta": "Start free"
       }
     },
     "addon": {
@@ -694,15 +708,15 @@
       "items": {
         "cancel": {
           "q": "Can I cancel anytime?",
-          "a": "Yes. Your data isn't deleted when you cancel, and if you subscribe again you pick up right where you left off. Every new account starts with a 14-day free trial, no credit card needed."
+          "a": "Yes. Cancelling doesn't delete your data — you drop to the Free plan and keep going, and if you subscribe again you pick up right where you left off. Every new account starts with a trial (14 days solo · 30 days for teams), no credit card needed."
         },
         "team": {
           "q": "How many teammates can I invite?",
-          "a": "Starter includes 1 person, Basic 5 and Pro 10. On any plan you can add more members one at a time (₩4,900/seat/mo)."
+          "a": "Free and Starter include 1 person, Basic 5 and Pro 10. Teams can try it together for 30 days without paying. On paid plans you can add more members one at a time (₩4,900/seat/mo)."
         },
         "data": {
           "q": "Can I bring over my existing files and email?",
-          "a": "Upload existing files to Q file or import them straight from Google Drive. Connect your mailbox to Q mail to bring in received email. Knowledge and FAQs can be uploaded to Q info in one CSV, and chat starts fresh in PlanQ. If you're not sure where to start, our free «30-minute kickoff» plans the order with you, and if there's too much to move yourself, WOR-PRO Lab Studio offers bulk migration (quoted)."
+          "a": "Upload existing files to Q file or import them straight from Google Drive. Connect your mailbox to Q mail to bring in received email. Knowledge and FAQs can be uploaded to Q info in one CSV, and chat starts fresh in PlanQ. During a team trial our free «30-minute kickoff» plans the order with you, and if there's too much to move yourself, WOR-PRO Lab Studio offers bulk migration (quoted)."
         },
         "ownership": {
           "q": "Who owns the data? Can I take it with me later?",
@@ -710,7 +724,7 @@
         },
         "addon": {
           "q": "When do Addons get charged?",
-          "a": "Add-ons are available on Starter, Basic and Pro, as many as you need, and are billed monthly."
+          "a": "You can add as much as you need on the paid Starter, Basic and Pro plans, billed monthly."
         },
         "enterprise": {
           "q": "Is there an enterprise plan for larger teams?",
@@ -719,15 +733,17 @@
       }
     },
     "cta": {
-      "title": "Start your 14-day free trial",
-      "sub": "No credit card to sign up. Pay only when you decide.",
+      "title": "Start free for up to 3 customers",
+      "sub": "Sign up without a credit card — nothing locks when a trial ends. Teams get a 30-day team trial.",
       "btn": "Start free",
       "call": "Free 30-minute kickoff — workflow setup and data move →"
     },
     "consulting": {
       "text": "Need help setting it up? Experts can design and build your operating system with you (WOR-PRO Lab Studio)",
       "link": "See consulting →"
-    }
+    },
+    "freeNote": "Free plan limits may be adjusted as the service evolves. Customers always join for free on every plan.",
+    "teamTrialCta": "Working as a team? Try it together for 30 days first"
   },
   "aboutPage": {
     "eyebrow": "BRAND STORY",
@@ -785,7 +801,7 @@
     },
     "cta": {
       "title": "Let's make work, just work.",
-      "sub": "Try PlanQ free for 14 days.",
+      "sub": "Try PlanQ yourself — free for up to 3 customers.",
       "primary": "Start free",
       "secondary": "Contact us"
     },

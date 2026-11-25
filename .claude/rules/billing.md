@@ -41,8 +41,8 @@ paths:
   화면은 `status.prepay_bonus.available` 만 본다(결제 이력을 스스로 세지 않는다).
 - **결제 수단과 무관하다.** 선불이라 카드·계좌이체 둘 다 된다 — 2026-09-23 실측으로 **돈 내는 6건이
   전원 계좌이체**인데 카드 전용으로 두면 실제 고객이 아무도 못 고른다.
-- **결제를 안 하면 새로 만들 게 없다** — 기존 체험 흐름 그대로 D+14 `past_due` → D+21 잠금.
-  「결제 안 하면 취소」가 이미 성립한다(실측으로 확인).
+- **결제를 안 하면 새로 만들 게 없다** — 체험이 끝나면 무료로 내려간다(2026-11-25 — 옛 D+14 past_due → D+21 잠금은 없어졌다).
+  「결제 안 하면 취소」가 그대로 성립한다.
 - **문구** — 「2개월 뒤 다음 결제 · 그 전에 해지하면 추가 청구 없음」 + **이미 낸 1개월치는 환불
   대상이 아님**을 같이 적는다. 「2달 안에 취소하면 된다」만 쓰면 «돈이 안 나간다» 로 읽혀
   청약철회 7일과 부딪힌다.
@@ -64,9 +64,9 @@ paths:
 - **체험 중 플랜 바꾸기는 `POST /api/plan/:biz/trial-plan` 하나**(옛 start-trial 도 같은 처리기). 판정 `planEngine.canSwitchTrialPlan`(체험 중 ∧ 기간 안 ∧
   플랜 결제 0건 ∧ 면제 아님) = /status `trial_plan_switch`. 체험 종료일은 바뀌지 않는다 · 내릴 때 인원 등이 넘으면 409 `over_limit` ·
   옛 금액 사전청구는 `billing.replacePendingCheckout` 로 닫는다(cron 이 다음 날 새 플랜으로 다시 만든다).
-- **체험 중 비용 캡** — Cue 월 50·녹음 60분(`TRIAL_COST_CAPS`)은 플랜과 무관. `getEffectiveLimits` 가 덮으므로 게이트가 실제로 막는다.
+- **체험 중 비용 캡** — 혼자(Starter) Cue 월 50·녹음 60분 · 팀(Basic·Pro) Cue 300·녹음 300분(`config/plans.trialCostCaps(plan)` 한 곳). `getEffectiveLimits` 가 덮으므로 게이트가 실제로 막는다.
   화면의 사용량·남은 횟수는 `/status.effective_limits` 를 읽는다(`plan.limits` 는 정가라 캡을 모른다).
-  ★ 남은 구멍: 체험이 끝난 미결제 유예 7일엔 캡이 풀린다(Fable 비차단 — 다음 사이클).
+  (옛 «유예 7일엔 캡이 풀린다» 구멍은 체험 유예가 없어지며 닫혔다 — 2026-11-25)
 - 이력 reason 은 ENUM 이라 `trial_start` + 메모로 남기고, 감사 `plan.trial_plan_change` 로 가른다(운영 스키마 변경 없이).
 
 ## 체험 중 결제는 **체험이 끝나기 전에 해지하면 전액 환불**한다 (2026-10-09 박제)
@@ -98,3 +98,19 @@ paths:
 - 잠금 순서 pay → biz(markPaymentPaid 와 같다). 금액이 바뀌면 커밋 뒤 새 금액 입금 안내(인증 메일만).
 - 화면: `/status.pending_payment.line_items` 로 카드에 내역 · 신청 문구는 `mode`(folded·prorated·separate·next_bill).
 - 옛 청구: `scripts/backfill-pending-addon-sync.js`(dry-run 기본, 배포 슬롯 `--apply`) — 유예·체험 중 애드온 일할 청구는 `folded_into_plan` 으로 닫는다.
+
+
+## 무료 플랜 · 30일 팀 체험 · 체험 끝은 «무료로» (2026-11-25 박제)
+
+> Irene: *"우리도 무료로 사용하기가 필요한 것 같아"* → 마케팅·세일즈 의견 → ① *"권고대로 진행해 줘"* (설계·판정 `docs/FREE_PLAN_PROPOSAL_2026-11-25.md` · Fable 2회)
+
+- **무료 = 혼자 + 작은 규모** — 멤버 1 · 입장한 고객 3 · 진행 중 프로젝트 2 · Cue 20 · Q Note 60분. 1곳당 월 외부 원가 상한 약 600원. 숫자는 `config/plans.js` free 한 곳.
+  올리기는 쉽고 내리기는 어렵다 — 내리는 변경은 Irene 결정. 클로바 300분에 맞추지 않는다. «평생 무료» 를 약속하지 않는다(요금표 `pricingPage.freeNote`).
+- **체험 기간은 혼자 14 · 팀 30** — `TRIAL_DAYS_BY_PLAN`. 새 생성 지점은 `newTrialBusinessFields` 만(가드 trialplan 그대로).
+- **체험 끝 = `services/trial.expireTrialToFree` 한 함수** — 잠그지 않는다. 사전청구 구독 canceled(`trial_expired_no_payment`) · 이력 `trial_end`(from = 체험 플랜) ·
+  active 구독이 있으면 무료로 안 내리고 active 로 맞춘다. 늦은 입금은 `subscriptionConfirmability` 가 무료에서도 되살린다(plan_mismatch 예외 = 무료).
+  옛 잠금 행은 `scripts/migrate-locked-trial-to-free.js`(배포 슬롯 · 다른 이유의 canceled 는 안 건드림 · 메일 없음).
+- **팀 체험은 무료에서 한 번** — 판정 `planEngine.teamTrialAvailability` 한 곳(`/status.team_trial` · `POST trial-plan` 무료 분기 · 화면 LimitReachedDialog·PlanSettings 는 이 값만 본다).
+  «썼나» 는 플랜 이력(`trial_start` → basic/pro 또는 `trial_end` ← basic/pro)으로 읽는다 — 이력을 남기지 않는 새 체험 경로를 만들면 같이 남긴다.
+- **사람 손(시작 안내 30분)은 팀 체험에만** — `onboardingCall.availability` `solo_trial`. 무료·혼자 체험은 도움말로(Irene 시간 보호).
+- 2단계(PlanQ 표시·초과 자료 읽기 전용·휴대폰 인증·메일 상한·원가 총상한 등)는 설계 문서 §8 «아직 안 한 것».

@@ -5,43 +5,43 @@ const MB = 1024 * 1024;
 const GB = 1024 * MB;
 
 const PLANS = {
-  // (deprecated 2026-05-05) Free 플랜 폐지 — 신규 가입은 starter+trialing 14일.
-  // 기존 Free row 호환을 위해 ENUM 값과 PLANS 객체는 유지하되, PLAN_ORDER 와 toPublicJson 카탈로그에선 제외.
-  // 마이그레이션: scripts/migrate-free-to-starter.js 가 일괄 starter+trialing 부여.
+  // 무료 플랜 — 2026-05-05 폐지 → 2026-11-25 다시 엶 (Irene «권고대로» · Fable 권고 docs/FREE_PLAN_PROPOSAL_2026-11-25.md).
+  //   «혼자 + 작은 규모(고객 3·프로젝트 2)» 까지 무료. 체험이 끝나거나 유료 미결제면 잠그지 않고 여기로 내려온다.
+  //   ★ 1곳당 월 외부 원가 상한 약 600원(Q Note 60분 ≈ 460원 + Cue 20회 ≈ 50원 + 저장·메일). 한도는 올리기는 쉽고 내리기는 어렵다.
+  //   ★ «평생 무료» 를 약속하지 않는다 — 요금표에 «무료 한도는 조정될 수 있음».
   free: {
     code: 'free',
     name: 'Free',
-    name_ko: '프리',
+    name_ko: '무료',
     price_monthly: { KRW: 0, USD: 0 },
     price_yearly:  { KRW: 0, USD: 0 },
-    target: '(deprecated)',
-    target_ko: '(deprecated)',
+    target: 'Solo · getting started',
+    target_ko: '혼자 시작 · 프리랜서·초대받은 고객',
     limits: {
       members_max: 1,
       clients_max: 3,
       // Q sale 문의 고객(prospect) 별도 상한 — 정식 고객 한도의 3배. 계산식이 아니라 값으로 둔다(한 곳만 고치게)
       prospects_max: 9,
-      projects_max: 2,
-      conversations_max: 5,
-      storage_bytes: 200 * MB,
+      projects_max: 2,            // 진행 중(active·paused)만 센다 — 끝난 프로젝트는 안 셈
+      conversations_max: 5,       // 고객 3 + 여유 2
+      storage_bytes: 500 * MB,
       file_size_max_bytes: 25 * MB,
-      cue_actions_monthly: 30,
-      qnote_minutes_monthly: 60,
-      // 설문 발송 월 한도(받는 사람 1명 = 1건, 수동·자동 공통 — 2026-10-12 Irene «권고대로», docs/SURVEY_V2_DESIGN.md §7.4)
-      survey_sends_monthly: 20,
+      cue_actions_monthly: 20,
+      qnote_minutes_monthly: 60,  // 회의 한 번을 끝까지 담는 최소(클로바 300분은 따라가지 않는다)
+      // 설문 발송 월 한도(받는 사람 1명 = 1건) — Fable «설문 월 3개» × 고객 3명 ≈ 10건
+      survey_sends_monthly: 10,
       trash_retention_days: 30,   // 0-D: 휴지통 하한 30일(services/retentionPolicy TRASH_MIN_DAYS 래칫과 두 겹)
       audit_log_retention_days: 30,
     },
     features: {
       external_cloud: true,
-      data_export: false,
+      data_export: true,          // «들어오기 쉽고 나가기 쉽다» — 무료도 내 기록은 내려받는다
       api_access: false,
       sso: false,
       priority_support: false,
     },
     support: 'community',
     sla: null,
-    deprecated: true,
   },
 
   starter: {
@@ -50,18 +50,20 @@ const PLANS = {
     name_ko: '스타터',
     price_monthly: { KRW: 9_900,  USD: 9 },
     price_yearly:  { KRW: 99_000, USD: 90 },  // 2달 무료
-    target: '1인 프리랜서·신규 14일 체험',
-    target_ko: '1인 프리랜서·신규 14일 체험',
+    target: '1인 사업자·혼자 일하는 본 요금',
+    target_ko: '1인 사업자·혼자 일하는 본 요금',
+    // 2026-11-25 무료 재도입과 함께 가격 그대로 한도만 올림(고객 5→10 · 프로젝트 5→10 · Q Note 60→180분 · PlanQ 표시 없음).
+    //   올리지 않으면 무료와의 차이가 고객 2명뿐이라 살 이유가 사라진다. 다 써도 외부 원가 약 1,500원(요금의 15%).
     limits: {
       members_max: 1,
-      clients_max: 5,
-      prospects_max: 15,
-      projects_max: 5,
-      conversations_max: 10,
+      clients_max: 10,
+      prospects_max: 30,
+      projects_max: 10,
+      conversations_max: 20,
       storage_bytes: 2 * GB,
       file_size_max_bytes: 100 * MB,
       cue_actions_monthly: 50,
-      qnote_minutes_monthly: 60,
+      qnote_minutes_monthly: 180,
       // 설문 발송 월 한도(받는 사람 1명 = 1건, 수동·자동 공통 — 2026-10-12 Irene «권고대로», docs/SURVEY_V2_DESIGN.md §7.4)
       survey_sends_monthly: 20,
       trash_retention_days: 30,   // 0-D: 하한 30일
@@ -185,8 +187,8 @@ const PLANS = {
   },
 };
 
-// 'free' 폐지 (2026-05-05) — 카탈로그·노출에서 제외. ENUM 호환을 위해 PLANS.free 객체 자체는 유지.
-const PLAN_ORDER = ['starter', 'basic', 'pro', 'enterprise'];
+// 2026-11-25 free 다시 카탈로그에 — 무료가 맨 앞(planAtLeast 순서의 바닥).
+const PLAN_ORDER = ['free', 'starter', 'basic', 'pro', 'enterprise'];
 
 // ─── Add-on 카탈로그 ───
 // 워크스페이스가 plan.limits 위에 추가 슬롯·시간을 구매하는 단위. quota 검사 시 plan.limits + addon 합산.
@@ -297,7 +299,7 @@ function planSummaryForPrompt() {
     const p = PLANS[code];
     const L = p.limits;
     const krw = p.price_monthly?.KRW;
-    const price = krw == null ? '맞춤 견적' : `월 ${krw.toLocaleString('ko-KR')}원`;
+    const price = krw == null ? '맞춤 견적' : (krw === 0 ? '무료' : `월 ${krw.toLocaleString('ko-KR')}원`);
     if (krw == null) return `• ${p.name} — ${price}`;
     return `• ${p.name} — ${price} · 멤버 ${fmtLimit(L.members_max)} · 고객 ${fmtLimit(L.clients_max)}`
       + ` · 프로젝트 ${fmtLimit(L.projects_max)} · Cue ${fmtLimit(L.cue_actions_monthly)}회/월`
@@ -339,21 +341,40 @@ function bonusMonthsForTrialOption(code) {
 // ★ 체험 중 외부 비용이 드는 한도(Cue·Q note 녹음)는 고른 플랜과 무관하게 아래 캡을 쓴다.
 //   멤버·고객·프로젝트·저장소는 고른 플랜 그대로 — 체험의 목적이 «팀으로 써 보기» 다. 결제가 확정되면(active) 풀린다.
 const TRIAL_PLAN_CODES = ['starter', 'basic', 'pro'];
-const TRIAL_DAYS = 14;
+// 체험 기간 — 혼자(Starter) 14일 · 팀(Basic·Pro) 30일 (2026-11-25 «30일 팀 체험», Fable: 협업 도구는 혼자서 14일 만에 평가할 수 없다).
+const TRIAL_DAYS_BY_PLAN = { starter: 14, basic: 30, pro: 30 };
+const TRIAL_DAYS = TRIAL_DAYS_BY_PLAN.starter;   // 옛 이름 — «가장 짧은 체험» 으로 남긴다
 // 화면(TrialPlanPicker DEFAULT_TRIAL_PLAN)의 처음 선택과 맞추는 표시용 값 — 서버는 읽지 않는다.
 //   plan_code 가 없는 요청(옛 화면·API)은 basic 이 아니라 starter(가장 좁은 쪽)로 떨어진다.
 const DEFAULT_SIGNUP_PLAN = 'basic';
-const TRIAL_COST_CAPS = { cue_actions_monthly: 50, qnote_minutes_monthly: 60 };
+// 체험 중 외부 비용 캡 — 혼자 체험은 종전 그대로, 팀 체험은 Q Note 5시간·Cue 300회(다 써도 1회 약 3,000원).
+//   상한 없이 Basic 을 그대로 풀면 원가가 최대 요금의 절반 가까이 든다.
+const TRIAL_COST_CAPS_BY_PLAN = {
+  starter: { cue_actions_monthly: 50, qnote_minutes_monthly: 60 },
+  basic:   { cue_actions_monthly: 300, qnote_minutes_monthly: 300 },
+  pro:     { cue_actions_monthly: 300, qnote_minutes_monthly: 300 },
+};
+const TRIAL_COST_CAPS = TRIAL_COST_CAPS_BY_PLAN.starter;   // 옛 이름(가장 좁은 캡) — 새 코드는 trialCostCaps(plan)
+function trialCostCaps(planCode) {
+  return TRIAL_COST_CAPS_BY_PLAN[planCode] || TRIAL_COST_CAPS_BY_PLAN.starter;
+}
+// 팀 체험 = Basic·Pro 로 하는 체험. 무료로 내려온 워크스페이스가 한 번 더 받을 수 있는 것은 이것뿐이다(planEngine.teamTrialAvailability).
+const TEAM_TRIAL_PLAN_CODES = ['basic', 'pro'];
 
 function resolveTrialPlan(code) {
   return TRIAL_PLAN_CODES.includes(code) ? code : 'starter';
 }
 
+function trialDaysFor(planCode) {
+  return TRIAL_DAYS_BY_PLAN[resolveTrialPlan(planCode)];
+}
+
 function newTrialBusinessFields(code, now = new Date()) {
+  const plan = resolveTrialPlan(code);
   return {
-    plan: resolveTrialPlan(code),
+    plan,
     subscription_status: 'trialing',
-    trial_ends_at: new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000),
+    trial_ends_at: new Date(now.getTime() + TRIAL_DAYS_BY_PLAN[plan] * 24 * 60 * 60 * 1000),
   };
 }
 
@@ -384,7 +405,12 @@ module.exports = {
   getTrialOption,
   bonusMonthsForTrialOption,
   TRIAL_PLAN_CODES,
+  TEAM_TRIAL_PLAN_CODES,
   TRIAL_DAYS,
+  TRIAL_DAYS_BY_PLAN,
+  trialDaysFor,
+  TRIAL_COST_CAPS_BY_PLAN,
+  trialCostCaps,
   DEFAULT_SIGNUP_PLAN,
   TRIAL_COST_CAPS,
   resolveTrialPlan,

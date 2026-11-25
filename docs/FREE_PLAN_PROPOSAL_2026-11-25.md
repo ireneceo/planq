@@ -160,3 +160,26 @@ Q Note 무료 분량별 1곳당 월 원가(다 썼을 때): 300분 약 2,300원 
 | **① 무료(혼자) + 팀 체험 30일(권고)** | 프리랜서·초대받은 고객은 무료로, 팀은 체험으로 들어온다. Basic 매출 그대로 |
 | ② 무료(혼자)만 | 만들 것이 적다. 팀이 팀으로 써 볼 길이 없어 «개인용 도구» 로 읽힌다 |
 | ③ 팀까지 무료(예: 3명) | 유입이 가장 크다. 작은 팀이 Basic 을 안 사고 원가·문의가 늘며, 되돌리기 어렵다 |
+
+---
+
+## 8. 구현 1단계 (2026-11-25 · Irene «권고대로 진행해 줘» → ① 무료(혼자) + 30일 팀 체험 · [Opus] · Fable 2회는 정책 판정에 씀 — 완료 검증은 Fable 대기)
+
+**한 것 (개발 서버)**
+| 무엇 | 어디 |
+|---|---|
+| 무료 플랜 되살림 — 멤버 1 · 고객 3(입장한 고객) · 진행 중 프로젝트 2 · 대화 5 · 500MB · Cue 20 · Q Note 60분 · 설문 10 · 내보내기 됨 · 카탈로그 맨 앞 | `config/plans.js` free · `PLAN_ORDER` |
+| Starter 가격 그대로 한도만 올림 — 고객 10 · 프로젝트 10 · 대화 20 · Q Note 180분 | `config/plans.js` starter |
+| 체험 기간 혼자 14일 · 팀(Basic·Pro) 30일 / 체험 캡 혼자 Cue 50·녹음 60 · 팀 Cue 300·녹음 300 | `TRIAL_DAYS_BY_PLAN` · `TRIAL_COST_CAPS_BY_PLAN` · `plan.getEffectiveLimits` |
+| **체험 끝 → 잠금 대신 무료** (유예 7일·잠금 없앰). 사전청구 구독은 canceled(trial_expired_no_payment) — 늦게 입금하면 원래 플랜으로 되살림 | `services/trial.expireTrialToFree` · `billing.subscriptionConfirmability`(무료에서도 되살림) |
+| 옛 잠금 워크스페이스 → 무료로 다시 엶(안내 메일 없음) | `scripts/migrate-locked-trial-to-free.js`(읽기만 기본 · `--apply` · 배포 슬롯 등록) |
+| 무료 → «30일 팀 체험» 한 번 — 자격: 무료 ∧ 면제 아님 ∧ 플랜 결제 0건 ∧ 팀 체험 이력 0건 | `planEngine.teamTrialAvailability` = `/status.team_trial` = `POST /api/plan/:biz/trial-plan`(처리기 `routes/plan_trial.js`) |
+| 시작 안내 30분은 팀 체험에만 | `services/onboardingCall.availability` (`solo_trial`) |
+| 화면 — 요금표 4칸(₩0)·팀 체험 링크·«무료 한도 조정 가능» · 가입 고르기 혼자/팀 안내 · 무료에서 멤버 한도 창 «30일 팀 체험 시작» · 플랜 설정 «30일 팀 체험» · 배너 «잠기지 않고 무료로» | PricingPage · TrialPlanPicker · LimitReachedDialog · PlanSettings · locales ko/en |
+
+**아직 안 한 것 (2단계 — 따로 설계·Fable)**
+- 무료의 «PlanQ 표시»(고객 화면·메일·청구서) + «나도 무료로 시작» 문 — 요금표에도 아직 적지 않았다(없는 기능을 말하지 않게)
+- 한도 넘는 기존 자료 «계속 쓸 고객 3·프로젝트 2 고르기 → 나머지 읽기 전용» · 무료로 내려간 팀의 멤버 읽기 전용 — 지금은 새로 만들기만 막힌다
+- 휴대폰 인증·한 사람당 무료 1곳(외부 문자 서비스 필요) · 외부 메일 하루 20통 · 무료 전체 AI 원가 월 상한 · 무료 녹음 한 채널 · 90일 미접속 잠자기
+- 주 1회 «연락할 곳 10곳» 목록 · 업종별 검색 글 · 스토어 문구 점검 · 옛 잠금·문의자 «다시 열렸습니다» 메일(Irene 승인 뒤)
+- 운영 기준선(가입 수·체험 뒤 결제율·Starter 곳 수) — 배포 전에 읽기

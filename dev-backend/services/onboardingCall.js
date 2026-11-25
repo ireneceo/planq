@@ -126,6 +126,8 @@ async function availability(businessId, userId) {
   if (open) out.requested_at = open.createdAt;   // underscored 모델 — 속성 이름은 createdAt(칸 이름은 created_at)
   if (!bp || !bp.inTrial) { out.reason = 'not_trial'; return out; }
   if (bp.exempt) { out.reason = 'exempt'; return out; }
+  // 2026-11-25 무료 재도입 — 사람 손(시작 안내 30분)은 «팀 체험»(Basic·Pro)에만 쓴다. 혼자 체험·무료는 도움말로(Irene 시간 보호 · Fable 권고).
+  if (!require('../config/plans').TEAM_TRIAL_PLAN_CODES.includes(out.plan)) { out.reason = 'solo_trial'; return out; }
   if (!member || !['owner', 'admin'].includes(member.role)) { out.reason = 'role'; return out; }
   if (open) { out.reason = 'already_requested'; return out; }
   out.available = true;

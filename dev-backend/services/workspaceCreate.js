@@ -4,7 +4,7 @@
 //   그 버튼이 POST /api/businesses → 이 함수 하나를 부른다. 옛 세 벌(register · oauth setupNewWorkspace ·
 //   businesses POST)은 지웠다. 체험 필드는 config/plans.newTrialBusinessFields 하나(가드 trialplan).
 const bcrypt = require('bcryptjs');
-const { Business, BusinessMember, User } = require('../models');
+const { Business, BusinessMember, BusinessPlanHistory, User } = require('../models');
 
 async function uniqueSlug(name, transaction) {
   // slug 자동 생성 (한글 등 비ASCII 면 ws-랜덤). 충돌 시 -2, -3 …
@@ -39,7 +39,7 @@ async function createWorkspace(userId, { name, brand_name_en = null, lang = 'ko'
   const bName = String(name || '').trim();
   const language = lang === 'en' ? 'en' : 'ko';
   const slug = await uniqueSlug(bName, transaction);
-  // 새 워크스페이스 = 고른 플랜으로 14일 체험 (모르는 값 → starter)
+  // 새 워크스페이스 = 고른 플랜으로 체험(혼자 14일 · 팀 30일 · 모르는 값 → starter)
   const trialFields = require('../config/plans').newTrialBusinessFields(plan_code);
   const business = await Business.create({
     name: bName, brand_name: bName,
@@ -52,6 +52,12 @@ async function createWorkspace(userId, { name, brand_name_en = null, lang = 'ko'
 
   await BusinessMember.create({
     business_id: business.id, user_id: userId, role: 'owner', joined_at: new Date(),
+  }, { transaction });
+  // 체험 시작 이력 — planEngine.teamTrialAvailability 가 «팀 체험을 이미 썼나» 를 이력으로 읽는다(2026-11-25 Fable 비차단 ②:
+  //   Basic 으로 시작해 체험 중 Starter 로 바꾼 뒤 끝나면 팀 체험을 한 번 더 받던 틈).
+  await BusinessPlanHistory.create({
+    business_id: business.id, from_plan: null, to_plan: trialFields.plan, reason: 'trial_start',
+    changed_by: userId, note: '가입 체험 시작',
   }, { transaction });
 
   // Cue 시스템 계정 (AI 팀원) — 워크스페이스 필수
