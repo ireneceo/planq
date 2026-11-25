@@ -1,0 +1,30 @@
+{
+  "comment": "scripts/native-link-paths.js 에서 node scripts/cap-link-domains.js 가 쓴다 — 손으로 고치지 않는다",
+  "prefixes": [
+    "/inbox",
+    "/notifications",
+    "/dashboard",
+    "/home",
+    "/talk",
+    "/task",
+    "/projects",
+    "/docs",
+    "/notes",
+    "/calendar",
+    "/mail",
+    "/files",
+    "/info",
+    "/bills",
+    "/sale",
+    "/signatures",
+    "/attendance",
+    "/stats",
+    "/whats-new",
+    "/personal-vault",
+    "/business/",
+    "/settings",
+    "/profile",
+    "/me/",
+    "/admin"
+  ]
+}

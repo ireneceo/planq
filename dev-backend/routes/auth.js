@@ -229,6 +229,9 @@ const getUserWithBusiness = async (userId, opts = {}) => {
   //   platform 이 없어 /me 를 한 번 더 불러야 했다(왕복 2회). 같은 값의 공식이 두 벌이면
   //   반드시 갈라지므로 라우트별로 덧붙이지 않고 **이 단일 원천에서** 만든다.
   await attachPlatform(userData);
+  // 브라우저 «데스크탑 앱에서 열기» 띠를 보여도 되는가 — 받을 수 있는 데스크탑 세션이 살아 있다(services/desktopOpenLinks · 2026-11-25).
+  //   부팅은 /me 가 아니라 refresh 응답의 사용자를 쓰므로 단일 원천인 여기에 싣는다.
+  userData.desktop_open_links = await require('../services/desktopOpenLinks').hasOpenLinksDesktop(user.id);
   return userData;
 };
 
@@ -669,7 +672,7 @@ router.post('/refresh', async (req, res, next) => {
             const inheritKind = tokenRow.client_kind || 'web';
             const accessTok = generateAccessToken(user);
             const healToken = generateRefreshToken(user, inheritKind, persist);
-            const healRow = await createRefreshTokenRow(user, healToken, req, null, { clientKind: inheritKind });
+            const healRow = await createRefreshTokenRow(user, healToken, req, null, { clientKind: inheritKind, openLinks: tokenRow.open_links === true });
             // 미수령 후속은 폐기 — 놔두면 회전마다 체인이 갈라져 활성 row 가 무한 증식한다.
             await succ.update({ revoked_at: new Date(), revoked_reason: 'superseded_undelivered', replaced_by_id: healRow.id });
             await tokenRow.update({ replaced_by_id: healRow.id });
@@ -711,7 +714,7 @@ router.post('/refresh', async (req, res, next) => {
             if (!tokenRow.grace_successor_id) {
               const inheritKind = tokenRow.client_kind || 'web';
               const healToken = generateRefreshToken(user, inheritKind, persist);
-              const healRow = await createRefreshTokenRow(user, healToken, req, null, { clientKind: inheritKind });
+              const healRow = await createRefreshTokenRow(user, healToken, req, null, { clientKind: inheritKind, openLinks: tokenRow.open_links === true });
               await tokenRow.update({ grace_successor_id: healRow.id });
               setRefreshCookies(res, healToken, healRow, persist);
               authWarn(
@@ -767,7 +770,7 @@ router.post('/refresh', async (req, res, next) => {
     const newAccessToken = generateAccessToken(user);
     const newRefreshToken = generateRefreshToken(user, inheritKind, persist);
 
-    const successorRow = await createRefreshTokenRow(user, newRefreshToken, req, null, { clientKind: inheritKind });
+    const successorRow = await createRefreshTokenRow(user, newRefreshToken, req, null, { clientKind: inheritKind, openLinks: tokenRow.open_links === true });
     await tokenRow.update({
       revoked_at: new Date(),
       revoked_reason: 'rotated',

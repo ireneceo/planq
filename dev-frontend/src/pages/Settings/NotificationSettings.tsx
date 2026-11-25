@@ -10,6 +10,7 @@ import { InboxIcon, ChatIcon, MailIcon } from '../../components/Common/Icons';
 import AutoSaveField from '../../components/Common/AutoSaveField';
 import { Switch, SwitchKnob } from '../../components/Common/switchShell';
 import PwaInstallSection from './PwaInstallSection';
+import DesktopLinkPrefSection from './DesktopLinkPrefSection';
 import MailPerAccountNotifySection from './MailPerAccountNotifySection';
 import WeeklyReviewAutoSection from '../../components/QTask/WeeklyReviewAutoSection';
 
@@ -176,6 +177,7 @@ const NotificationSettings: React.FC<Props> = ({ businessId }) => {
   return (
     <Wrap>
       <PwaInstallSection />
+      <DesktopLinkPrefSection />
       <PushSection businessId={businessId} />
       <WeeklyReviewAutoSection businessId={businessId} />
 

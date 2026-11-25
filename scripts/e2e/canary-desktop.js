@@ -223,6 +223,32 @@ async function run() {
     push('G 능력 표시 — 리눅스 메인·팝아웃 모두 systemAudio false · Store 아님', !!capMain && capMain.systemAudio === false && capMain.autoLaunchViaOs === false
       && !!capPop && capPop.systemAudio === false, JSON.stringify({ capMain, capPop }));
 
+    // ── H 브라우저 «데스크탑 앱에서 열기»(planq://open · 2026-11-25) — 판정 desktop/src/openLink.js · 웹 DesktopBridge ──
+    {
+      const [[ow]] = await sequelize.query("SELECT id FROM users WHERE email='owner@test.planq.kr'");
+      const capH = await mainPage.evaluate(() => (window.planqDesktop.capabilities || {}).openLinks === true);
+      const markRow = await waitFor(async () => {
+        const [[r]] = await sequelize.query("SELECT id FROM refresh_tokens WHERE user_id=? AND client_kind='desktop' AND open_links=1 AND revoked_at IS NULL AND expires_at > NOW() ORDER BY id DESC LIMIT 1", { replacements: [ow.id] });
+        return r || null;
+      }, 15000, 1000);
+      push('H 껍데기 openLinks 능력 + 세션 표시(open_links=1)', capH && !!markRow, JSON.stringify({ capH, row: markRow && markRow.id }));
+      await mainPage.evaluate(() => { window.__pqNoReload = 1; });
+      const openH = (url, u) => mainPage.evaluate((x) => window.planqDesktop.__test.deepLink(x), `planq://open?url=${encodeURIComponent(url)}${u ? `&u=${u}` : ''}`);
+      await openH(`${ORIGIN}/docs?h=1`, ow.id);
+      const moved = await waitFor(async () => (new URL(mainPage.url()).pathname === '/docs' ? mainPage.url() : null), 10000, 300);
+      const kept = await mainPage.evaluate(() => window.__pqNoReload === 1).catch(() => false);
+      push('H 같은 계정 링크 → 앱 안에서 그 화면으로(문서 다시 읽지 않음)', !!moved && kept, `${(moved || mainPage.url()).replace(ORIGIN, '')} · noReload ${kept}`);
+      const before = mainPage.url();
+      await openH('https://evil.example/docs?h=2', ow.id);
+      await openH(`${ORIGIN}/public/doc/x`, ow.id);
+      await openH(`${ORIGIN === 'https://planq.kr' ? 'https://dev.planq.kr' : 'https://planq.kr'}/inbox`, ow.id);
+      await sleep(2000);
+      push('H 다른 출처·공개 미리보기·다른 서버 링크는 버림', mainPage.url() === before, mainPage.url().replace(ORIGIN, ''));
+      await openH(`${ORIGIN}/inbox?h=3`, ow.id + 99999);
+      const band = await waitFor(() => mainPage.evaluate(() => !!document.querySelector('[data-testid="desktop-handoff-other"]')), 8000, 300);
+      push('H 다른 계정 링크 → 이동 안 함 + 까닭 띠', !!band && mainPage.url() === before, mainPage.url().replace(ORIGIN, ''));
+    }
+
     // ── F 로그인 복귀(planq://) ──
     const [[mem2]] = await sequelize.query("SELECT id FROM users WHERE email='member2@test.planq.kr'");
     const jti = `${mem2.id}-${Date.now()}-desk`;

@@ -72,6 +72,8 @@ export interface User {
   /** 지금 워크스페이스에서 출퇴근을 기록하는가 — false = 대표·관리자가 «출퇴근 안 함» 으로 정함(utils/workspaceModules.attendanceTrackedHere) */
   attendance_tracked?: boolean;
   can_manage_payroll?: boolean;
+  /** 받을 수 있는 데스크탑 앱 세션이 살아 있다 — 브라우저 «데스크탑 앱에서 열기» 띠(utils/desktopHandoff · 서버 getUserWithBusiness 가 싣는다) */
+  desktop_open_links?: boolean;
   // 사이드바 «메뉴 편집» — 이 워크스페이스에서 내가 고른 순서·숨김(서버 services/navPrefs). null = 기본 그대로
   nav_prefs?: NavPrefs | null;
   // 표 열 설정(순서·폭·숨김) — 사람 × 워크스페이스(서버 services/tablePrefs). null = 전부 기본
@@ -729,6 +731,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     modules: (apiUser.modules as { payroll: boolean; attendance?: boolean; doc_billing_terms?: boolean }) || null,
     attendance_tracked: apiUser.attendance_tracked !== false,
     can_manage_payroll: !!apiUser.can_manage_payroll,
+    desktop_open_links: apiUser.desktop_open_links === true,
     nav_prefs: (apiUser.nav_prefs as NavPrefs) || null,
     table_prefs: (apiUser.table_prefs as User['table_prefs']) || null,
     workspaces: (apiUser.workspaces as WorkspaceMembership[]) || [],

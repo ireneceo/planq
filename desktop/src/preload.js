@@ -14,6 +14,17 @@ function listen(channel, cb) {
   return () => ipcRenderer.removeListener(channel, h);
 }
 
+// planq://open 으로 온 이동 — 창이 막 뜬 때는 웹이 아직 듣지 않는다. 마지막 한 건을 15초 들고 있다가 onOpenLink 가 붙을 때 건넨다.
+let openCb = null;
+let openHeld = null;
+const cleanOpen = (v) => (v && typeof v === 'object' && typeof v.path === 'string' && v.path.startsWith('/') && !v.path.startsWith('//')
+  ? { path: v.path.slice(0, 1000), u: typeof v.u === 'number' && Number.isInteger(v.u) ? v.u : null } : null);
+ipcRenderer.on('planq:open-link', (_e, v) => {
+  const o = cleanOpen(v);
+  if (!o) return;
+  if (openCb) { try { openCb(o); } catch { /* 화면 몫 */ } } else openHeld = { o, at: Date.now() };
+});
+
 const bridge = {
   version: (process.argv.find((a) => a.startsWith('--planq-version=')) || '').slice('--planq-version='.length),
   platform: process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux',
@@ -22,6 +33,7 @@ const bridge = {
     systemAudio: process.argv.includes('--planq-system-audio'),   // 메인 창 + 윈도우만 — 실제 허락은 main 이 요청마다 판정·확인창
     autoLaunchViaOs: process.argv.includes('--planq-store'),      // Microsoft Store 설치본 — 자동 실행은 윈도우 «시작 앱» 설정에서
     unloadPrompt: process.argv.includes('--planq-unload-prompt'),  // 떠나기 전에 묻기를 main 이 대화창으로 받는다 — 웹이 데스크탑에서 beforeunload 를 걸어도 되는가
+    openLinks: process.argv.includes('--planq-open-links'),        // 브라우저 «데스크탑 앱에서 열기»(planq://open)를 받는다 — 웹이 자기 세션에 표시(서버 open_links)
   }),
   setAlwaysOnTop: (on) => invoke('planq:set-always-on-top', !!on),
   notify: (n) => invoke('planq:notify', n && typeof n === 'object' ? {
@@ -34,6 +46,14 @@ const bridge = {
   setAutoLaunch: (on) => invoke('planq:set-auto-launch', !!on),
   onNotificationClick: (cb) => listen('planq:notification-click', (link) => cb(typeof link === 'string' ? link : null)),
   onDeepLink: (cb) => listen('planq:deep-link', (url) => { if (typeof url === 'string') cb(url); }),
+  onOpenLink: (cb) => {
+    if (typeof cb !== 'function') return () => {};
+    openCb = cb;
+    const held = openHeld;
+    openHeld = null;
+    if (held && Date.now() - held.at < 15000) { try { cb(held.o); } catch { /* 화면 몫 */ } }
+    return () => { if (openCb === cb) openCb = null; };
+  },
   // 2단계 C — 전역 단축키 «빠른 업무 추가». 바꾸기는 메인 창만(main 이 거절) · 형식 검증은 main
   getShortcut: () => invoke('planq:get-shortcut'),
   setShortcut: (req) => invoke('planq:set-shortcut', req && typeof req === 'object' ? {

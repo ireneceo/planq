@@ -1502,6 +1502,23 @@ function checkDocFresh() {
 }
 
 // ═══════════════════════════════════════════════
+// applinks — «앱으로 여는 링크» 앱 경로 목록이 한 정본(scripts/native-link-paths.js)과 같은가 (2026-11-25)
+//   데스크탑 껍데기(desktop/src/link-paths.json)·브라우저 띠(dev-frontend/src/utils/desktopHandoff.ts APP_LINK_PREFIXES) 복사본.
+//   어긋나면 브라우저가 띠를 보였는데 앱이 버리거나(빈 동작), 앱이 받을 화면을 브라우저가 안 넘긴다.
+function checkAppLinks() {
+  const bad = [];
+  const want = JSON.stringify(require(path.join(ROOT, 'scripts/native-link-paths.js')).prefixes);
+  try {
+    const d = JSON.parse(read(path.join(ROOT, 'desktop/src/link-paths.json'))).prefixes;
+    if (JSON.stringify(d) !== want) bad.push('desktop/src/link-paths.json ≠ 정본 — node scripts/cap-link-domains.js');
+  } catch { bad.push('desktop/src/link-paths.json 을 읽지 못했다 — node scripts/cap-link-domains.js'); }
+  const src = read(path.join(ROOT, 'dev-frontend/src/utils/desktopHandoff.ts'));
+  const m = /APP_LINK_PREFIXES = \[([\s\S]*?)\];/.exec(src);
+  const fe = m ? [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]) : null;
+  if (!fe || JSON.stringify(fe) !== want) bad.push('dev-frontend/src/utils/desktopHandoff.ts APP_LINK_PREFIXES ≠ 정본(scripts/native-link-paths.js)');
+  report('applinks', '앱 링크 경로 복사본 = 정본', bad.length === 0, bad);
+}
+
 // spalink — 존재하지 않는 SPA 라우트로 보내는 링크 0건 (하드 게이트)
 //
 // 운영 #246 계열: `/qtalk` `/qmail` `/qtask` `/qnote` `/qbill` `/documents/:id` 처럼
@@ -4172,6 +4189,7 @@ const CATEGORIES = {
   agentsurface: checkAgentSurface,
   godfile: checkGodfile,
   spalink: checkSpaLink,
+  applinks: checkAppLinks,
   panelhandle: checkPanelHandle,
   docfresh: checkDocFresh,
   schemacol: checkSchemaCol,

@@ -42,6 +42,13 @@ if (!/^https:\/\/(dev\.)?planq\.kr$/.test(origin)) { console.error(`[desktop-bui
 const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
 const electronVersion = String(pkg.devDependencies.electron).replace(/^[^\d]*/, '');
 
+// planq://open 앱 경로 — 정본(scripts/native-link-paths.js)과 다르면 만들지 않는다(2026-11-25)
+{
+  const want = require(path.join(ROOT, '..', 'scripts', 'native-link-paths.js')).prefixes;
+  const have = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'link-paths.json'), 'utf8')).prefixes;
+  if (JSON.stringify(want) !== JSON.stringify(have)) { console.error('[desktop-build] src/link-paths.json 이 정본과 다르다 — node scripts/cap-link-domains.js'); process.exit(2); }
+}
+
 // ── 1) .stage ──
 fs.rmSync(STAGE, { recursive: true, force: true });
 fs.mkdirSync(path.join(STAGE, 'src'), { recursive: true });

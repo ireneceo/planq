@@ -107,4 +107,13 @@ router.post('/accounts/add-intent', authenticateToken, async (req, res, next) =>
   } catch (e) { next(e); }
 });
 
+// POST /api/auth/desktop-open-links — 데스크탑 껍데기 안 웹이 «이 세션은 planq://open 을 받는다» 를 자기 토큰 행에 표시
+//   (Fable 설계 판정 4 · services/desktopOpenLinks). 자기 쿠키의 desktop 행만 · 다른 종류면 marked:false.
+// audit-exempt: 세션 능력 표시(링크 넘겨주기 띠를 보일지) — 업무 데이터·권한 변경 아님
+router.post('/desktop-open-links', authenticateToken, async (req, res, next) => {
+  try {
+    successResponse(res, await require('../services/desktopOpenLinks').markFromRequest(req));
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

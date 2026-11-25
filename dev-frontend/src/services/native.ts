@@ -22,6 +22,8 @@ export interface PlanqDesktopBridge {
     autoLaunchViaOs?: boolean;
     /** 페이지가 beforeunload 로 막으면 main 이 네이티브 대화창으로 묻는다(옛 껍데기 = 대화창 없이 조용히 닫기 취소 → 웹이 묻지 않는다) */
     unloadPrompt?: boolean;
+    /** 브라우저 «데스크탑 앱에서 열기»(planq://open)를 받는다 — 웹이 자기 세션에 표시한다(POST /auth/desktop-open-links) */
+    openLinks?: boolean;
   };
   /** 이 창(부른 창 자신)을 «항상 위» 로 / 풀기 */
   setAlwaysOnTop: (on: boolean) => Promise<boolean>;
@@ -46,6 +48,8 @@ export interface PlanqDesktopBridge {
   onQuickAdd?: (cb: () => void) => () => void;
   /** 점프 목록·맥 메뉴 «Q task·Q talk·Q note 열기» */
   onAction?: (cb: (tool: 'qtask' | 'qtalk' | 'qnote') => void) => () => void;
+  /** 브라우저가 넘긴 PlanQ 링크(planq://open — main 이 출처·앱 경로를 판정) · u = 브라우저 쪽 사용자 번호(없을 수 있음) */
+  onOpenLink?: (cb: (o: { path: string; u: number | null }) => void) => () => void;
 }
 
 export type DesktopShortcutError = 'invalid' | 'needs_modifier' | 'common_key' | 'in_use' | 'not_main';

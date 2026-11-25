@@ -61,6 +61,8 @@ async function createRefreshTokenRow(user, rawToken, req, transaction = null, op
     token_hash: hashRefreshToken(rawToken),
     user_agent: ua, ip_address: ip,
     client_kind: kind,
+    // 데스크탑 «링크를 앱에서 열기» 표시 — 회전·치유가 옛 행 값을 넘긴다(desktop 행만 의미가 있다)
+    open_links: kind === 'desktop' && opts.openLinks === true,
     expires_at: expiresAt,
     last_used_at: new Date(),
   }, transaction ? { transaction } : {});

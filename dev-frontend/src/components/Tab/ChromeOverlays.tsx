@@ -14,6 +14,7 @@ const RightDock = lazy(() => import('../Common/RightDock'));
 const NotificationToaster = lazy(() => import('../Common/NotificationToaster'));
 const PwaInstallBanner = lazy(() => import('../Common/PwaInstallBanner'));
 const OpenInAppBanner = lazy(() => import('../Common/OpenInAppBanner'));
+const DesktopHandoffBand = lazy(() => import('../Common/DesktopHandoffBand'));
 const BuildVersionGuard = lazy(() => import('../Common/BuildVersionGuard'));
 const LimitReachedDialog = lazy(() => import('../Common/LimitReachedDialog'));
 const TermsReacceptModal = lazy(() => import('../Common/TermsReacceptModal'));
@@ -35,6 +36,8 @@ export default function ChromeOverlays() {
       {/* 데스크탑 앱은 이미 설치된 앱이다 — PWA 설치 안내를 띄우지 않는다 */}
       {!isNativeApp() && !isDesktopApp() && <PwaInstallBanner />}
       {!isNativeApp() && <OpenInAppBanner />}
+      {/* 브라우저 앱 화면 링크 → 데스크탑 앱(띠) · 데스크탑 앱 안 «다른 계정 링크» 안내 */}
+      {!isNativeApp() && <DesktopHandoffBand />}
       <PopoutBridgeChrome />
       <BuildVersionGuard />
       <LimitReachedDialog />

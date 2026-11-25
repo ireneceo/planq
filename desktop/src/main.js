@@ -5,7 +5,7 @@
 //   · 모든 창 contextIsolation·sandbox·nodeIntegration:false · 탐색 잠금(같은 출처만 창 안, http(s) 바깥은 OS 브라우저)
 //   · 렌더러에 주는 것은 preload 의 planqDesktop 표면뿐 · 모든 IPC 는 보낸 프레임의 출처를 본다
 //   · main 은 토큰을 보지도 받지도 않는다(세션은 httpOnly 쿠키 그대로)
-//   · planq:// 는 oauth/native-return 만 처리한다
+//   · planq:// 는 oauth/native-return 과 open(브라우저 «앱에서 열기» — 판정 openLink.js 한 곳, 화면 이동만)만 처리한다
 'use strict';
 
 const path = require('path');
@@ -15,6 +15,7 @@ const {
 } = require('electron');
 const { DEFAULT_ACCEL, validateAccel, displayAccel, ACTION_ARG, actionFromArgv } = require('./shortcut');
 const { systemAudioSupported, judgeDisplayMedia, CONFIRM_TEXT } = require('./capture');
+const { judgeOpenLink } = require('./openLink');
 
 // ── 출처 — 빌드 때 한 값으로 고정(scripts/build.js 가 src/origin.json 을 쓴다). 실행 중 바꿀 수 없다. ──
 function readOrigin() {
@@ -85,6 +86,7 @@ let tray = null;
 let quitting = false;
 let updateReady = false;
 let pendingDeepLink = null;
+let pendingOpen = null;   // planq://open 판정 통과분 — 창이 다 읽힌 뒤 보낸다
 let badgeCount = 0;
 let pendingAction = actionFromArgv(process.argv);   // 점프 목록으로 콜드 스타트
 
@@ -187,7 +189,7 @@ function baseWebPreferences() {
     devTools: !app.isPackaged,
     // --planq-unload-prompt: 이 껍데기는 페이지가 «떠나기 전에 묻기»(beforeunload)를 걸면 네이티브 대화창을 띄운다(아래 guardUnload).
     //   옛 껍데기엔 없다 → 웹은 데스크탑에서 이 표식이 있을 때만 묻는다(없으면 Electron 이 대화창 없이 조용히 닫기를 취소한다).
-    additionalArguments: [`--planq-version=${app.getVersion()}`, '--planq-unload-prompt', ...(STORE ? ['--planq-store'] : []), ...RENDERER_ARGS],
+    additionalArguments: [`--planq-version=${app.getVersion()}`, '--planq-unload-prompt', '--planq-open-links', ...(STORE ? ['--planq-store'] : []), ...RENDERER_ARGS],
   };
 }
 
@@ -299,6 +301,7 @@ function createMain() {
   mainWin.once('ready-to-show', () => { if (!START_HIDDEN) mainWin.show(); });
   mainWin.webContents.on('did-finish-load', () => {
     if (pendingDeepLink) { const l = pendingDeepLink; pendingDeepLink = null; deliverDeepLink(l); }
+    if (pendingOpen && mainWin && !mainWin.isDestroyed()) { const o = pendingOpen; pendingOpen = null; mainWin.webContents.send('planq:open-link', o); }
     if (pendingAction) { const a = pendingAction; pendingAction = null; runAction(a); }
   });
   // 닫기(X) = 숨김 — 트레이에 남아 알림을 받는다. 진짜 종료는 트레이 «종료»·맥 Cmd+Q.
@@ -379,7 +382,21 @@ function showMain() {
   mainWin.focus();
 }
 
+// planq://open — 브라우저 «데스크탑 앱에서 열기»(2026-11-25). 판정은 openLink.js · 같은 링크 1초 안 두 번은 한 번만.
+//   창이 아직 없거나 읽는 중이면 다 읽힌 뒤 보낸다. 웹이 아직 안 듣고 있으면 preload 가 15초 들고 있다가 건넨다.
+let lastOpen = { raw: '', at: 0 };
+function deliverOpenLink(url) {
+  const j = judgeOpenLink(url, APP_ORIGIN);
+  if (!j) return;
+  const now = Date.now();
+  if (lastOpen.raw === url && now - lastOpen.at < 1000) return;
+  lastOpen = { raw: url, at: now };
+  if (!mainWin || mainWin.isDestroyed() || mainWin.webContents.isLoading()) { pendingOpen = j; return; }
+  mainWin.webContents.send('planq:open-link', j);
+}
+
 function deliverDeepLink(url) {
+  if (typeof url === 'string' && url.startsWith(`${SCHEME}://open`)) { deliverOpenLink(url); return; }
   // planq://oauth/native-return 만 받는다(설계 §5)
   try {
     const u = new URL(url);

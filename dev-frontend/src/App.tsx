@@ -27,6 +27,7 @@ import MainLayout from './components/Layout/MainLayout';
 // lazy 화 → entry preload ↓ 첫 로드 시간 ↓. Suspense fallback={null} 로 invisible 동안 무영향.
 const NotificationToaster = lazy(() => import('./components/Common/NotificationToaster'));
 const OpenInAppBanner = lazy(() => import('./components/Common/OpenInAppBanner'));
+const DesktopHandoffBand = lazy(() => import('./components/Common/DesktopHandoffBand'));
 const BuildVersionGuard = lazy(() => import('./components/Common/BuildVersionGuard'));
 // 다른 창·기기의 워크스페이스 전환을 이 창에 반영 (docs/WORKSPACE_SCOPE_DESIGN.md C4)
 const WorkspaceSyncGuard = lazy(() => import('./components/Common/WorkspaceSyncGuard'));
@@ -890,6 +891,8 @@ function ShellApp() {
             는 신고의 정체다. 앱 셸 안쪽(MainLayout)의 것을 정본으로 남기고 이쪽을 걷는다.
             설치 안내 자체는 설정 > 알림의 PwaInstallSection 이 상시 진입점으로 유지한다. */}
         {!isNativeApp() && <OpenInAppBanner />}
+        {/* 브라우저 앱 화면 링크 → 데스크탑 앱(띠) · 데스크탑 앱 안 «다른 계정 링크» 안내 */}
+        {!isNativeApp() && <DesktopHandoffBand />}
         {/* #258 — 팝아웃/PiP 가 메인 탭에 보내는 요청의 수신자.
             ★ hideAppChrome 게이트를 걸지 않는다 — 도크가 언마운트되는 경로에서도 살아 있어야 한다
               (Fable 설계 C-1). 자기 자신이 팝아웃이면 컴포넌트가 내부에서 스스로 빠진다. */}

@@ -1336,5 +1336,12 @@
     "confirmOffOk": "Turn off",
     "confirmSlugTitle": "Change the public address?",
     "confirmSlugBody": "{{from}} will stop working right away, including links already shared and in search results."
+  },
+  "desktopHandoff": {
+    "title": "Opening PlanQ links (this browser)",
+    "desc": "Choose whether PlanQ screen links opened in this browser go to the desktop app. Public preview links always open in the browser.",
+    "ask": "Ask every time",
+    "app": "Open in desktop app",
+    "browser": "Open in browser"
   }
 }

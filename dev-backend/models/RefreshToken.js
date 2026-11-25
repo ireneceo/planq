@@ -76,6 +76,11 @@ RefreshToken.init({
   //     "만들어졌다" 와 "사용됐다" 를 구분하지 못한다 — 그래서 별도 컬럼이다.
   //   NULL = 아직 한 번도 안 쓰임(= Set-Cookie 가 착지하지 못했을 수 있음).
   first_used_at: { type: DataTypes.DATE, allowNull: true },
+  // 데스크탑 앱 «PlanQ 링크를 앱에서 열기» 를 받을 수 있는 껍데기의 세션인가 (2026-11-25, Fable 설계 판정 4).
+  //   껍데기 안 웹이 preload capabilities.openLinks 를 보고 자기 행에 표시한다 → 브라우저는 이 표시가 있는
+  //   desktop 세션이 살아 있을 때만 «앱에서 열기» 띠를 보인다(옛 1.1.0 껍데기는 표시 안 함 = 띠 없음).
+  //   회전·치유 때 후속 행이 물려받는다. 운영: scripts/migrate-desktop-open-links.js(배포 슬롯, PM2 reload 전).
+  open_links: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 }, {
   sequelize,
   tableName: 'refresh_tokens',

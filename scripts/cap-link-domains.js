@@ -86,4 +86,14 @@ function apply(name, file, next) {
   }
 }
 
+// ── 데스크탑 껍데기 — planq://open 이 받는 앱 경로(2026-11-25 · Fable 설계 판정 3). 접두어만(exact 의 oauth 복귀는 open 으로 안 받는다) ──
+{
+  const file = path.join(ROOT, 'desktop/src/link-paths.json');
+  const next = `${JSON.stringify({ comment: 'scripts/native-link-paths.js 에서 node scripts/cap-link-domains.js 가 쓴다 — 손으로 고치지 않는다', prefixes: P.prefixes }, null, 2)}\n`;
+  if (!fs.existsSync(file)) {
+    if (check) { console.log('✗ 데스크탑 링크 경로: 파일이 없습니다 — `node scripts/cap-link-domains.js`'); fail++; }
+    else { fs.writeFileSync(file, next); console.log('✓ 데스크탑 링크 경로 (새로 씀)'); }
+  } else apply('데스크탑 링크 경로', file, next);
+}
+
 process.exit(fail ? 1 : 0);

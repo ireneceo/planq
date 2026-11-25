@@ -573,6 +573,9 @@ sync_database() {
   # 2026-11-19 refresh_tokens (user_id, last_used_at) 색인(멱등 · 데이터 불변 · 잠금 없음). 멤버 목록 «마지막 활동» 조회가
   #   토큰 행 전부를 읽어 워크스페이스 전환 뒤 첫 화면이 느렸다. 색인만이라 순서 무관 — 롤백은 DROP INDEX.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-refresh-last-used-index.js 2>&1 | tail -3"
+  # 2026-11-25 refresh_tokens.open_links(멱등 · 컬럼 추가만 기본 0) — 데스크탑 «링크를 앱에서 열기» 껍데기 표시.
+  #   로그인·회전이 이 값을 쓰고 /me 가 읽으므로 PM2 reload 전. 롤백은 코드만.
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-desktop-open-links.js 2>&1 | tail -3"
   # 2026-11-07 데스크탑 앱 받기 주소 — platform_settings.app_windows_url·app_mac_url(멱등). 모델이 SELECT 하므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-desktop-app-urls.js 2>&1 | tail -3"
   # 언어별 메일 서명 — email_accounts/email_account_aliases/businesses 의 `*_en` 3컬럼 (2026-09-18).

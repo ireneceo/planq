@@ -2262,5 +2262,20 @@
       "account": "Pause and switch account"
     },
     "diverted": "Recording continues in the Q note tab. The new screen opened in a new tab."
+  },
+  "desktopHandoff": {
+    "aria": "Open in desktop app",
+    "offerTitle": "Open in the desktop app?",
+    "offerSub": "If the PlanQ desktop app is on this computer, it opens right there.",
+    "remember": "Remember this choice in this browser",
+    "open": "Open in app",
+    "stay": "Stay here",
+    "openingTitle": "Opening in the desktop app",
+    "openingSub": "If it doesn't open, just keep going here.",
+    "retry": "Open again",
+    "stayHere": "Continue here",
+    "otherTitle": "This link is for another account",
+    "otherSub": "The app is signed in to a different account than the browser, so it wasn't opened. Switch accounts and open it again.",
+    "close": "Close"
   }
 }
