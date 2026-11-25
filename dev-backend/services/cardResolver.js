@@ -49,6 +49,9 @@ async function resolveCard(meta, { businessId, appUrl }) {
     if (nc.closedReason(card, owner)) return { state: 'share_revoked', url: null };
     return { state: 'ok', url: `${appUrl}/c/${card.public_token}` };
   }
+  // 팀 방 전용 사람 정보 카드(docs/CHAT_PROFILE_CARDS_DESIGN.md) — 공개 주소가 없다. 고객·게스트 길에서는 열리지 않는다
+  //   (그 길의 목록은 utils/messageVisibility 가 이미 빼지만, 모르는 값으로 떨어뜨리지 않게 명시한다).
+  if (cardType === 'client_profile' || cardType === 'member_profile') return { state: 'not_available', url: null };
   const cfg = CARD_TARGETS[cardType];
   if (!cfg) return { state: 'unsupported', url: null };
 

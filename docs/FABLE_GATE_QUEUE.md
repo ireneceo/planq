@@ -2,6 +2,13 @@
 
 
 
+### 2026-11-25 방 c1868e32 — 채팅에서 고객 정보·멤버 정보 공유(명함 아니어도) — 설계 **DESIGN: CHANGE → 5건 반영** · 완료 검증 1차 **FAIL**(차단 2) → 고침 → 2차 **PASS**
+- Irene «고객 정보나 멤버 정보도 서로 공유할 수 있으면 좋겠다. 명함 아니여도.» · 설계 docs/CHAT_PROFILE_CARDS_DESIGN.md 5절
+- 설계 판정: 팀 방 전용(channel_type internal·group 허용 목록 + client_id NULL + client 참여자 0(viewer 포함) + 살아 있는 게스트 링크 0) · 메시지엔 id 만(이름 0) · 볼 때 보는 사람 권한(권한 먼저) · 고객·게스트에겐 자리도 없음 · 고객 방 소개는 명함
+- 1차 FAIL: ① 고객이 고정 목록(`/pinned`)으로 고정된 직원 전용 카드 자리·id 를 받음(원래 있던 구멍 — 내부 메모도 같은 길) → 고객이면 고객 술어 + unpin 방송 방 고르기 ② Sequelize 판 `{meta:{card_type:null}}` 가 'null' 문자열 비교 → COALESCE NOT IN
+- 2차 PASS 근거: 세 판 집합 854건 차이 0 · 경계 8종 일치 · 고정 목록·소켓(고객 소켓 :staff join 시도 포함) 카드·내부 메모 0 · 정수 id 검사 · 실HTTP 18+17+6 · guard EXIT 0 · health 101/101
+- 비차단: ① 별칭 없는 `meta` 는 주석으로만 지켜짐(meta 가진 모델을 이 술어 조회에 include 하면 500 — 가드 한 줄 권함) ② clientTimeline 이 직원 카드를 «[고객 정보]» 활동 줄로 보여 줌(이름 없음) ③ pinned 의 is_deleted 이중 조건(동작 무해)
+
 ### 2026-11-25 방 74d12032 — Cue 고객방 대응(거절 초안 빈 줄 + «답할지» 판정·대기 초안 자동 정리) — 설계 **DESIGN: READY** · 완료 검증 **PASS**
 - Irene «Cue가 채팅에 쓸데없는 말을 하려고 해서 거절을 했더니 내용없이 입력이 되었어 … 알아서 대응하는 거 좀 더 업그레이드 못해?» · 커밋 7dcd33e3 · 54e0178a
 - 설계: 같은 호출 JSON reply/handoff/none · fail-closed = 침묵 · 글자 없음 사전 필터 · 모르는 질문 = handoff(빈말 금지, care 가 직원 몫) · 자동 정리 approved=0 + by NULL · 방마다 대기 초안 ≤1 · 낡음 검사 · 답할 대상 묶음(최대 5). 미룸: 디바운스 타이머 · 거절 사유 학습 · 대화 전면 역할 배열화

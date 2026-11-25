@@ -493,6 +493,7 @@ app.use('/api/businesses', require('./routes/nav_prefs'));   // 사이드바 «�
 app.use('/api/businesses', require('./routes/table_prefs')); // 표 열 설정 계정별 (2026-10-27) — businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/brands').businessBrands);   // 브랜드 목록·관리 (2026-10-22, docs/NAME_CARD_V2_DESIGN.md) — «/:businessId/brands…» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_cards'));
+app.use('/api/businesses', require('./routes/profile_cards'));   // 채팅 고객·멤버 정보 카드 (2026-11-25, docs/CHAT_PROFILE_CARDS_DESIGN.md) — 꼬리 경로만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_overview'));   // 멤버 상세의 연결 프로젝트·업무·히스토리 (2026-10-22) — «/:businessId/members/:userId/overview» 꼬리만, businesses.js 보다 앞   // 동료의 기본 명함 보기 (2026-10-22) — «/:businessId/members/:userId/card…» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_handover'));   // 퇴사 인수인계 (2026-10-22, docs/ORG_STAGE0_DESIGN.md) — «/:businessId/members/:memberId/handover»·«/members-departed» 꼬리만, businesses.js 보다 앞
 app.use('/api/businesses', require('./routes/member_permissions'));   // 멤버 메뉴 권한·역할·멤버 기본 권한 (2026-10-23 businesses.js 에서 옮김) — 꼬리 경로만, businesses.js 보다 앞

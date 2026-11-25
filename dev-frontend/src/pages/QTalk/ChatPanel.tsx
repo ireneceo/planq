@@ -6,6 +6,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { downloadFromApi } from '../../utils/download';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
+import { SharedCard, SharedCardIcon, DocCardBody, DocCardTitle, DocCardLabel, DocCardArrow } from './chatCardShell';
 import { renderTextWithLinks as linkify } from '../../utils/linkify';
 import { useTranslation } from 'react-i18next';
 import { STATUS_COLOR, type StatusCode } from '../../utils/taskLabel';
@@ -28,6 +29,9 @@ import { openDocWindow } from '../../utils/docWindow';
 import SignatureLinkModal from '../../components/QTalk/SignatureLinkModal';
 import FilePicker, { type FilePickerResult } from '../../components/Common/FilePicker';
 import SendNameCardModal from '../../components/NameCard/SendNameCardModal';
+import SendProfileCardModal from './SendProfileCardModal';
+import ProfileCardBubble from './ProfileCardBubble';
+import { getProfileCardRoom, type ProfileCardRoom } from '../../services/profileCards';
 import ChatAddEntity, { type ChatAddKind } from './ChatAddEntity';
 import OverflowMenu, { type OverflowItem } from '../../components/Common/OverflowMenu';
 import UserInfoPopover from '../../components/Common/UserInfoPopover';
@@ -772,6 +776,9 @@ const ChatPanel: React.FC<Props> = ({
   const [stagedPostMeta, setStagedPostMeta] = useState<Record<number, { title: string }>>({});
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   const [nameCardOpen, setNameCardOpen] = useState(false);
+  // 고객·멤버 정보 카드 — 팀 방에서만(서버 판정 한 곳). 방이 바뀌면 다시 묻는다.
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileRoom, setProfileRoom] = useState<ProfileCardRoom | null>(null);
   const [addKind, setAddKind] = useState<ChatAddKind | null>(null);   // «+» 업무·일정 추가
   const [dragOver, setDragOver] = useState(false);
   // 드래그 enter/leave 깊이 카운터 — 자식 요소 경계마다 leave 가 fire 돼도 0 일 때만 해제.
@@ -788,6 +795,16 @@ const ChatPanel: React.FC<Props> = ({
   }, []);
   // FilePicker 의 businessId — useAuth() 의 user.business_id 사용 (MockProject 에는 business_id 없음)
   const businessId = user?.business_id ? Number(user.business_id) : null;
+  // 고객·멤버 정보 카드 «+» 항목 — 이 방에 보낼 수 있나(서버 판정 한 곳). 방이 바뀌면 다시 묻는다.
+  useEffect(() => {
+    setProfileRoom(null);
+    if (isClient || !businessId || !activeConversationId) return undefined;
+    let alive = true;
+    getProfileCardRoom(Number(businessId), Number(activeConversationId))
+      .then((r) => { if (alive) setProfileRoom(r); })
+      .catch(() => { if (alive) setProfileRoom({ allowed: false, reason: 'load_failed', can_send_client: false }); });
+    return () => { alive = false; };
+  }, [isClient, businessId, activeConversationId]);
   // 대화방 알림 끄기(나만) — docs/QTALK_MUTE_DESIGN.md. 끈 방 묶음은 한 벌(useMutedConversations) — 토스트·사이드바 숫자와 같은 값.
   const { isMuted } = useMutedConversations();
   const [muteNotice, setMuteNotice] = useState<{ kind: 'hint' | 'error'; text: string } | null>(null);
@@ -2100,6 +2117,9 @@ const ChatPanel: React.FC<Props> = ({
                     </SharedCard>
                   );
                 })()
+              ) : (m.card?.card_type === 'client_profile' || m.card?.card_type === 'member_profile') && businessId ? (
+                <ProfileCardBubble businessId={Number(businessId)} kind={m.card.card_type === 'client_profile' ? 'client' : 'member'}
+                  targetId={Number(m.card.card_type === 'client_profile' ? (m.card as import('./types').ProfileCardMeta).client_id : (m.card as import('./types').ProfileCardMeta).user_id)} />
               ) : m.card?.card_type === 'name_card' ? (
                 (() => {
                   const nc = m.card as import('./types').NameCardMeta;
@@ -2654,6 +2674,20 @@ const ChatPanel: React.FC<Props> = ({
                 ),
                 onClick: () => setNameCardOpen(true),
               }, {
+                key: 'profile',
+                // 고객·게스트가 있는 방은 비활성 + 이유(사람 소개는 명함으로 — docs/CHAT_PROFILE_CARDS_DESIGN.md)
+                label: (profileRoom && !profileRoom.allowed
+                  ? t('chat.profile.menuTeamOnly', '고객·멤버 정보 (팀 방에서만)')
+                  : t('chat.profile.menu', '고객·멤버 정보 보내기')) as string,
+                testId: 'chat-plus-profile',
+                disabled: !profileRoom || !profileRoom.allowed,
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7M19 14.5c1.6.8 2.5 2.6 2.5 5.5" />
+                  </svg>
+                ),
+                onClick: () => setProfileOpen(true),
+              }, {
                 key: 'task',
                 label: t('chat.add.task', '업무 추가') as string,
                 testId: 'chat-plus-task',
@@ -2802,6 +2836,10 @@ const ChatPanel: React.FC<Props> = ({
           businessId={Number(businessId)}
           conversationId={Number(activeConversationId)}
         />
+      )}
+      {businessId && activeConversationId && profileOpen && (
+        <SendProfileCardModal open onClose={() => setProfileOpen(false)} businessId={Number(businessId)}
+          conversationId={Number(activeConversationId)} canSendClient={!!profileRoom?.can_send_client} />
       )}
       {businessId && activeConversationId && addKind && (
         <ChatAddEntity kind={addKind} businessId={Number(businessId)} conversationId={Number(activeConversationId)}
@@ -3784,30 +3822,6 @@ const TranslatedText = styled.div`
   overflow-wrap: anywhere;
 `;
 
-// 통합 공유 카드 (사이클 N+4 6차) — task/file/kb_document/calendar_event
-const SharedCard = styled.button`
-  all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; max-width: 380px;
-  background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px;
-  transition: background 0.15s, border-color 0.15s, transform 0.15s;
-  &:hover { background: #F0FDFA; border-color: #14B8A6; transform: translateY(-1px); }
-  &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
-`;
-const SHARED_TONE: Record<string, { bg: string; fg: string; border: string }> = {
-  task:     { bg: '#DBEAFE', fg: '#1E40AF', border: '#93C5FD' },
-  file:     { bg: '#FEF3C7', fg: '#92400E', border: '#FCD34D' },
-  kb:       { bg: '#F0FDFA', fg: '#0F766E', border: '#99F6E4' },
-  calendar: { bg: '#F0FDFA', fg: '#6B21A8', border: '#D8B4FE' },
-};
-const SharedCardIcon = styled.span<{ $tone: keyof typeof SHARED_TONE }>`
-  width: 36px; height: 36px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: ${p => SHARED_TONE[p.$tone].bg};
-  color: ${p => SHARED_TONE[p.$tone].fg};
-  border: 1px solid ${p => SHARED_TONE[p.$tone].border};
-  border-radius: 8px;
-`;
-
 // 문서 카드 (kind='card', card_type='post')
 const DocCard = styled.button`
   all: unset; cursor: pointer; display: flex; align-items: center; gap: 10px;
@@ -3862,16 +3876,9 @@ const DocCardIcon = styled.span`
   display: inline-flex; align-items: center; justify-content: center;
   background: #fff; color: #0F766E; border: 1px solid #E2E8F0; border-radius: 8px;
 `;
-const DocCardBody = styled.div`flex:1;display:flex;flex-direction:column;gap:2px;min-width:0;`;
-const DocCardTitle = styled.span`
-  font-size: 0.8125rem; font-weight: 700; color: #0F172A;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-`;
-const DocCardLabel = styled.span`font-size:0.6875rem;color:#64748B;font-weight:500;`;
 const TaskCardStatus = styled.span<{ $bg: string; $fg: string }>`
   display:inline-block;font-size:0.625rem;font-weight:700;padding:1px 6px;border-radius:999px;
   background:${p => p.$bg};color:${p => p.$fg};`;
-const DocCardArrow = styled.span`color:#94A3B8;flex-shrink:0;`;
 const CardNote = styled.div`
   margin-top: 6px; padding: 8px 10px;
   font-size: 0.8125rem; color: #334155; line-height: 1.5;

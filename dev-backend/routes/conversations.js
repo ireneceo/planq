@@ -1392,7 +1392,8 @@ router.delete('/:businessId/:id/messages/:msgId/pin', authenticateToken, attachW
     await msg.update({ pinned_at: null, pinned_by_user_id: null });
 
     const io = req.app.get('io');
-    if (io) io.to(`conv:${conv.id}`).emit('message:unpinned', { id: msg.id, conversation_id: conv.id });
+    // 고정과 같은 방 고르기 — 고객에게 안 보이는 메시지면 직원 방에만
+    if (io) io.to(isVisibleToClient(msg) ? `conv:${conv.id}` : `conv:${conv.id}:staff`).emit('message:unpinned', { id: msg.id, conversation_id: conv.id });
     await createAuditLog({ userId: req.user.id, businessId, action: 'message.unpin', targetType: 'Message', targetId: msg.id });
     return successResponse(res, { id: msg.id, pinned_at: null });
   } catch (err) { next(err); }
@@ -1407,7 +1408,9 @@ router.get('/:businessId/:id/pinned', authenticateToken, attachWorkspaceScope(),
     if (!(await canAccessConversation(req.user.id, conv, req.scope))) return errorResponse(res, 'forbidden', 403);
     const { MessageAttachment } = require('../models');
     const list = await Message.findAll({
-      where: { conversation_id: conv.id, pinned_at: { [Op.ne]: null }, is_deleted: false },
+      // 고객이면 목록·상세와 같은 술어(utils/messageVisibility) — 내부 메모·미승인 초안·직원 전용 카드를 고정해도 고객에게 안 간다
+      //   (2026-11-25 Fable 완료 검증 실측: 이 길만 술어 밖이라 고정한 «멤버 정보» 카드 자리·id 가 고객에게 나갔다)
+      where: { conversation_id: conv.id, pinned_at: { [Op.ne]: null }, is_deleted: false, ...(req.scope?.isClient ? CLIENT_VISIBLE_MESSAGE_WHERE : {}) },
       include: [
         // is_guest — 없으면 applyGuestDisplayName 이 **조용히 아무것도 안 한다**(no-op).
         //   오류 없이 "게스트" 로 떨어지고 뱃지 근거도 사라진다 (Fable 실측 2026-09-02).

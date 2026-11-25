@@ -207,6 +207,7 @@ function apiMessageToMock(m: qtalkApi.ApiMessage): MockMessage {
       if (ct === 'kb_document') return m.meta as unknown as import('./types').KbDocCardMeta;
       if (ct === 'calendar_event') return m.meta as unknown as import('./types').CalendarEventCardMeta;
       if (ct === 'name_card') return m.meta as unknown as import('./types').NameCardMeta;
+      if (ct === 'client_profile' || ct === 'member_profile') return m.meta as unknown as import('./types').ProfileCardMeta;
       return null;
     })(),
     translations: m.translations ?? null,

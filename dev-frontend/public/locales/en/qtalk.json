@@ -479,6 +479,27 @@
       "whyOther": "the card failed, so it",
       "cardFailed": "{{what}} was created, but {{why}} wasn't posted as a card in this chat.",
       "meetFailed": "The event was created, but the video meeting link failed. You can create it again from the event details."
+    },
+    "profile": {
+      "menu": "Share client or member info",
+      "menuTeamOnly": "Client / member info (team rooms only)",
+      "sendTitle": "Share client or member info",
+      "sendHint": "Sends an info card to this team room. Each person sees only what their own permissions allow.",
+      "tabClient": "Clients",
+      "tabMember": "Members",
+      "search": "Search by name or company",
+      "empty": "No one found",
+      "noName": "(No name)",
+      "loadListFailed": "Couldn't load the list",
+      "roomExternal": "You can't send this to a room with clients or guests. To introduce someone there, send a business card.",
+      "sendFailed": "Couldn't send. Please try again.",
+      "clientLabel": "Client info",
+      "memberLabel": "Member info",
+      "assigned": "Owner {{name}}",
+      "noPermissionClient": "Client info you don't have access to",
+      "noPermissionMember": "Member info you don't have access to",
+      "notAvailable": "Not available now (deleted, archived or left)",
+      "loadFailed": "Couldn't load the info"
     }
   },
   "page": {

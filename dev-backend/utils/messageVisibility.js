@@ -9,7 +9,7 @@
 //
 // ★ 게스트(routes/guest.js `visibleToGuest`)와 **같은 규칙**이다. 로그인 고객과 링크 게스트가
 //   다른 것을 보면 그 차이가 곧 사고다. 술어를 바꾸면 양쪽을 같이 바꾼다.
-const { Op } = require('sequelize');
+const { Op, where, fn, json } = require('sequelize');
 
 // Sequelize where 조각 — 고객 조회 쿼리에 그대로 spread 한다.
 //
@@ -20,6 +20,9 @@ const { Op } = require('sequelize');
 //   그래서 **긍정형(OR)** 으로 푼다 — NULL 이 어느 가지에서도 행을 죽이지 않는다.
 //   `is_deleted` 도 `= false` 가 아니라 `IS NOT true` — 이 코드베이스의 unread/preview SQL 이
 //   `(is_deleted IS NULL OR is_deleted = 0)` 로 NULL 을 "안 지움" 으로 읽는 것과 같은 해석이다.
+// 팀 방 전용 «사람 정보» 카드(docs/CHAT_PROFILE_CARDS_DESIGN.md · Fable 2026-11-25) — 고객·게스트에게는 자리도 없다.
+//   팀 방에만 보낼 수 있지만, 방에 나중에 고객이 들어오거나 링크가 걸려도 이 술어 한 곳이 닫는다(목록·미리보기·안읽음·검색·Cue·방송·게스트).
+const STAFF_ONLY_CARD_TYPES = ['client_profile', 'member_profile'];
 const CLIENT_VISIBLE_MESSAGE_WHERE = {
   is_deleted: { [Op.not]: true },   // IS NOT true — NULL 은 "안 지움"
   is_internal: false,
@@ -29,6 +32,15 @@ const CLIENT_VISIBLE_MESSAGE_WHERE = {
     { ai_mode_used: { [Op.ne]: 'draft' } },
     { ai_draft_approved: true },
   ],
+  [Op.and]: [{
+    [Op.or]: [                      // 직원 전용 카드가 아닌 것 (kind 는 NOT NULL)
+      { kind: { [Op.ne]: 'card' } },
+      // ★ COALESCE 로 종류 없는 카드(meta NULL·card_type 없음)도 «보임» 으로 — raw SQL·메모리 판과 같은 결과(Fable 2026-11-25 실측).
+      //   중첩 JSON where(`{ meta: { card_type: null } }`)는 IS NULL 이 아니라 문자열 'null' 비교를 낸다 — 쓰지 않는다.
+      //   열 이름은 별칭 없이 `meta` — 이 술어가 붙는 조회에서 meta 칸은 messages 하나뿐이다(Invoice·CueKnowledge 등과 조인하는 곳에 붙이지 말 것).
+      where(fn('COALESCE', json('meta.card_type'), ''), { [Op.notIn]: STAFF_ONLY_CARD_TYPES }),
+    ],
+  }],
 };
 
 // 같은 술어의 **raw SQL 판** — 원시 SQL 집계(안읽음 카운트·목록 미리보기)에 AND 로 붙인다.
@@ -44,7 +56,9 @@ function clientVisibleSql(alias = 'm') {
             AND (${a}is_internal IS NULL OR ${a}is_internal = 0)
             AND (${a}is_ai IS NULL OR ${a}is_ai = 0
                  OR ${a}ai_mode_used IS NULL OR ${a}ai_mode_used <> 'draft'
-                 OR ${a}ai_draft_approved = 1)`;
+                 OR ${a}ai_draft_approved = 1)
+            AND NOT (${a}kind = 'card'
+                 AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(${a}meta, '$.card_type')), '') IN (${STAFF_ONLY_CARD_TYPES.map((x) => `'${x}'`).join(',')}))`;
 }
 
 // 같은 술어의 메모리 판정판 — 이미 가져온 배열을 거를 때(소켓 payload 등) 쓴다.
@@ -53,11 +67,18 @@ function clientVisibleSql(alias = 'm') {
 //   (raw:true 조회·원시 SQL). 그러면 **승인된 초안을 숨기는** 반대 방향 오류가 난다
 //   (2026-09-02: 내 판정 스크립트가 바로 이것으로 거짓 FAIL 을 냈다). 숫자로 환산해 본다.
 const truthy = (v) => v === true || v === 1 || v === '1';
+function isStaffOnlyCard(m) {
+  if (!m || m.kind !== 'card') return false;
+  let meta = m.meta;
+  if (typeof meta === 'string') { try { meta = JSON.parse(meta); } catch { meta = null; } }
+  return !!meta && STAFF_ONLY_CARD_TYPES.includes(meta.card_type);
+}
 function isVisibleToClient(m) {
   if (!m) return false;
   if (truthy(m.is_deleted)) return false;
   if (truthy(m.is_internal)) return false;
   if (truthy(m.is_ai) && m.ai_mode_used === 'draft' && !truthy(m.ai_draft_approved)) return false;
+  if (isStaffOnlyCard(m)) return false;
   return true;
 }
 
@@ -88,6 +109,6 @@ function isRejectedDraft(m) {
 }
 
 module.exports = {
-  CLIENT_VISIBLE_MESSAGE_WHERE, isVisibleToClient, clientVisibleSql,
+  CLIENT_VISIBLE_MESSAGE_WHERE, isVisibleToClient, clientVisibleSql, STAFF_ONLY_CARD_TYPES, isStaffOnlyCard,
   NOT_REJECTED_DRAFT_WHERE, staffVisibleSql, isRejectedDraft,
 };

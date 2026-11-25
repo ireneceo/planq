@@ -110,6 +110,15 @@ export interface NameCardMeta {
   note?: string | null;
 }
 
+/** 고객·멤버 정보 카드(docs/CHAT_PROFILE_CARDS_DESIGN.md) — id 만. 내용은 볼 때 서버가 보는 사람 권한으로 준다 */
+export interface ProfileCardMeta {
+  card_type: 'client_profile' | 'member_profile';
+  client_id?: number;
+  user_id?: number;
+  title?: undefined;
+  note?: null;
+}
+
 export interface InvoiceCardMeta {
   card_type: 'invoice';
   invoice_id: number;
@@ -157,7 +166,7 @@ export interface MockMessage {
     file_id?: number | null; drive_editable?: boolean }[];
   // #138 — 이모지 리액션 (백엔드가 메시지에 동봉)
   reactions?: { id: number; user_id: number; emoji: string }[];
-  card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | NameCardMeta | null;
+  card?: PostCardMeta | SignatureCardMeta | InvoiceCardMeta | TaskCardMeta | FileCardMeta | KbDocCardMeta | CalendarEventCardMeta | NameCardMeta | ProfileCardMeta | null;
   translations?: Partial<Record<'ko'|'en'|'ja'|'zh'|'es', string>> | null;
   detected_language?: 'ko'|'en'|'ja'|'zh'|'es' | null;
   // 사이클 N+15-C — 읽음 표시. read_by_count = 본인 제외 참여자 중 읽은 수.
