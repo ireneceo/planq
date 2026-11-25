@@ -3,6 +3,7 @@ import { canManageProjectMembers as canManageProjectMembersOf } from '../../util
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
+import EmailLink from '../../components/People/EmailLink';
 import PlanQSelect, { type PlanQSelectOption } from '../../components/Common/PlanQSelect';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
@@ -338,7 +339,7 @@ const ChatSettingsModal: React.FC<Props> = ({
                           ? <RoleTag $kind="client">{t('settings.participants.clientTag', { defaultValue: '고객' }) as string}</RoleTag>
                           : null}
                     </MemberName>
-                    <MemberEmail>{p.email}</MemberEmail>
+                    <MemberEmail><EmailLink email={p.email} /></MemberEmail>
                   </MemberInfo>
                   {!p.is_ai && canRemove(p.user_id) && (
                     <DangerBtn type="button" onClick={() => removeMember(p.user_id)} disabled={busy}>

@@ -4,8 +4,8 @@
 // - 빈 상태: "아직 서명 요청 없음" + 서명 받기 CTA
 // - 양사 모두 signed → 후속 액션 카드 (계약/SOW → 분할 청구, 견적 → 청구서)
 // - 거절 1명 → 거절 알림 카드
-
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import EmailLink from '../People/EmailLink';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -369,7 +369,7 @@ const SignatureProgressSection: React.FC<Props> = ({ postId, inferredKind, reloa
                       )}
                       {sr.slot != null && <SlotChip>{sr.slot}</SlotChip>}
                     </SignerName>
-                    {sr.signer_name && <SignerEmail>{sr.signer_email}</SignerEmail>}
+                    {sr.signer_name && <SignerEmail><EmailLink email={sr.signer_email} /></SignerEmail>}
                     {sr.note && sr.id === visible[0].id && <SignerNote title={sr.note}>{sr.note}</SignerNote>}
                   </SignerInfo>
                 </SignerCell>

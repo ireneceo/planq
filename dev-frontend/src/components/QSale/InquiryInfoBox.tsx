@@ -1,6 +1,7 @@
 // InquiryInfoBox — 우측 패널 «상담 내용» 탭 맨 위의 **그 문의** 상자 + (메일이면) 메일 이력 전부
 //   ClientPanel 이 800줄을 넘어 떼어 냈다(god-file 가드). 모양·문구는 옮기기 전 그대로다.
 import React from 'react';
+import EmailLink from '../People/EmailLink';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -30,7 +31,7 @@ const InquiryInfoBox: React.FC<{ businessId: number; inquiry: InquiryView }> = (
         <InquiryMeta>
           {inquiry.email && (
             <span>
-              {inquiry.email}
+              <EmailLink email={inquiry.email} />
               {inquiry.emailVerified && ` (${t('panel.emailVerified') as string})`}
             </span>
           )}

@@ -7,6 +7,7 @@
 //   서버가 읽을 수 없는 문서의 행은 가려서 준다(hidden) — 제목 대신 «비공개 문서», 동작 없음.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
+import EmailLink from '../People/EmailLink';
 import { useTranslation } from 'react-i18next';
 import { apiFetch } from '../../contexts/AuthContext';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
@@ -254,7 +255,7 @@ export default function SignatureRequestList({ mode, businessId }: { mode: 'sent
                       <RowMain>
                         <RowName>
                           {s.signer_name || s.signer_email}
-                          {s.signer_name && <RowSub>{s.signer_email}</RowSub>}
+                          {s.signer_name && <RowSub><EmailLink email={s.signer_email} /></RowSub>}
                           {s.party === 'us' && <RowSub>· {t('received.detail.partyUs', '보내는 쪽')}</RowSub>}
                         </RowName>
                         <RowMeta>

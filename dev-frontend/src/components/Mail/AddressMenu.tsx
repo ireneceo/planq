@@ -25,8 +25,8 @@ export interface AddressMenuProps {
   /** 이 메일에 이미 붙은 고객 — 있으면 «고객 추가» 대신 «고객 보기» */
   clientId?: number | null;
   onViewClient?: (clientId: number) => void;
-  /** 이 발신자를 스팸으로 분류 */
-  onBlock: (email: string) => void;
+  /** 이 발신자를 스팸으로 분류 — 받는 사람·참조 주소에는 넘기지 않는다(우리 주소·우리가 보낸 상대를 스팸으로 만들면 안 된다) */
+  onBlock?: (email: string) => void;
 }
 
 const AddressMenu: React.FC<AddressMenuProps> = ({ email, name, onViewMail, onCompose, onSaveClient, clientId, onViewClient, onBlock }) => {
@@ -94,12 +94,14 @@ const AddressMenu: React.FC<AddressMenuProps> = ({ email, name, onViewMail, onCo
             {t('address.saveClient') as string}
           </Item>
           )}
+          {onBlock && <>
           <Divider />
           {/* 차단은 원본을 지우지 않는다 — 분류만 바꾼다. 규칙 화면에서 언제든 되돌릴 수 있다. */}
           <Item role="menuitem" type="button" $danger onClick={() => pick(() => onBlock(email))}>
             {t('address.block', { defaultValue: '스팸으로 분류' }) as string}
           </Item>
           <Hint>{t('address.blockHint', { defaultValue: '원본은 남습니다. 규칙 설정에서 되돌릴 수 있어요.' }) as string}</Hint>
+          </>}
         </Menu>
         </FloatingMenu>
       )}

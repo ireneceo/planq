@@ -100,6 +100,44 @@ export default function ThreadMessages(p: Props) {
       : (m.sender_name || m.sent_by_name || m.from_name || '');
     return name ? `${name} <${addr}>` : `<${addr}>`;
   };
+  // 받는 사람·참조·숨은참조 주소도 누르면 주소 메뉴(이 주소의 메일 보기·복사·새 메일·고객) — 2026-11-25 Irene
+  //   «내가 보낸 메일에서 받은 사람 정보 … 아예 클릭이 안돼». 보낸 사람 주소만 메뉴였고 이 줄들은 글자를 이어 붙였다.
+  //   스팸 분류는 뺀다 — 받는 쪽 주소(우리 주소·우리가 보낸 상대)를 스팸 규칙으로 만들면 안 된다.
+  const renderAddrs = (list: string[]): React.ReactNode => {
+    if (!addressActions) return list.join(', ');
+    return list.map((addr, i) => (
+      <React.Fragment key={`${addr}-${i}`}>
+        {i > 0 ? ', ' : ''}
+        <AddressMenu
+          email={addr}
+          businessId={businessId}
+          onViewMail={addressActions.onViewMail}
+          onCompose={addressActions.onCompose}
+          onSaveClient={addressActions.onSaveClient}
+        />
+      </React.Fragment>
+    ));
+  };
+  // 보낸 메일 발신 줄 — «누가 <주소>» 의 주소도 같은 메뉴(우리 주소라 스팸·고객 추가는 뜻이 없지만 메일 보기·복사·새 메일은 쓴다)
+  const renderOutboundSender = (m: Props['messages'][number]): React.ReactNode => {
+    const label = outboundSenderLabel(m);
+    const addr = m.from_email || accountEmail;
+    if (!addressActions || !addr) return label;
+    const name = label.slice(0, Math.max(0, label.lastIndexOf('<'))).trim();
+    return (
+      <>
+        {name ? `${name} ` : ''}{'<'}
+        <AddressMenu
+          email={addr}
+          businessId={businessId}
+          onViewMail={addressActions.onViewMail}
+          onCompose={addressActions.onCompose}
+          onSaveClient={addressActions.onSaveClient}
+        />
+        {'>'}
+      </>
+    );
+  };
   // 운영 #260 — 좁은 패널에서 읽기 답답한 메일을 화면 전체로 펼쳐 읽는다.
   const [fullMsgId, setFullMsgId] = React.useState<number | null>(null);
   const fullMsg = messages.find((x) => x.id === fullMsgId) || null;
@@ -225,7 +263,7 @@ export default function ThreadMessages(p: Props) {
             >
               {/* 운영 #220 — 팀 주소는 여러 사람이 함께 쓴다. 누가 보냈는지는 outboundSenderLabel 한 곳. */}
               {m.direction === 'outbound'
-                ? outboundSenderLabel(m)
+                ? renderOutboundSender(m)
                 : (
                   // #261 — 발신 주소는 누르면 무엇이든 할 수 있어야 한다(모아보기·복사·새 메일·고객 저장·차단).
                   //   주소 자체가 진입점이 아니면 사람을 기준으로 메일을 되찾을 방법이 없다.
@@ -256,19 +294,19 @@ export default function ThreadMessages(p: Props) {
                   {/* 보낸 메일은 «받은 주소» 가 아니라 받는 사람이다 — 같은 글자를 쓰면 우리가 받은 주소로 읽힌다 */}
                   {(m.direction === 'outbound'
                     ? t('detail.toAddrOut', { defaultValue: '받는 사람' })
-                    : t('detail.toAddr', { defaultValue: '받은 주소' })) as string}: {toAddrList(m.to_emails).join(', ')}
+                    : t('detail.toAddr', { defaultValue: '받은 주소' })) as string}: {renderAddrs(toAddrList(m.to_emails))}
                 </MessageTo>
               )}
               {/* 참조(CC) — 누가 같이 받았는지(2026-11-12 Irene «메일에 참조가 없오»). 데이터는 늘 있었는데 화면에 안 그렸다 */}
               {toAddrList(m.cc_emails).length > 0 && (
                 <MessageTo data-testid="mail-msg-cc">
-                  {t('detail.ccAddr', { defaultValue: '참조' }) as string}: {toAddrList(m.cc_emails).join(', ')}
+                  {t('detail.ccAddr', { defaultValue: '참조' }) as string}: {renderAddrs(toAddrList(m.cc_emails))}
                 </MessageTo>
               )}
               {/* 숨은참조 — 우리가 보낸 메일만. 받는 사람은 못 보지만 보낸 쪽(팀)은 누구에게 몰래 갔는지 알아야 한다 */}
               {m.direction === 'outbound' && toAddrList(m.bcc_emails).length > 0 && (
                 <MessageTo data-testid="mail-msg-bcc">
-                  {t('detail.bccAddr', { defaultValue: '숨은참조' }) as string}: {toAddrList(m.bcc_emails).join(', ')}
+                  {t('detail.bccAddr', { defaultValue: '숨은참조' }) as string}: {renderAddrs(toAddrList(m.bcc_emails))}
                 </MessageTo>
               )}
             </MessageFrom>

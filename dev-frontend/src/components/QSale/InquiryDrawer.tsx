@@ -9,7 +9,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import DetailDrawer from '../Common/DetailDrawer';
-import { openMailCompose } from '../People/EmailLink';
+import EmailLink, { openMailCompose } from '../People/EmailLink';
 import { useTimeFormat } from '../../hooks/useTimeFormat';
 import { navigateTab } from '../../hooks/useChromeNav';
 
@@ -87,7 +87,7 @@ export default function InquiryDrawer({ inquiry, businessId, canWrite, onClose, 
             </Meta>
             <Sec>
               <L>{t('inquiryBox.contact', '연락처')}</L>
-              <KV><K>{t('inquiryBox.email', '이메일')}</K><V>{q.email}</V></KV>
+              <KV><K>{t('inquiryBox.email', '이메일')}</K><V><EmailLink email={q.email} /></V></KV>
               {q.phone && <KV><K>{t('inquiryBox.phone', '전화')}</K><V><a href={`tel:${q.phone}`}>{q.phone}</a></V></KV>}
               {q.company && <KV><K>{t('inquiryBox.company', '회사')}</K><V>{q.company}</V></KV>}
               {q.service_name && <KV><K>{t('inquiryBox.service', '관심 서비스')}</K><V>{q.service_name}</V></KV>}
