@@ -82,12 +82,12 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
           {hasProblem
             ? t('docs.cloud.folderUnreachable')
             : t('docs.cloud.connectedOneLine', {
-              defaultValue: '공용 파일은 Google Drive 에 저장됩니다',
+              defaultValue: '이 프로젝트 파일은 회사 Drive 에 저장됩니다',
             })}
         </NoticeText>
         {driveLink && (
           <NoticeAction as="a" href={driveLink} target="_blank" rel="noreferrer">
-            {t('docs.cloud.openDrive', { defaultValue: 'Drive 폴더 열기' })} ↗
+            {t('docs.cloud.openDrive', { defaultValue: '폴더 열기' })} ↗
           </NoticeAction>
         )}
         {(inMyDrive || folder?.in_shared_drive) && (
@@ -112,8 +112,8 @@ const CloudConnectNotice: React.FC<Props> = ({ businessId }) => {
     <RecommendNotice data-testid="cloud-connect-notice">
       <NoticeIcon $tone="teal" aria-hidden>+</NoticeIcon>
       <NoticeText>
-        <strong>{t('docs.cloud.recommendTitle', { defaultValue: 'Google Drive 연결' })}</strong>{' '}
-        {t('docs.cloud.recommendDesc', { defaultValue: '공용 파일을 Drive 에 보관해 저장 용량을 아낄 수 있어요.' })}
+        <strong>{t('docs.cloud.recommendTitle', { defaultValue: '회사 Drive 연결' })}</strong>{' '}
+        {t('docs.cloud.recommendDesc', { defaultValue: '프로젝트 파일을 회사 Google Drive 에 저장해 PlanQ 용량을 아낄 수 있어요.' })}
       </NoticeText>
       <NoticeAction as={Link} to="/business/settings/storage">
         {t('docs.cloud.connectCta', { defaultValue: '연결 설정' })} →

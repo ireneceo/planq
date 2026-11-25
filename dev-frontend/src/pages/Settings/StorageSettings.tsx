@@ -252,44 +252,70 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
     <Wrap>
       {/* 외부 헤더 (WorkspaceSettingsPage 의 pageTitle) 가 이미 "파일·외부 연동" 표시.
           내부 제목 중복 노출 차단 — desc 만 유지. */}
-      <SectionDesc>{tr('storage.desc', '워크스페이스 파일 보관 위치와 외부 연동을 설정합니다. 자체 스토리지 또는 Google Drive 중 선택, Google Calendar 연결 시 화상회의 자동 발급.')}</SectionDesc>
+      <SectionDesc>{tr('storage.desc', '회사 파일을 어디에 저장할지, 어떤 외부 서비스와 잇는지 정합니다.')}</SectionDesc>
       <TrustNote spot="integrations" />
 
-      <Notice>
-        <NoticeIcon aria-hidden>!</NoticeIcon>
-        <NoticeText>
-          <strong>{tr('storage.scopeTitle', '파일 보관 위치 — 워크스페이스 공용 vs 개인 보관함')}</strong>
-          <ul>
-            <li>{tr('storage.scopeBackedUp', '워크스페이스 공용 (프로젝트·업무·채팅 첨부): Drive 연결 시 Drive 로, 미연결 시 자체 스토리지')}</li>
-            <li>{tr('storage.scopeLocal', '개인 보관함 (내 파일·개인 메모): 항상 자체 스토리지 — Drive 연동과 무관, 개인별 분리 없음 (워크스페이스 공용 quota 안 합산)')}</li>
-            {/* ★ 이 문구는 **상태에서 파생**시킨다. 인제스트가 켜지는 순간 "동기화되지 않습니다" 는
-                거짓말이 되기 때문이다(동작을 바꾸면 문구도 같이 바뀌어야 한다). */}
-            <li>
-              {providers.gdrive.ingest?.active
-                ? tr('storage.scopeTwoWay', 'Drive 에서 직접 올린 파일도 워크스페이스 폴더 안에 있으면 PlanQ 파일함으로 들어옵니다. 삭제·이름 변경도 반영됩니다.')
-                : providers.gdrive.finder_sync
-                  ? tr('storage.scopeOneWay')
-                  : tr('storage.scopeOneWayOff')}
-            </li>
-          </ul>
-        </NoticeText>
-      </Notice>
-
-      {/* Drive 를 기준으로 일하겠다고 하셨을 때(Irene 2026-09-07) 실제로 무엇이 되고 안 되는지.
-          ★ "안 된다" 로 끝내지 않는다 — 되는 흐름을 같이 준다. 그리고 **왜** 안 되는지도 말한다:
-            "PlanQ 가 못 보는 것이지 연결이 끊긴 것이 아니다" 를 말해야 오늘 아침 같은 오해가 안 난다. */}
-      {gdriveConnected && !providers.gdrive.ingest?.active && (
-        <Notice data-testid="drive-first-notice">
-          <NoticeIcon aria-hidden>i</NoticeIcon>
-          <NoticeText>
-            <strong>{tr('storage.driveFirstTitle')}</strong>
-            <ul>
-              <li>{tr('storage.driveFirstOk')}</li>
-              <li>{tr('storage.driveFirstNo')}</li>
-            </ul>
-          </NoticeText>
-        </Notice>
-      )}
+      {/* «한눈에» — 어디에 저장되나 + Drive 에서 하면 무엇이 반영되나 (2026-11-25, Irene «이게 무슨 차이인지,
+          한계가 뭔지 … 길게 말로 늘어뜨리지 않아도»). 예전엔 같은 말을 위 안내·«이렇게 쓰세요»·카드 힌트 세 곳이 반복했다.
+          ★ 줄은 **상태에서 파생**한다 — 연결 여부(gdriveConnected) · 지우기·고치기 반영(finder_sync) · 새로 넣기(ingest.active).
+            동작이 바뀌면 문구도 같이 바뀌어야 거짓말이 안 된다. 근거: routes/files.js useGdrive · services/gdriveMirror isEligible. */}
+      <AtGlance data-testid="storage-at-glance">
+        <AtTitle>{tr('storage.at.whereTitle', '파일은 어디에 저장되나요')}</AtTitle>
+        <AtGrid>
+          {gdriveConnected ? (
+            <>
+              <AtKey>{tr('storage.at.projectFiles', '프로젝트·대화 파일')}</AtKey>
+              <AtVal><b>{tr('storage.at.companyDrive', '회사 Drive')}</b> {tr('storage.at.original', '(원본)')}</AtVal>
+              <AtKey>{tr('storage.at.otherFiles', '그 밖의 회사 파일')}</AtKey>
+              <AtVal><b>PlanQ</b> {tr('storage.at.plusCopy', '+ 회사 Drive 에 사본')}</AtVal>
+              <AtKey>{tr('storage.at.privateFiles', '내 파일·비공개 파일')}</AtKey>
+              <AtVal><b>PlanQ</b> {tr('storage.at.notToDrive', '(Drive 에 안 감)')}</AtVal>
+            </>
+          ) : (
+            <>
+              <AtKey>{tr('storage.at.allFiles', '모든 파일')}</AtKey>
+              <AtVal><b>PlanQ</b> {tr('storage.at.connectHint', '· 회사 Drive 를 연결하면 회사 파일이 Drive 에도 저장됩니다')}</AtVal>
+            </>
+          )}
+        </AtGrid>
+        {gdriveConnected && (
+          <>
+            <AtTitle>{tr('storage.at.inDriveTitle', 'Drive 에서 하면')}</AtTitle>
+            <AtGrid>
+              {providers.gdrive.finder_sync || providers.gdrive.ingest?.active ? (
+                <>
+                  <AtKey $ok>{tr('storage.at.delete', '✓ 지우기')}</AtKey>
+                  <AtVal>{tr('storage.at.deleteResult', '→ PlanQ 휴지통')}</AtVal>
+                  <AtKey $ok>{tr('storage.at.edit', '✓ 고치기')}</AtKey>
+                  <AtVal>{tr('storage.at.editResult', '→ PlanQ 에 새 내용 (이전 판 보관)')}</AtVal>
+                </>
+              ) : (
+                <>
+                  <AtKey>{tr('storage.at.deleteEditNo', '✗ 지우기·고치기')}</AtKey>
+                  <AtVal>{tr('storage.at.notReflected', '→ PlanQ 에 반영 안 됨')}</AtVal>
+                </>
+              )}
+              {providers.gdrive.ingest?.active ? (
+                <>
+                  <AtKey $ok>{tr('storage.at.addOk', '✓ 새로 넣기')}</AtKey>
+                  <AtVal>
+                    {tr('storage.at.addOkResult', '→ PlanQ 로 들어옴')}
+                    {providers.gdrive.ingest.recent_30d > 0
+                      ? ` · ${tr('storage.ingest.recent', '최근 30일')} ${providers.gdrive.ingest.recent_30d}${tr('storage.ingest.count', '건')}`
+                      : ''}
+                  </AtVal>
+                </>
+              ) : (
+                <>
+                  <AtKey data-testid="storage-at-limit">{tr('storage.at.addNo', '✗ 새로 넣기')}</AtKey>
+                  <AtVal>{tr('storage.at.addNoResult', '→ PlanQ 에 안 보여요 · PlanQ 에서 올려 주세요')}</AtVal>
+                </>
+              )}
+            </AtGrid>
+            <AtFoot>{tr('storage.at.editTip', 'Word·Excel 은 PlanQ 미리보기의 «Drive 에서 편집» 으로 바로 고칩니다.')}</AtFoot>
+          </>
+        )}
+      </AtGlance>
 
       {/* PlanQ 자체 — 항상 "사용 중" (개인 보관함은 Drive 무관, 항상 자체) */}
       <ProviderCard $active={true}>
@@ -303,7 +329,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             <CardTitle>{tr('storage.planq.title', 'PlanQ 자체 스토리지')}</CardTitle>
             <CardSub>
               {gdriveConnected
-                ? tr('storage.planq.descConnected', '개인 보관함은 항상 자체 스토리지. 워크스페이스 공용 신규 업로드는 Drive 로 — 기존 파일 그대로 유지.')
+                ? tr('storage.planq.descConnected', '내 파일·비공개 파일과 Drive 에 안 가는 파일을 보관합니다.')
                 : tr('storage.planq.desc', '워크스페이스 공용 + 개인 보관함 모두 자체 스토리지. 플랜별 용량 한도 적용.')}
             </CardSub>
           </CardTitleWrap>
@@ -336,11 +362,11 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             </svg>
           </CardIcon>
           <CardTitleWrap>
-            <CardTitle>{tr('storage.gdriveTeam.title', '회사 공용 Google Drive')}</CardTitle>
+            <CardTitle>{tr('storage.gdriveTeam.title', '회사 Drive (Google)')}</CardTitle>
             <CardSub>
               {gdriveConnected
                 ? `${tr('storage.connected', '연결됨')} · ${providers.gdrive.account_email || ''}`
-                : tr('storage.gdriveTeam.desc', '워크스페이스 공용, 프로젝트 자료 저장 · 앱 전용 폴더(drive.file)')}
+                : tr('storage.gdriveTeam.desc', '회사 파일을 회사 Google Drive 에 저장합니다.')}
             </CardSub>
           </CardTitleWrap>
           {gdriveConnected && (providers.gdrive.needs_reconnect
@@ -361,28 +387,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             onChanged={load}
           />
         )}
-        {/* #379 v2 — 역방향 인제스트 상태.
-            ★ "아직 안 켜짐" 과 "고장" 은 다른 상태다. 같은 얼굴로 보여주면 사용자는 고장으로 읽는다.
-              그리고 심사를 통과해도 **사용자가 다시 동의해야** 켜진다 — 그 사실을 여기서 말해준다.
-              안 그러면 "통과했는데 왜 안 돼요" 가 다음 조용한 죽음이 된다. */}
-        {gdriveConnected && providers.gdrive.ingest && !providers.gdrive.needs_reconnect && (
-          <CardActions>
-            {providers.gdrive.ingest.active ? (
-              <InlineHint>
-                {tr('storage.ingest.active', 'Drive 에서 직접 올린 파일도 가져옵니다')}
-                {providers.gdrive.ingest.recent_30d > 0
-                  ? ` · ${tr('storage.ingest.recent', '최근 30일')} ${providers.gdrive.ingest.recent_30d}${tr('storage.ingest.count', '건')}`
-                  : ''}
-              </InlineHint>
-            ) : (
-              <InlineHint>
-                {providers.gdrive.ingest.reason === 'no_root_folder'
-                  ? tr('storage.ingest.noFolder', 'Drive 전용 폴더가 아직 만들어지지 않았습니다 — 파일을 한 번 올리면 생성됩니다')
-                  : tr('storage.ingest.waiting', 'Drive 에서 직접 올린 파일 가져오기는 준비돼 있습니다 — Google 승인 절차가 끝나면 안내와 함께 켜집니다')}
-              </InlineHint>
-            )}
-          </CardActions>
-        )}
+        {/* #379 v2 — 역방향 인제스트 상태는 위 «한눈에» 의 «새로 넣기» 줄이 말한다(같은 말을 카드에서 또 하지 않는다). */}
         {gdriveConnected && providers.gdrive.needs_reconnect && (
           <CardActions>
             <S3Msg $tone="err">{tr('storage.tokenError', 'Google 인증이 만료되었습니다 — 다시 연결해 주세요')}</S3Msg>
@@ -396,11 +401,14 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             <InlineHint>{tr('storage.gdrive.notConfigured', '서버에 OAuth 가 설정되지 않았습니다 (.env 확인 필요)')}</InlineHint>
           ) : gdriveConnected ? (
             <>
-              <LinkBtn as="a" href={providers.gdrive.root_folder_id ? `https://drive.google.com/drive/folders/${providers.gdrive.root_folder_id}` : '#'} target="_blank" rel="noreferrer">
-                {tr('storage.openInDrive', 'Drive 에서 열기')} ↗
-              </LinkBtn>
+              {/* 저장 폴더 줄(DriveLocationPanel)이 이미 «폴더 열기» 를 주면 같은 버튼을 두 번 두지 않는다 */}
+              {!(providers.gdrive.folder?.web_view_link && !providers.gdrive.needs_reconnect) && providers.gdrive.root_folder_id && (
+                <LinkBtn as="a" href={`https://drive.google.com/drive/folders/${providers.gdrive.root_folder_id}`} target="_blank" rel="noreferrer">
+                  {tr('storage.openInDrive', '폴더 열기')} ↗
+                </LinkBtn>
+              )}
               <DangerBtn type="button" disabled={!isOwner} onClick={() => setDisconnectTarget('gdrive')}>
-                {tr('storage.disconnect', '연결 해제')}
+                {tr('storage.disconnect', '연결 끊기')}
               </DangerBtn>
             </>
           ) : (
@@ -519,7 +527,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
                 {tr('storage.syncEnabled')}
               </SyncToggleLabel>
             <DangerBtn type="button" disabled={!isOwner} onClick={() => setDisconnectTarget('gcal')}>
-              {tr('storage.disconnect', '연결 해제')}
+              {tr('storage.disconnect', '연결 끊기')}
             </DangerBtn>
             </>
           ) : (
@@ -553,7 +561,7 @@ const StorageSettings: React.FC<Props> = ({ businessId }) => {
             </DBody>
             <DFooter>
               <SecondaryBtn type="button" onClick={() => setDisconnectTarget(null)}>{tr('common.cancel', '취소')}</SecondaryBtn>
-              <DangerBtn type="button" onClick={handleDisconnect}>{tr('storage.disconnect', '연결 해제')}</DangerBtn>
+              <DangerBtn type="button" onClick={handleDisconnect}>{tr('storage.disconnect', '연결 끊기')}</DangerBtn>
             </DFooter>
           </Dialog>
         </Modal>
@@ -603,23 +611,19 @@ const StatusBadge = styled.span<{ $kind: 'active' | 'soon' | 'inactive' }>`
       ? 'background:#F1F5F9;color:#64748B;border:1px solid #E2E8F0;'
       : 'background:#F1F5F9;color:#94A3B8;'}
 `;
-const Notice = styled.div`
-  display:flex;align-items:flex-start;gap:10px;
-  background:#FEF3C7;border:1px solid #FDE68A;border-radius:10px;
-  padding:10px 14px;margin-bottom:4px;
+// «한눈에» 표 — 긴 문장 대신 «무엇 → 어디» 두 칸. 폰에서도 두 칸(왼쪽 칸이 좁아 줄바꿈만 된다).
+const AtGlance = styled.section`
+  background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;
+  padding:12px 14px;display:flex;flex-direction:column;gap:6px;
 `;
-const NoticeIcon = styled.span`
-  flex-shrink:0;width:20px;height:20px;
-  background:#F59E0B;color:#fff;border-radius:50%;
-  display:flex;align-items:center;justify-content:center;
-  font-size:0.75rem;font-weight:700;line-height:1;
+const AtTitle = styled.div`font-size:0.78125rem;font-weight:700;color:#0F172A;&:not(:first-child){margin-top:6px;}`;
+const AtGrid = styled.div`
+  display:grid;grid-template-columns:minmax(96px,max-content) 1fr;column-gap:14px;row-gap:3px;
+  font-size:0.78125rem;line-height:1.5;
 `;
-const NoticeText = styled.div`
-  font-size:0.78125rem;color:#78350F;line-height:1.55;
-  strong { display:block; color:#78350F; font-weight:700; margin-bottom:4px; }
-  ul { margin:0; padding-left:18px; }
-  li { margin-bottom:2px; }
-`;
+const AtKey = styled.div<{ $ok?: boolean }>`color:${p => p.$ok ? '#0F766E' : '#475569'};font-weight:${p => p.$ok ? 600 : 500};`;
+const AtVal = styled.div`color:#334155;min-width:0;b{font-weight:700;color:#0F172A;}`;
+const AtFoot = styled.div`font-size:0.75rem;color:#64748B;margin-top:2px;`;
 const CardBody = styled.div`padding-top:4px;`;
 const CardActions = styled.div`display:flex;gap:8px;justify-content:flex-end;`;
 const UsageRow = styled.div`display:flex;flex-direction:column;gap:6px;`;

@@ -868,15 +868,15 @@
     "typeFile": "File",
     "typePost": "Doc",
     "drive": {
-      "title": "Import from Google Drive",
-      "titlePersonal": "Import from my Google Drive",
+      "title": "Import from Company Drive",
+      "titlePersonal": "Import from My Drive",
       "search": "Search Drive files...",
       "loading": "Loading...",
       "importing": "Importing...",
       "added": "Added",
       "empty": "The list below shows only files already opened with PlanQ. For anything else in My Drive or a shared drive, use Browse Drive above.",
-      "notConnected": "This workspace has no Google Drive connected. An owner can connect it in Settings › Files & integrations.",
-      "notConnectedPersonal": "Your personal Google Drive isn't connected. Connect it in Settings › Files & integrations.",
+      "notConnected": "Company Drive isn't connected. An owner connects it in Settings › Files & integrations.",
+      "notConnectedPersonal": "My Drive isn't connected. Connect it in My profile › Integrations.",
       "loadFailed": "Couldn't load your Drive files",
       "importFailed": "Couldn't import this file",
       "nativeDoc": "Google Forms, Sites and similar have no document form to convert to. Export them from Drive as PDF and upload that instead.",
@@ -1182,8 +1182,8 @@
     },
     "exemptHint": "This workspace is exempt from subscription charges. Contact the platform admin if you need higher limits.",
     "needsDrive": {
-      "title": "Large files like video go to Google Drive",
-      "desc": "Files over 50MB can’t be stored in PlanQ’s own storage. Connect Google Drive in Settings › Files & integrations to upload video directly."
+      "title": "Large files like video go to Company Drive",
+      "desc": "Files over 50MB can't be stored in PlanQ. Connect Company Drive in Settings › Files & integrations to upload video directly."
     },
     "trialSwitch": {
       "hint_basic": "You're on the sole-proprietor trial (Starter · 1 member). Switch to the team trial to invite up to 5 people at no charge. Your trial end date stays the same.",
@@ -1766,7 +1766,7 @@
   },
   "upload": {
     "err": {
-      "needsDrive": "This file is larger than {{limit}}. Connect Google Drive and large files upload as-is (Settings > Files & integrations).",
+      "needsDrive": "This file is larger than {{limit}}. Connect Company Drive and large files upload as-is (Settings › Files & integrations).",
       "needsContext": "This file is larger than {{limit}}. Upload it inside a project or a chat and it goes to your connected Google Drive.",
       "theLimit": "the limit",
       "tooLargeWithLimit": "This is over the maximum size for a single file ({{limit}}).",

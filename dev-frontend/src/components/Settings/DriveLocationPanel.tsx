@@ -230,7 +230,7 @@ const FinderShare: React.FC<{ businessId: number }> = ({ businessId }) => {
       });
       const j = await r.json();
       setNote(j.success
-        ? { text: tr('storage.finderShare.unshared', '접근을 끊었습니다. 이미 자기 드라이브로 복사한 파일은 회수되지 않습니다.'), err: false }
+        ? { text: tr('storage.finderShare.unshared', '숨겼습니다. 이미 자기 드라이브로 복사한 파일은 회수되지 않습니다.'), err: false }
         : { text: tr('storage.finderShare.failed', '공유하지 못했습니다.'), err: true });
       await load();
     } catch {
@@ -248,7 +248,7 @@ const FinderShare: React.FC<{ businessId: number }> = ({ businessId }) => {
       const j = await r.json();
       if (!j.success) { setNote({ text: tr('storage.finderShare.failed', '공유하지 못했습니다.'), err: true }); return; }
       const one = (j.data?.results || [])[0] || {};
-      if (one.granted) setNote({ text: tr('storage.finderShare.done', '파인더에 폴더가 보이게 했습니다.'), err: false });
+      if (one.granted) setNote({ text: tr('storage.finderShare.done', '팀원 구글 드라이브에 폴더가 보이게 했습니다.'), err: false });
       else if (one.reason === 'already') setNote({ text: tr('storage.finderShare.already', '이미 볼 수 있습니다.'), err: false });
       else if (one.reason === 'no_google_account') setNote({ text: tr('storage.finderShare.noGoogle', '이 주소로는 구글 계정을 찾을 수 없습니다. 구글 계정으로 쓰는 주소여야 파인더에서 열립니다.'), err: true });
       else setNote({ text: tr('storage.finderShare.failed', '공유하지 못했습니다.'), err: true });
@@ -262,12 +262,12 @@ const FinderShare: React.FC<{ businessId: number }> = ({ businessId }) => {
     <Box>
       <Btns>
         <SmallBtn type="button" data-testid="gdrive-finder-share-open" onClick={() => { setOpen((v) => !v); setNote(null); }}>
-          {tr('storage.finderShare.open', '파인더 공유')}
+          {tr('storage.finderShare.open', '팀원에게 폴더 보이기')}
         </SmallBtn>
       </Btns>
       {open && (
         <>
-          <Help>{tr('storage.finderShare.help', '팀원의 구글 계정에 이 폴더를 열어 주면, 그 사람 파인더(구글 드라이브)에도 같은 폴더가 보입니다. 알림 메일은 보내지 않습니다.')}</Help>
+          <Help>{tr('storage.finderShare.help', '팀원 구글 드라이브에 이 폴더가 보입니다. 내 파일·비공개 파일·Q note·고객 대화 첨부는 없습니다. 알림 메일은 가지 않습니다.')}</Help>
           {loading && <Help>{tr('storage.finderShare.loading', '불러오는 중…')}</Help>}
           {!loading && rows.length === 0 && <Help>{tr('storage.finderShare.empty', '공유할 팀원이 없습니다.')}</Help>}
           {rows.map((r) => (
@@ -277,13 +277,13 @@ const FinderShare: React.FC<{ businessId: number }> = ({ businessId }) => {
                 ? (
                   <SmallBtn type="button" data-testid={`gdrive-finder-unshare-${r.user_id}`}
                     disabled={busyId === r.user_id} onClick={() => { void unshare(r); }}>
-                    {busyId === r.user_id ? tr('storage.finderShare.unsharing', '해제 중…') : tr('storage.finderShare.unshare', '해제')}
+                    {busyId === r.user_id ? tr('storage.finderShare.unsharing', '숨기는 중…') : tr('storage.finderShare.unshare', '숨기기')}
                   </SmallBtn>
                 )
                 : (
                   <SmallBtn type="button" data-testid={`gdrive-finder-share-${r.user_id}`}
                     disabled={busyId === r.user_id} onClick={() => setConfirmFor(r)}>
-                    {busyId === r.user_id ? tr('storage.finderShare.sharing', '여는 중…') : tr('storage.finderShare.share', '열어 주기')}
+                    {busyId === r.user_id ? tr('storage.finderShare.sharing', '보이는 중…') : tr('storage.finderShare.share', '보이기')}
                   </SmallBtn>
                 )}
             </Row>
@@ -312,14 +312,14 @@ const FinderShare: React.FC<{ businessId: number }> = ({ businessId }) => {
         isOpen={!!confirmFor}
         onClose={() => setConfirmFor(null)}
         onConfirm={() => { const c = confirmFor; setConfirmFor(null); if (c) void share(c.user_id); }}
-        title={tr('storage.finderShare.confirmTitle', '파인더에 폴더를 열까요?')}
+        title={tr('storage.finderShare.confirmTitle', '팀원에게 폴더를 보일까요?')}
         message={t('storage.finderShare.confirmBody', {
           folder: folderPath,
           defaultValue: '{{name}} ({{email}}) 의 구글 계정에 «PlanQ / Workspace Files» 폴더를 {{mode}} 권한으로 엽니다. 한 번 준 권한은 PlanQ 에서 되돌릴 수 없고, 구글 드라이브에서 직접 해제해야 합니다. Q note·고객 대화 첨부·프로젝트 파일은 포함되지 않습니다.',
           name: confirmFor?.name || '', email: confirmFor?.email || '',
           mode: allowEdit ? tr('storage.finderShare.modeEdit', '편집') : tr('storage.finderShare.modeView', '보기'),
         }) as string}
-        confirmText={tr('storage.finderShare.confirmOk', '열기')}
+        confirmText={tr('storage.finderShare.confirmOk', '보이기')}
         cancelText={tr('storage.finderShare.confirmCancel', '취소')}
         variant="warning"
       />

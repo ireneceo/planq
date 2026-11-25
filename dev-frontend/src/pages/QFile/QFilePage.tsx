@@ -40,7 +40,7 @@ const QFilePage: React.FC = () => {
         {t('tabs.workspace', { defaultValue: '회사 파일' }) as string}
       </Tab>
       <Tab type="button" role="tab" aria-selected={tab === 'personal'} $active={tab === 'personal'} onClick={() => setTab('personal')}>
-        {t('tabs.personal', { defaultValue: '내 파일 (Drive)' }) as string}
+        {t('tabs.personal', { defaultValue: '내 Drive' }) as string}
       </Tab>
     </Tabs>
   );

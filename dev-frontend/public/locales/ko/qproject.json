@@ -484,17 +484,17 @@
       "uploadFolder": "폴더 올리기"
     },
     "cloud": {
-      "connectedTitle": "공용 파일은 Google Drive 에 저장됩니다.",
-      "connectedBody": "파일은 PlanQ 에서 올리고 정리하세요. Drive 에서 직접 만든 파일은 여기 목록에 나오지 않습니다.",
-      "openDrive": "Drive 폴더 열기",
-      "recommendTitle": "Google Drive 연결",
-      "recommendDesc": "공용 파일을 Drive 에 보관해 저장 용량을 아낄 수 있어요.",
+      "connectedTitle": "이 프로젝트 파일은 회사 Drive 에 저장됩니다.",
+      "connectedBody": "파일은 PlanQ 에서 올리세요. Drive 에 새로 넣은 파일은 여기 안 보여요.",
+      "openDrive": "폴더 열기",
+      "recommendTitle": "회사 Drive 연결",
+      "recommendDesc": "프로젝트 파일을 회사 Google Drive 에 저장해 PlanQ 용량을 아낄 수 있어요.",
       "connectCta": "연결 설정",
-      "inMyDrive": "저장 위치: 내 드라이브 › {{name}}",
-      "inSharedDrive": "저장 위치: 팀 드라이브 › {{name}}",
+      "inMyDrive": "저장 폴더: 내 드라이브 › {{name}}",
+      "inSharedDrive": "저장 폴더: 공유 드라이브 › {{name}}",
       "folderUnreachable": "지금 Drive 폴더를 확인하지 못했습니다. 다음 업로드 때 자동으로 다시 찾습니다.",
-      "changeLocation": "저장 위치 바꾸기",
-      "connectedOneLine": "공용 파일은 Google Drive 에 저장됩니다",
+      "changeLocation": "폴더 바꾸기",
+      "connectedOneLine": "이 프로젝트 파일은 회사 Drive 에 저장됩니다",
       "dismiss": "이 안내 닫기"
     },
     "source": {

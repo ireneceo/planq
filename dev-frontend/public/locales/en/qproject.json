@@ -484,17 +484,17 @@
       "uploadFolder": "Upload folder"
     },
     "cloud": {
-      "connectedTitle": "Shared files are stored in Google Drive.",
-      "connectedBody": "Upload and organise files in PlanQ. Files created directly in Drive won't appear in this list.",
-      "openDrive": "Open in Drive",
-      "recommendTitle": "Connect Google Drive",
-      "recommendDesc": "Keep shared files in Drive and save your storage quota.",
+      "connectedTitle": "This project's files are stored in Company Drive.",
+      "connectedBody": "Upload files in PlanQ. Files added directly in Drive won't show here.",
+      "openDrive": "Open folder",
+      "recommendTitle": "Connect Company Drive",
+      "recommendDesc": "Store project files in your company Google Drive and save PlanQ storage.",
       "connectCta": "Connect",
-      "inMyDrive": "Stored in: My Drive › {{name}}",
-      "inSharedDrive": "Stored in: Team drive › {{name}}",
+      "inMyDrive": "Folder: My Drive › {{name}}",
+      "inSharedDrive": "Folder: Shared drive › {{name}}",
       "folderUnreachable": "Couldn't check the Drive folder right now. PlanQ will find it again on the next upload.",
-      "changeLocation": "Change location",
-      "connectedOneLine": "Shared files are stored in Google Drive",
+      "changeLocation": "Change folder",
+      "connectedOneLine": "This project's files are stored in Company Drive",
       "dismiss": "Dismiss this notice"
     },
     "source": {

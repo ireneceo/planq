@@ -1,4 +1,4 @@
-// 내 파일 (개인 Google Drive) 탭 — 외부 연동 Phase 4
+// 내 Drive 탭 — 내 Google Drive 에서 PlanQ 로 가져온 파일(drive.file 이라 PlanQ 로 연 파일만 보인다) · 외부 연동 Phase 4
 // GET /api/me/drive/files. 읽기 전용 — 클릭 시 Google Drive 원본을 새 탭에서 연다.
 import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
@@ -61,7 +61,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
   if (connected === false) {
     return (
       <Notice>
-        <NoticeText>{t('drive.notConnected', { defaultValue: 'Google Drive 를 연결하면 PlanQ 가 내 드라이브에 저장한 파일을 여기서 볼 수 있어요.' }) as string}</NoticeText>
+        <NoticeText>{t('drive.notConnected', { defaultValue: '내 Drive 를 연결하면 PlanQ 로 가져온 내 Drive 파일이 여기 보여요.' }) as string}</NoticeText>
         <NoticeBtn type="button" onClick={() => { window.location.href = '/profile/integrations'; }}>
           {t('drive.connectCta', { defaultValue: '내 외부 연동에서 연결하기' }) as string} →
         </NoticeBtn>
@@ -76,7 +76,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => { if (isEnterAction(e)) load(q); }}
-          placeholder={t('drive.searchPlaceholder', { defaultValue: 'PlanQ 저장 파일 검색 (Enter)' }) as string}
+          placeholder={t('drive.searchPlaceholder', { defaultValue: '가져온 파일 검색 (Enter)' }) as string}
         />
         {accountEmail && <AccountTag>{accountEmail}</AccountTag>}
       </Bar>
@@ -84,7 +84,7 @@ const PersonalDriveTab: React.FC<{ businessId: number }> = ({ businessId }) => {
       {loading ? (
         <Empty>{t('drive.loading', { defaultValue: '불러오는 중…' }) as string}</Empty>
       ) : files.length === 0 ? (
-        <Empty>{t('drive.empty', { defaultValue: '아직 PlanQ 가 내 드라이브에 저장한 파일이 없어요' }) as string}</Empty>
+        <Empty>{t('drive.empty', { defaultValue: '아직 가져온 파일이 없어요' }) as string}</Empty>
       ) : (
         <List>
           {files.map((f) => (

@@ -868,15 +868,15 @@
     "typeFile": "파일",
     "typePost": "문서",
     "drive": {
-      "title": "Google Drive 에서 가져오기",
-      "titlePersonal": "내 Google Drive 에서 가져오기",
+      "title": "회사 Drive 에서 가져오기",
+      "titlePersonal": "내 Drive 에서 가져오기",
       "search": "드라이브 파일 검색...",
       "loading": "불러오는 중...",
       "importing": "가져오는 중...",
       "added": "추가됨",
       "empty": "아래 목록에는 PlanQ 로 연 파일만 보입니다. 내 드라이브·공유 드라이브의 다른 파일은 위의 'Drive 에서 찾아보기' 로 고르시면 가져올 수 있습니다.",
-      "notConnected": "워크스페이스 Google Drive 가 연결돼 있지 않습니다. 오너가 설정 › 파일·외부 연동에서 연결할 수 있습니다.",
-      "notConnectedPersonal": "개인 Google Drive 가 연결돼 있지 않습니다. 설정 › 파일·외부 연동에서 연결해 주세요.",
+      "notConnected": "회사 Drive 가 연결돼 있지 않습니다. 오너가 설정 › 파일·외부 연동에서 연결합니다.",
+      "notConnectedPersonal": "내 Drive 가 연결돼 있지 않습니다. 내 프로필 › 외부 연동에서 연결해 주세요.",
       "loadFailed": "드라이브 목록을 불러오지 못했습니다",
       "importFailed": "가져오지 못했습니다",
       "nativeDoc": "Google 설문지·사이트 등은 문서 형식으로 바꿀 수 없어 가져올 수 없습니다. Drive 에서 PDF 로 내보낸 뒤 올려 주세요.",
@@ -1182,8 +1182,8 @@
     },
     "exemptHint": "이 워크스페이스는 구독료가 면제되어 있습니다. 한도 조정이 필요하면 플랫폼 관리자에게 문의해 주세요.",
     "needsDrive": {
-      "title": "영상처럼 큰 파일은 Google Drive 로 올려요",
-      "desc": "50MB 를 넘는 파일은 자체 저장소에 올릴 수 없어요. 설정 > 파일·외부 연동에서 Google Drive 를 연결하면 영상도 바로 올릴 수 있어요."
+      "title": "영상처럼 큰 파일은 회사 Drive 로 올려요",
+      "desc": "50MB 를 넘는 파일은 PlanQ 에 올릴 수 없어요. 설정 › 파일·외부 연동에서 회사 Drive 를 연결하면 영상도 바로 올릴 수 있어요."
     },
     "trialSwitch": {
       "hint_basic": "지금은 1인 사업자 체험(Starter · 1명)이에요. 팀 체험으로 바꾸면 결제 없이 최대 5명까지 초대할 수 있어요. 체험 종료일은 그대로예요.",
@@ -1766,7 +1766,7 @@
   },
   "upload": {
     "err": {
-      "needsDrive": "{{limit}} 보다 큰 파일이에요. Google Drive 를 연결하면 큰 파일도 그대로 올라갑니다 (설정 > 파일·외부 연동).",
+      "needsDrive": "{{limit}} 보다 큰 파일이에요. 회사 Drive 를 연결하면 큰 파일도 그대로 올라갑니다 (설정 › 파일·외부 연동).",
       "needsContext": "{{limit}} 보다 큰 파일이에요. 프로젝트나 대화에 올리면 연결해 둔 Google Drive 로 저장됩니다.",
       "theLimit": "허용 용량",
       "tooLargeWithLimit": "파일 하나에 올릴 수 있는 최대 크기({{limit}})를 넘었습니다.",

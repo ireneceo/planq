@@ -296,11 +296,11 @@
       },
       "file": {
         "name": "Q file — Files",
-        "lead": "Organized by project and client. Identical files stored once. Two-way sync with your workspace Google Drive.",
+        "lead": "Organized by project and client. Identical files stored once. Google Drive storage, import and editing built in.",
         "bullets": [
           "Folders organized by project · customer with auto categorization",
           "Uploading the same file again doesn't use more storage",
-          "Two-way Google Drive sync (workspace only) + native PlanQ storage (personal)",
+          "Company Google Drive storage + import from your own Google Drive + native PlanQ storage (personal)",
           "1GB / 50GB / 500GB storage and 10MB / 30MB / 50MB per file by plan",
           "External share token links + previews"
         ],
@@ -428,7 +428,7 @@
       },
       "gdrive": {
         "name": "Google Drive sync",
-        "lead": "Workspace shared files → Drive · personal files → PlanQ native. Option B+1 policy (one-way)."
+        "lead": "Company files live in your company Google Drive, personal files in PlanQ — and you can bring in files from your own Google Drive."
       },
       "billing": {
         "name": "Payments · tax invoice tracking",

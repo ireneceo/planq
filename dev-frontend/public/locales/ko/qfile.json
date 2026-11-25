@@ -6,14 +6,14 @@
   },
   "drive": {
     "connectCta": "내 외부 연동에서 연결하기",
-    "empty": "아직 PlanQ 가 내 드라이브에 저장한 파일이 없어요",
+    "empty": "아직 가져온 파일이 없어요",
     "loadFailed": "불러오기 실패",
     "loading": "불러오는 중…",
-    "notConnected": "Google Drive 를 연결하면 PlanQ 가 내 드라이브에 저장한 파일을 여기서 볼 수 있어요.",
-    "searchPlaceholder": "PlanQ 저장 파일 검색 (Enter)"
+    "notConnected": "내 Drive 를 연결하면 PlanQ 로 가져온 내 Drive 파일이 여기 보여요.",
+    "searchPlaceholder": "가져온 파일 검색 (Enter)"
   },
   "tabs": {
-    "personal": "내 파일 (Drive)",
+    "personal": "내 Drive",
     "workspace": "회사 파일"
   },
   "usage": {

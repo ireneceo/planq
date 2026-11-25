@@ -6,14 +6,14 @@
   },
   "drive": {
     "connectCta": "Connect in My integrations",
-    "empty": "PlanQ hasn't saved any files to your Drive yet",
+    "empty": "No files brought in yet",
     "loadFailed": "Connect Google Drive to see the files PlanQ saved to your Drive here.",
     "loading": "Couldn't load",
-    "notConnected": "Loading…",
-    "searchPlaceholder": "Search files saved by PlanQ (Enter)"
+    "notConnected": "Connect My Drive to see the Drive files you've brought into PlanQ here.",
+    "searchPlaceholder": "Search brought-in files (Enter)"
   },
   "tabs": {
-    "personal": "My files (Drive)",
+    "personal": "My Drive",
     "workspace": "Company files"
   },
   "usage": {
