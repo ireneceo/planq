@@ -118,7 +118,7 @@ async function buildWorkspacePages({ origin, template, renderPage, breadcrumb })
       const title = `${v.name}${catL ? ` — ${catL}` : ''}${regL ? ` · ${regL}` : ''} | PlanQ`;
       const desc = [v.tagline, v.intro].filter(Boolean).join(' ').replace(/\s+/g, ' ').slice(0, 155);
       const info = [];
-      if (v.contact.website) info.push(`${lang === 'en' ? 'Website' : '홈페이지'}: ${v.contact.website}`);
+      if (v.contact.website) info.push(`${lang === 'en' ? 'Website' : '홈페이지'}: ${v.contact.website.replace(/^(https?:\/\/[^/?#]+)\/$/, '$1')}`); // 표시만 끝 «/» 뗌 — 화면 EntryInfoView siteLabel 과 같은 규칙
       if (v.contact.phone) info.push(`${lang === 'en' ? 'Phone' : '전화'}: ${v.contact.phone}`);
       if (v.contact.email) info.push(`${lang === 'en' ? 'Email' : '이메일'}: ${v.contact.email}`);
       if (v.contact.address) info.push(`${lang === 'en' ? 'Address' : '주소'}: ${v.contact.address}`);

@@ -44,6 +44,10 @@ const servicesOf = (e: EntryInfo | null): Svc[] => (e?.services || []).map((s: u
     : (s as Svc)
 )).filter((s) => s && s.name);
 
+// 홈페이지 표시 글자 — 스킴(https://)은 그대로 보이고, 경로 없이 «/» 하나로 끝나면 그 «/» 만 뗀다(https://wor-pro.com/ → https://wor-pro.com).
+// href 는 서버가 준 값 그대로. 경로가 있는 주소(https://a.com/shop/)는 건드리지 않는다.
+const siteLabel = (u: string) => u.replace(/^(https?:\/\/[^/?#]+)\/$/, '$1');
+
 export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskService, emptyText, preview, inquiryUrl, workspaceName, hideActions, splitForm }: Props) {
   // 폼이 있으면 [문의하기]·[이 서비스 문의] 는 폼으로 내려간다(서비스를 미리 골라서) — 인증 없이 바로 남기는 문
   const formOn = !!entry?.form?.enabled && (!!inquiryUrl || !!preview);
@@ -57,7 +61,7 @@ export default function EntryInfoView({ entry, bookingOn, onAsk, onBook, onAskSe
   const infoRows: { key: string; label: string; node: React.ReactNode }[] = [];
   if (c?.website) infoRows.push({ key: 'website', label: t('entry.website', { defaultValue: '홈페이지' }),
     // 외부 주소는 새 탭 + noreferrer·nofollow — 우리 화면 주소가 제3자에게 가지 않게, 사용자 글 링크로 평판을 주지 않게.
-    node: <a href={c.website} target="_blank" rel="noopener noreferrer nofollow ugc">{c.website.replace(/^https?:\/\//, '')}</a> });
+    node: <a href={c.website} target="_blank" rel="noopener noreferrer nofollow ugc">{siteLabel(c.website)}</a> });
   if (c?.phone) infoRows.push({ key: 'phone', label: t('entry.phone', { defaultValue: '전화' }), node: <a href={`tel:${c.phone}`}>{c.phone}</a> });
   if (c?.email) infoRows.push({ key: 'email', label: t('entry.email', { defaultValue: '이메일' }), node: <a href={`mailto:${c.email}`}>{c.email}</a> });
   if (hours) infoRows.push({ key: 'work_hours', label: t('entry.workHours', { defaultValue: '근무시간' }), node: <span>{hours}</span> });
