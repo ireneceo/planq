@@ -28,7 +28,15 @@ export default function DesktopBridge(): null {
     const d = desktopBridge();
     if (!d || !d.capabilities?.openLinks || !uid || markedFor === uid) return;
     markedFor = uid;
-    void apiFetch('/api/auth/desktop-open-links', { method: 'POST' }).catch(() => { markedFor = null; });
+    // 토큰 회전과 겹치면(rotated) 옛 행이라 서버가 안 찍는다 — 회전이 끝난 뒤 한 번 더(Fable 완료 검증 비차단 2)
+    const mark = async (retry: boolean): Promise<void> => {
+      const r = await apiFetch('/api/auth/desktop-open-links', { method: 'POST' });
+      const j = await r.json().catch(() => null) as { data?: { marked?: boolean; reason?: string } } | null;
+      if (retry && j?.data?.marked === false && j.data.reason === 'rotated') {
+        window.setTimeout(() => { if (markedFor === uid) void mark(false).catch(() => { /* 다음 실행 때 */ }); }, 20000);
+      }
+    };
+    void mark(true).catch(() => { markedFor = null; });
   }, [uid]);
 
   useEffect(() => {

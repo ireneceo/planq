@@ -10,7 +10,7 @@ async function run() {
     console.log('[desktop-open-links] 이미 있음 — skip');
     return;
   }
-  await sequelize.query('ALTER TABLE refresh_tokens ADD COLUMN open_links TINYINT(1) NOT NULL DEFAULT 0, ALGORITHM=INSTANT');
+  await sequelize.query('ALTER TABLE refresh_tokens ADD COLUMN open_links TINYINT(1) NOT NULL DEFAULT 0');
   console.log('[desktop-open-links] refresh_tokens.open_links 추가');
 }
 

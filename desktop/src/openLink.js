@@ -21,6 +21,8 @@ function judgeOpenLink(raw, appOrigin) {
   try { t = new URL(target); } catch { return null; }
   if (t.origin !== appOrigin || t.username || t.password) return null;
   const p = t.pathname;
+  // 팝아웃 창 주소(/task-popout 등)는 접두어(/task)에 걸리지만 메인 창 화면이 아니다 — 버린다(Fable 완료 검증 비차단 1)
+  if (/^\/[^/]*-popout(\/|$)/.test(p)) return null;
   if (!prefixes.some((x) => p === x || p.startsWith(x))) return null;
   const uRaw = outer.searchParams.get('u');
   const u = uRaw && /^\d{1,12}$/.test(uRaw) ? Number(uRaw) : null;

@@ -25,6 +25,9 @@ const cases = [
   ['planq://open/x?url=' + encodeURIComponent('https://planq.kr/docs'), null],
   ['https://planq.kr/docs', null],
   [open('https://planq.kr/docs', 'abc'), { path: '/docs', u: null }],
+  [open('https://planq.kr/talk-popout?x=1'), null],          // 팝아웃 창 주소는 메인 창 화면이 아님
+  [open('https://planq.kr/task-popout'), null],
+  [open('https://planq.kr/tasks?task=1'), { path: '/tasks?task=1', u: null }],
   [null, null],
 ];
 let n = 0;

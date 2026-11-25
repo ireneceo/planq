@@ -22,6 +22,8 @@ export function setHandoffPref(v: HandoffPref): void {
 }
 
 export function isAppLinkPath(pathname: string): boolean {
+  // 팝아웃 창 주소(/task-popout 등)는 접두어에 걸리지만 메인 창 화면이 아니다 — 껍데기 openLink.js 와 같은 규칙
+  if (/^\/[^/]*-popout(\/|$)/.test(pathname)) return false;
   return APP_LINK_PREFIXES.some((x) => pathname === x || pathname.startsWith(x));
 }
 

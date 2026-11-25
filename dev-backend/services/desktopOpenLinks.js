@@ -25,7 +25,7 @@ async function markFromRequest(req) {
   const r = await deviceAccounts.inspectRaw(uid, raw);
   if (!r.valid || !r.row) return { marked: false, reason: r.reason || 'invalid' };
   if (r.row.client_kind !== 'desktop') return { marked: false, reason: 'not_desktop' };
-  // 회전 직후(옛 쿠키가 아직 유예 안) — 옛 행에 찍으면 후속이 못 물려받는다. 웹이 다음 갱신 뒤 다시 부른다.
+  // 회전 직후(옛 쿠키가 아직 유예 안) — 옛 행에 찍으면 후속이 못 물려받는다. 웹(DesktopBridge)이 20초 뒤 한 번 더 부른다.
   if (r.row.revoked_at) return { marked: false, reason: 'rotated' };
   if (!r.row.open_links) await r.row.update({ open_links: true });
   return { marked: true };
