@@ -1,5 +1,7 @@
 # PlanQ - 개발 진행 현황
 
+> **최종 업데이트:** 2026-11-26 ([Opus] Opus 5.5, 방 6d10982b · 정기 점검 11/26 00:15 개발완료) — 11/25 작업 기록(제한 자료 «잠금 + 열람 요청» 7a2a1ced Fable 3차 PASS · 파일 검색 메일 첨부 분리 27b310c7 Fable PASS · 채팅 고객·멤버 정보 카드 63336613 Fable 2차 PASS · Cue 고객방 «답할지» 판정 54e0178a·7dcd33e3 Fable PASS · 청구서 첨부 5e1c2bf8 Fable 2차 PASS · 데스크탑 앱에서 링크 열기 8c558ed4 Fable PASS · Q talk «+» 업무·일정 797215cd · Drive 이름 28433cba · 파일 «연결된 곳» 9d0f32f8 · 공개 페이지 바로 공개 b70bc371 · 무료 플랜 + 30일 팀 체험 4244e53f) · 밤 검사 하니스 c1c25793·5f558b6f · 운영 반영: 다음 배포 때
+> ── 이전 ──
 > **최종 업데이트:** 2026-11-25 ([Opus] Opus 5.5, 방 18563636 · 정기 점검 11/25 00:15 개발완료) — 11/24 오후 작업 기록(메일 요약 «우리가 할 일» 방향 b3ed35ee · 프로젝트 방 «자동 참여» dfd8f9a7 Fable 설계+완료 PASS · AI 도구 멱등 A→B→A 13406c40 Fable 설계+완료 PASS · 백업 내보내기 멈춤 65115d02 · 채팅 이모지 a9cce238 Fable PASS · 근태 스위치 숨김·확인창 버튼 글 be38aea3). 전부 운영 v1.70.19 에 반영됨. Q위키 2곳 갱신(반응 14종·프로젝트 멤버 자동 참여).
 > ── 이전 ──
 > **최종 업데이트:** 2026-11-24 ([Opus] Opus 5.5, 방 caaeaef5 · 개발완료) — 11/23~24 작업 기록(멤버별 «출퇴근 안 함» 103a0972 Fable 설계 NEEDS-CHANGE→반영·완료 PASS · 근태 고정 출퇴근·지각 45ac5f8f Fable 설계+완료 PASS · 일정 장소 구글 Places·가까운 곳 b076f2bc·c877140a·8f81f2db · 메일 AI 답장 최신 메일 a5db695f · 탭 이동 우측 패널 유지 481064b6 · 방문 컨설팅 080e5a30 · 출근 묻기 c89c66f1·92e80487 · Q note 표 5590a5bb · 뜨는 창 자리 2c60ba56). Q위키 2줄(근무 일정·출퇴근 안 함). 운영 미반영 — 다음 배포 때.
@@ -115,6 +117,32 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-11-25 [Opus](+[Fable]) — 제한 자료 잠금·열람 요청 · 메일 첨부 검색 분리 · 채팅 정보 카드 · Cue 답할지 판정 · 청구서 첨부 · 데스크탑 링크 열기 외 (기록 6d10982b · 정기 점검 11/26)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 제한 자료 «잠금 + 열람 요청» (7a2a1ced) | 워크스페이스 설정(기본 꺼짐) 켜면 볼 권한 없는 L2 파일·문서가 검색에 잠금 줄 · 열람 요청 → 승인 = 그 사람·그 항목 읽기 전용 · 공유 문은 승인 제외 · 운영 `migrate-access-requests.js` | ✅ 완료 (Fable 3차 PASS) |
+| 파일 검색 메일 첨부 분리 (27b310c7) | 기본 제외 + «메일 첨부도 검색» · 서명 아이콘 제외 · Q mail 숨김 멤버 구멍 막음 · 라우트 분리(god-file) | ✅ 완료 (Fable 설계+완료 PASS) |
+| 채팅 고객·멤버 정보 카드 (63336613) | 팀 방 전용 · 메시지엔 id 만 · 볼 때 보는 사람 권한 · 고객 고정 목록 술어 구멍 같이 막음 | ✅ 완료 (Fable 2차 PASS) |
+| Cue 고객방 대응 (7dcd33e3·54e0178a) | 거절 초안 빈 줄 제거 · reply/handoff/none 판정 · 빈말 «확인 후 답변» 안 함 · 직원 답하면 대기 초안 정리 | ✅ 완료 (Fable PASS) |
+| 청구서 첨부 (5e1c2bf8·f614cbc2) | 파일·문서·업로드 첨부 · «고객에게 보이기» 기본 꺼짐 · 켜기도 읽기 권한 확인 · 새 표 invoice_attachments | ✅ 완료 (Fable 2차 PASS) |
+| 데스크탑 앱에서 링크 열기 (8c558ed4·a729fe21) | 브라우저 «데스크탑 앱에서 열까요?» 띠 · planq://open · 받을 수 있는 세션 표시 · 운영 `migrate-desktop-open-links.js` | ✅ 완료 (Fable PASS) |
+| Q talk «+» 업무·일정 (797215cd) · Drive 이름 (28433cba) | 공용 업무 폼·일정 폼 그대로 → 카드 · 회사 Drive / 내 Drive 두 이름 · «한눈에» 표 | ✅ 완료 |
+| 파일 «연결된 곳» (9d0f32f8·105026a6) · 공개 페이지 (acb9332c·b70bc371) | 지우기·범위 좁히기 전 끊기는 곳 안내 · 홈페이지 표기 · 이 화면에서 바로 공개 | ✅ 완료 |
+| 무료 플랜 + 30일 팀 체험 (4244e53f) · 랜딩 영어 (c1de244d) | 체험 끝은 잠금 대신 무료 · 헤더 «Start free» 줄바꿈 · 방문 컨설팅 달러 | ✅ 완료 |
+| 밤 검사 하니스 (c1c25793·5f558b6f) | wsdelete ⑦·wssync 사흘 연속 밤 빨강 = 출근 묻는 창을 첫 워크스페이스만 미룸(KST 07:00~ 묻기) → 모든 워크스페이스 · 데스크탑 띠 끔 · 전환 재시도 · 대조군 뒤집힘 확인 | ✅ 완료 |
+
+운영: 위 전부 미배포(운영 eae49a29) — 다음 배포 때. 배포 슬롯 마이그레이션: access-requests · desktop-open-links.
+
+### 수정된 파일
+- `dev-backend/{routes/access_requests,invoice_attachments,profile_cards,workspace_files,project_files}.js` · `services/{lockedDiscovery,accessGrants,accessRequests,mailAttachmentFiles,profileCard,cueDrafts,invoiceAttachments,desktopOpenLinks}.js` · `utils/messageVisibility.js`
+- `dev-frontend/src/components/{AccessRequest,FileUsage,QBill,Common/DesktopHandoffBand}` · `pages/QTalk/{ChatAddEntity,SendProfileCardModal,ProfileCardBubble}` · `pages/Settings` · locales
+- `desktop/src/{openLink,main,preload}.js` · `scripts/e2e/lib/browser.js` · `scripts/e2e/canary-workspace-sync.js` · `docs/FILE_SEARCH_DISCOVERY_DESIGN.md` 외 설계 문서
 
 ---
 
