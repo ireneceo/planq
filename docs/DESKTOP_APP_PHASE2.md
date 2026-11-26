@@ -76,6 +76,16 @@ e2e `desktop` 에 더함 — B: 핸들러가 다른 출처 요청 거절 · 같�
 - 할 일: (Irene) 파트너 센터 법인 계정 + 이름 «PlanQ» 예약 — 상황판 todomwhjunty · (개발) appx/MSIX 대상 추가(Store 빌드는 electron-updater 끔) → 윈도우 기계 시험 빌드 → 실기기 4가지(자동 실행·planq:// 로그인 복귀·트레이·알림·Store 업데이트) — 하나라도 못 고치면 A → 통과 뒤 제출·공개 주소 설정.
 - 인증서 신청 카드(todomwb21g33)는 내림. 운영 `/desktop/` 자리는 Irene 이 만들었고 확인됨(2026-11-15: 없는 파일 404 · 폴더 목록 403).
 
+### 6-3. 바뀜 — Irene 결정 ②: 서명 인증서 + 사이트 직접 내려받기 (2026-11-26 · 방 1bd7dfcd · Irene «권고대로»)
+> Irene: *"다른 대형 회사도 다 사이트에서 바로 다운받고 … 꼭 앱스토어에 넣어야 해? 일단은 우리가 다운로드는 하게 하는게 맞는 거 아니야?"*
+- 6-2(Store 공개)를 바꾼다. 공개 = **서명된 NSIS 설치본을 `/desktop/` 에서 직접** + 공개 버튼(`platform_settings.app_windows_url`). Store 는 뒤에(파트너 센터 카드는 그대로 두되 공개를 막지 않는다).
+- 6장 결정 C 의 공개 조건은 그대로: ① 설치 파일 서명(게시자 = 법인명) ② 서명→서명 자동 업데이트 실기기 1회 ③ 파일럿 치명 결함 0.
+- 서명 방식: 빌드가 리눅스(wine)라 **클라우드 서명** — SSL.com eSigner(CodeSignTool, 자바 · 리눅스 동작). OV 코드 서명(EV 불필요). 가격·한국 법인 인증 절차는 기억 기반 — 신청 화면에서 확인(추정).
+- 코드(2026-11-26): `desktop/scripts/sign-win.js`(electron-builder `signtoolOptions.sign` — sha256 한 번 · 서명 뒤 PE 보안 디렉터리로 «정말 붙었나» 확인 · 비밀값 로그 안 남김) · `build.js` 가 값 5개 + `PLANQ_WIN_PUBLISHER`(인증서 CN 그대로)가 다 있으면 서명, 없으면 예전처럼 무서명. `PLANQ_WIN_SIGN=1` 이면 값이 빠졌을 때 멈춤(공개용). 값은 env 또는 `/opt/planq/secrets/win-sign.env`(저장소 밖).
+- 시험: `node desktop/test/sign-win.test.js` 10/10(가짜 도구 3종 — 붙임·0 끝인데 안 붙임·실패) · 양성 대조군: «붙었나» 확인을 지우면 FAIL.
+- 업데이트: 1.1.0 무서명 설치본은 서명된 업데이트를 그대로 받는다. 서명 빌드부터 `publisherName` 이 들어가므로 **갱신 때 CN 표기 유지**(바뀌면 새 이름을 `PLANQ_WIN_PUBLISHER` 에 `옛|새` 로 더해 한 버전 내보낸다).
+- 남은 것: (Irene) 인증서 신청·조직 인증·eSigner 값 → `secrets/win-sign.env` · (개발) 서명 빌드 1.2.0 → 실기기(SmartScreen 경고 없음·설치·자동 업데이트) → publish → 공개 버튼 주소 설정.
+
 ## 7. B 회의 소리 녹음 · Store 제출본 (2026-11-18 · Irene «우리 데스크탑용 앱을 개발했어? … 필요한 조치 다 해서 완성해줘» · 껍데기 1.1.0)
 - **B 판정은 `desktop/src/capture.js judgeDisplayMedia` 한 곳** — 윈도우 ∧ 앱 출처(요청·프레임 둘 다) ∧ **메인 창 최상위 프레임** ∧ 사용자 제스처 ∧ 소리 요청. 하나라도 아니면 거절(callback null).
   허락 = main 의 네이티브 확인창(**기본 버튼 = 취소** — Fable 완료 검증 1차 FAIL: 채팅 중 Enter·Space 한 번에 넘어갔다 · **매번** — Fable FIX 1 은 «첫 회 + 녹음 중 트레이 표시» 였지만 main 은 트랙이 끝난 것을 볼 길이 없어 표시를 정확히 못 끈다 → 더 엄한 «매번 확인» 으로. 크롬도 매번 공유 창을 띄워 수고는 같다) →

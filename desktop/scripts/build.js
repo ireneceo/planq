@@ -114,6 +114,31 @@ if (STORE) {
   };
   delete config.publish;   // Store 가 업데이트를 배달한다 — latest.yml 을 만들지 않는다(main.js 도 STORE 면 electron-updater 끔)
 }
+// ── 윈도우 코드 서명 (docs/DESKTOP_APP_PHASE2.md §6-3 · 2026-11-26 Irene «권고대로» ② 인증서 + 사이트 직접 내려받기) ──
+// 값은 env 또는 secrets/win-sign.env(저장소 밖으로 안 나감 · .gitignore) — 다 있으면 서명, 없으면 예전처럼 무서명.
+// PLANQ_WIN_SIGN=1 이면 값이 빠졌을 때 무서명으로 넘어가지 않고 멈춘다(공개용 빌드).
+if (target === 'win') {
+  const signEnvFile = process.env.PLANQ_WIN_SIGN_ENV || path.join(ROOT, '..', 'secrets', 'win-sign.env');
+  if (fs.existsSync(signEnvFile)) {
+    for (const line of fs.readFileSync(signEnvFile, 'utf8').split('\n')) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^['"]|['"]$/g, '');
+    }
+  }
+  const { missingKeys } = require('./sign-win');
+  const miss = missingKeys();
+  const publisher = String(process.env.PLANQ_WIN_PUBLISHER || '').trim();
+  if (miss.length === 0 && publisher) {
+    // publisherName = 인증서 CN 그대로. 갱신 때 표기가 바뀌면 자동 업데이트가 조용히 거절된다 — 새 이름은 배열에 «더해» 한 버전 내보낸다
+    config.win.signtoolOptions = { sign: path.join(__dirname, 'sign-win.js'), publisherName: publisher.split('|').map((s) => s.trim()).filter(Boolean) };
+    console.log(`[desktop-build] 윈도우 서명 켬 — 게시자 ${publisher}`);
+  } else if (process.env.PLANQ_WIN_SIGN === '1') {
+    console.error(`[desktop-build] PLANQ_WIN_SIGN=1 인데 서명 값이 없다: ${[...miss, ...(publisher ? [] : ['PLANQ_WIN_PUBLISHER'])].join(', ')}`);
+    process.exit(2);
+  } else {
+    console.log('[desktop-build] 윈도우 서명 값 없음 — 무서명 빌드(비공개 파일럿 전용 · 공개 버튼 주소에 올리지 않는다)');
+  }
+}
 fs.writeFileSync(path.join(STAGE, 'electron-builder.json'), JSON.stringify(config, null, 2));
 
 // ── 3) 만들기 ──
