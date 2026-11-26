@@ -4,7 +4,8 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { useChromeLocation, useChromeNav } from '../../hooks/useChromeNav';
 import { useAuth, type WorkspaceMembership } from '../../contexts/AuthContext';
-import { workspaceSwitchLanding } from '../../config/navMenus';
+import { workspaceSwitchLanding, workspaceMenuHome } from '../../config/navMenus';
+import { lastWorkspacePath, rememberWorkspacePath } from '../../utils/workspaceLastPath';
 import PageLinkDialog from '../WorkspacePage/PageLinkDialog';
 
 /**
@@ -119,9 +120,13 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
       setOpen(false);
       return;
     }
-    // 보던 메뉴로 간다(2026-11-18 Irene) — 메뉴 첫 화면만(항목 id·쿼리는 앞 워크스페이스 것이라 싣지 않는다).
-    //   새 워크스페이스에서 그 메뉴가 안 보이면 종전 착지(/talk). 판정은 전환 응답의 새 역할·메뉴 권한·기능으로.
+    // 새 워크스페이스에서 **마지막에 보던 화면**으로 간다(2026-11-26 Irene — 11-18 «보던 메뉴» 를 바꿈).
+    //   기억이 없으면 보던 메뉴 첫 화면 → 그것도 안 보이면 /talk. 판정은 전환 응답의 새 역할·메뉴 권한·기능으로.
     const from = location.pathname;
+    const remembered = lastWorkspacePath(target.business_id);
+    // 기억이 없으면 후보(보던 메뉴 첫 화면)를 **전환 요청 전에** 남긴다 — 서버의 소켓 알림이 이 창의 응답보다 먼저
+    //   다른 창에 닿아, 그 창이 빈 기억을 읽고 /talk 로 가던 것(wssync ① 실측). 권한 판정 뒤 아래에서 확정값으로 고친다.
+    if (!remembered) rememberWorkspacePath(target.business_id, workspaceMenuHome(from) || '/talk');
     let landing = '/talk';
     setBusyId(target.business_id);
     const ok = await switchWorkspace(target.business_id, (u) => {
@@ -130,7 +135,9 @@ const WorkspaceSwitcher: React.FC<Props> = ({ collapsed }) => {
         menuLevels: u.menu_levels,
         modules: u.modules,
         canManagePayroll: u.can_manage_payroll,
-      });
+      }, '/talk', remembered);
+      // 확정 착지를 남긴다(후보가 새 워크스페이스에서 안 보이는 메뉴였으면 여기서 /talk 등으로 고쳐진다)
+      rememberWorkspacePath(target.business_id, landing);
     });
     setBusyId(null);
     setOpen(false);

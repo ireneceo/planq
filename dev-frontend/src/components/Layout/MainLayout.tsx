@@ -41,7 +41,7 @@ import { useWhatsNew } from '../../hooks/useWhatsNew';
 import WhatsNewDropdown from '../Common/WhatsNewDropdown';
 import { useUnreadTotal } from '../../hooks/useUnreadTotal';
 import { useGlobalBadge } from '../../hooks/useGlobalBadge';
-import { setTabScope, setTabScopeBusiness, tabScopeOf } from '../../stores/tabStore'; import AccountSwitcher from './AccountSwitcher';
+import { setTabScope, setTabScopeBusiness, tabScopeOf } from '../../stores/tabStore'; import AccountSwitcher from './AccountSwitcher'; import { useRememberWorkspacePath } from '../../hooks/useRememberWorkspacePath';
 import { useBodyScrollLock } from '../../hooks/useBodyScrollLock';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import { useAppShellLock } from '../../hooks/useAppShellLock';
@@ -486,7 +486,6 @@ const SecondaryGroupLabel = styled.div`
   &::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: #14B8A6; flex-shrink: 0; }
   &:not(:first-child) { margin-top: 8px; border-top: 1px solid #F1F5F9; padding-top: 14px; }
 `;
-
 
 const SecondaryNavItem = styled(ChromeLink)<{ $active?: boolean; $collapsed?: boolean }>`
   display: flex; align-items: center; gap: 10px;
@@ -999,6 +998,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children, tabMode: tabModeProp 
     setTabScopeBusiness(user?.business_id ?? null);
     setTabScope(tabScopeOf(location.pathname, user?.business_id ?? null));
   }, [location.pathname, user?.business_id]);
+  useRememberWorkspacePath(user?.business_id, location.pathname, location.search);   // 워크스페이스별 마지막 화면(전환 착지)
 
   // 운영 #397 — "모바일에서 비용재무에 들어가면 위에부터 열리는게 아니라 아래에 열려."
   //   스크롤 컨테이너가 body 가 아니라 이 PageScroll 이라 **화면을 바꿔도 스크롤이 그대로 남는다.**

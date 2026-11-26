@@ -15,6 +15,8 @@
 //   · business_id 가 이미 이 창의 값이면 버린다 — 자기 수신(BroadcastChannel 은 보낸 창에도 배달된다)
 //   · 전환을 누른 창은 잠깐 동안(switching) 받지 않는다 — 스스로 /talk 로 리로드하는 중이다
 
+import { lastWorkspacePath } from '../utils/workspaceLastPath';
+
 export const WORKSPACE_CHANNEL = 'planq:workspace';
 
 export interface WorkspaceSwitchMsg { type: 'workspace:switched'; user_id: number; business_id: number }
@@ -87,5 +89,7 @@ export function rebootForWorkspace(isPopout: boolean, targetBizId: number): void
     window.location.reload();
     return;
   }
-  window.location.href = '/talk';
+  // 따라가는 창도 그 워크스페이스에서 마지막에 보던 화면으로(2026-11-26 Irene) — /talk 로 가면 그 창이 기록을 /talk 로 덮어
+  //   전환한 창과 다음 전환의 착지가 갈린다. 메뉴 권한은 새로 뜬 창의 본문 게이트(permKeyForPath)가 본다.
+  window.location.href = lastWorkspacePath(targetBizId) || '/talk';
 }

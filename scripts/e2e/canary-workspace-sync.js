@@ -5,7 +5,7 @@
 //   설계: docs/WORKSPACE_SCOPE_DESIGN.md C4 — 서버 emit(user:N) + BroadcastChannel + WorkspaceSyncGuard
 //
 // 재는 것 (health-check 계정 — 워크스페이스 A=5, B=73 두 곳 소속):
-//   ① 메인 창에서 A→B 전환(실제 전환기 클릭) → 두 번째 메인 탭은 /talk 로 재부팅 · 팝아웃은 **제자리 재부팅** 후 B 로 조회
+//   ① 메인 창에서 A→B 전환(실제 전환기 클릭) → 두 번째 메인 탭은 메인 창과 **같은 화면**(B 에서 마지막에 보던 곳, 없으면 /talk — 2026-11-26)으로 재부팅 · 팝아웃은 **제자리 재부팅** 후 B 로 조회
 //   ② 다시 A 로 → 팝아웃이 **A 로 돌아온다** (신고 원문 그대로)
 //   ③ 입력 중인 탭은 재부팅하지 않고 줄만 띄운다 · 친 글자 보존 · "지금 전환" 누르면 이동
 //   ③-b 메인이 다시 원래 워크스페이스로 돌아오면 그 줄이 내려간다 · 줄에 워크스페이스 이름
@@ -90,12 +90,14 @@ async function run() {
     // ① A → B
     popBiz.length = 0;
     await switchVia(main, B);
-    const tabMoved = await waitFor(async () => tab2.url().includes('/talk') && (await timeOrigin(tab2)) !== t0tab);
+    // 2026-11-26 — 따라가는 창도 B 에서 마지막에 보던 화면으로 간다(utils/workspaceLastPath). 판정 = 전환한 메인 창과 같은 경로.
+    const samePath = () => { const a = new URL(tab2.url()).pathname; const m = new URL(main.url()).pathname; return a === m ? a : null; };
+    const tabMoved = await waitFor(async () => !!samePath() && (await timeOrigin(tab2)) !== t0tab);
     const popRebooted = await waitFor(async () => (await timeOrigin(pop)) !== t0pop && pop.url().includes('/task-popout'));
     const popOnB = await waitFor(async () => popBiz.includes(B), 8000);
     const [[s1]] = await sequelize.query('SELECT active_business_id FROM users WHERE id=?', { replacements: [USER] });
-    push('① A→B 전환 — 두 번째 탭 /talk · 팝아웃 제자리 재부팅 후 B 조회', tabMoved && popRebooted && popOnB && Number(s1.active_business_id) === B,
-      `탭2 이동=${tabMoved} (${tab2.url().replace(b.BASE, '')}) · 팝아웃 재부팅=${popRebooted} (${pop.url().replace(b.BASE, '')}) · 팝아웃 조회 biz=${[...new Set(popBiz)].join(',') || '없음'} · 정본=${s1.active_business_id}`);
+    push('① A→B 전환 — 두 번째 탭 = 메인과 같은 화면 · 팝아웃 제자리 재부팅 후 B 조회', tabMoved && popRebooted && popOnB && Number(s1.active_business_id) === B,
+      `탭2 이동=${tabMoved} (${tab2.url().replace(b.BASE, '')} · 메인 ${main.url().replace(b.BASE, '')}) · 팝아웃 재부팅=${popRebooted} (${pop.url().replace(b.BASE, '')}) · 팝아웃 조회 biz=${[...new Set(popBiz)].join(',') || '없음'} · 정본=${s1.active_business_id}`);
 
     // ② B → A — 신고: "다시 바꿔도 돌아가지 않아"
     await b.sleep(2500);
@@ -158,8 +160,8 @@ async function run() {
     if (barShown) {
       await tab2.bringToFront();
       await tab2.click('[data-testid="workspace-sync-apply"]');
-      const applied = await waitFor(async () => (await timeOrigin(tab2)) !== t2tab && tab2.url().includes('/talk'), 8000);
-      push('③ "지금 전환" 누르면 이동', applied, `이동=${applied} (${tab2.url().replace(b.BASE, '')})`);
+      const applied = await waitFor(async () => (await timeOrigin(tab2)) !== t2tab && !!samePath(), 8000);
+      push('③ "지금 전환" 누르면 이동(메인과 같은 화면)', applied, `이동=${applied} (${tab2.url().replace(b.BASE, '')} · 메인 ${main.url().replace(b.BASE, '')})`);
     }
 
     // ④ 사칭 토큰 전환 403

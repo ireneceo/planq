@@ -367,6 +367,7 @@ const SUITES = {
   //   "떠나기 전 0건 + 떠난 뒤 1건" 을 같이 잰다 — 늦게 터진 debounce 와 떠날 때 보낸 것을 가른다.
   leavesave: () => require('./canary-leave-save'),
   wssync: () => require('./canary-workspace-sync'),   // 워크스페이스 전환이 모든 창·팝아웃에 전해지는가 (WORKSPACE_SCOPE_DESIGN C4)
+  wslastpath: () => require('./canary-ws-last-path'),   // 워크스페이스를 바꾸면 그 워크스페이스에서 마지막에 보던 화면으로 (2026-11-26)
   // Q sale 2차 신고 15건의 화면 계약 — 필터줄·헤더 배치·행 액션·메모판. 폰·태블릿·데스크탑 3폭.
   //   ★ 폭을 하나만 재면 거짓 통과한다(2026-09-14 프로젝트 탭 실측: 데스크탑만 0, 태블릿 20, 폰 398).
   salelayout: () => require('./canary-sale-layout'),
