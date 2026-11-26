@@ -100,7 +100,7 @@ async function run() {
       const biz = me?.data?.business_id;
       if (!biz) return { biz: null, meStatus: meR.status };
       const st = await (await fetch(`/api/plan/${biz}/status`, { credentials: 'include', headers: H })).json();
-      return { biz, prepay: st?.data?.prepay_bonus || null, exempt: st?.data?.exempt };
+      return { biz, prepay: st?.data?.prepay_bonus || null, exempt: st?.data?.exempt, inTrial: !!st?.data?.in_trial };
     }, token);
 
     if (!api.biz) {
@@ -136,8 +136,16 @@ async function run() {
       });
       add(`prepay:${vp.name} 문구 보간`,
         !(/개월|month/i.test(txt) && !/prepay\.|\{\{/.test(txt)), txt.slice(0, 100));
-      add(`prepay:${vp.name} 환불 안내`, !/환불|refund/i.test(txt),
-        /환불|refund/i.test(txt) ? '있음' : '🔴 없음 — 「취소하면 된다」만 남으면 오인된다');
+      // 환불 안내는 체험 중에만 맞는 말이다(2026-11-25 4244e53f — 체험이 끝난 곳의 «체험 전 해지 = 전액 환불» 은 틀린 돈 안내).
+      // 그래서 양쪽을 잰다: 체험 중 = 있어야 · 체험 밖 = 없어야. (옛 판정은 시험 워크스페이스가 체험일 때만 초록이었다.)
+      const hasRefund = /환불|refund/i.test(txt);
+      if (api.inTrial) {
+        add(`prepay:${vp.name} 환불 안내(체험 중)`, !hasRefund,
+          hasRefund ? '있음' : '🔴 없음 — 「취소하면 된다」만 남으면 오인된다');
+      } else {
+        add(`prepay:${vp.name} 환불 안내 없음(체험 밖)`, hasRefund,
+          hasRefund ? '🔴 체험이 끝났는데 «체험 전 해지 = 전액 환불» 이 보인다' : '없음(정상)');
+      }
       if (vp.name === 'phone') {
         add('prepay:폰 터치타겟', (vis.r?.h || 0) < 40, `h=${vis.r?.h} (≥40)`);
       }

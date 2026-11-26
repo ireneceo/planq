@@ -827,6 +827,23 @@ const ARTICLES = [
         'Duplicating a table document brings the body only, as a regular document — the table data is not copied.'),
     ] },
 
+  // 2026-11-26 — 접수 양식 응답 → [사건 만들기] (f6853543 · docs/INTAKE_AUTO_CASE_DESIGN.md §6). 자동 생성 없음 — 사람이 줄마다 누른다.
+  { cat: 'qdocs', slug: 'survey-intake-case', visibility: 'public', linked_route: '/docs', est: 3,
+    title: t('설문 응답으로 사건(프로젝트) 만들기', 'Turn a form response into a case (project)'),
+    summary: t('접수 양식에 들어온 응답을 프로젝트·업무로 바로 옮기기', 'Move a submitted intake form straight into a project with tasks'),
+    body: [
+      s('설문 편집 › 설정의 **접수 처리** 에서 «응답으로 사건 만들기» 를 켜고, 쓸 **업무 템플릿**(필수)과 사건 이름·고객 이름·이메일·전화·회사로 쓸 칸을 고릅니다.',
+        'In the survey editor › Settings › **Intake**, turn on "Create cases from responses", pick the **task template** (required), and choose which fields hold the case name and the client name, email, phone and company.'),
+      s('응답 탭 위 **접수함** 에서 응답 줄마다 [사건 만들기] 를 누릅니다. 만들 프로젝트 이름, 들어갈 업무 수, 응답자 정보가 보입니다.',
+        'In the **Intake inbox** above the Responses tab, press [Create case] on a response. You see the project name, how many template tasks will be added, and the respondent.'),
+      s('고객 연결을 고릅니다 — 비슷한 기존 고객이 있으면 [연결], 새로 받을 사람이면 [새 잠재 고객], 아니면 [연결 안 함](기본). 확인하면 나만 보기 프로젝트와 템플릿 업무가 만들어집니다.',
+        'Choose how to link a client — [Link] to a matching existing client, [New prospect], or [Don\'t link] (default). Confirm, and a private project with the template tasks is created.'),
+      note('고객을 연결하면 그 고객의 상담 기록에 «공개 양식 · 본인 확인 안 됨» 으로 남습니다. 공개 양식은 누구나 낼 수 있어 같은 이름·이메일이라도 자동으로 기존 고객에 붙이지 않습니다.',
+        'When a client is linked, an internal consultation note is added marked "public form · not verified". Anyone can submit a public form, so a response is never attached to an existing client automatically, even with the same name or email.'),
+      note('익명 설문에서는 켤 수 없습니다. 같은 응답으로 사건이 두 번 만들어지지 않습니다.',
+        'This cannot be turned on for anonymous surveys. A response can only become one case.'),
+    ] },
+
   { cat: 'qdocs', slug: 'document-comments', visibility: 'public', linked_route: '/docs', est: 2,
     title: t('문서에 댓글 남기기', 'Comment on a document'),
     summary: t('문서 아래에서 의견을 주고받기', 'Discuss a document right below it'),
