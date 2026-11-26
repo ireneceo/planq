@@ -109,3 +109,5 @@ paths:
 
 > **2026-11-20 — 공개 페이지 P2·P3** — `workspace_inquiries` 표(공개 페이지·창구 문의 건 · status new/handled/held/spam · via public_page/entry_link · ip_hash(하루 비밀 해시, 원문 없음) · message_hash · client_id 등록 시 · 보존 보류/스팸 30일·미등록 1년, 운영 `migrate-workspace-inquiries.js`) ·
 > `businesses.public_page_status` ENUM(off,pending,public,blocked) NOT NULL DEFAULT 'off' · `public_category`·`public_region` VARCHAR(32) · `public_published_at` · `public_block_reason` + 색인 · `platform_settings.public_pages_enabled`(전체 끄기, 기본 1) · `contact_inquiries.kind` 끝에 'report'(운영 `migrate-public-page.js`). 둘 다 배포 슬롯 등록(코드보다 먼저). 설계 docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md.
+
+> **2026-11-26 — 접수 양식 → 사건** — `intake_cases` 표(설문 응답 1줄 → 프로젝트·업무 · `q_record_row_id` UNIQUE = 멱등 키 · status running/done/error · step claimed/project_done/tasks_done · client_choice linked/created/recipient/none · 응답 행이 지워져도 남음(외래키 없음)). 운영 `dev-backend/scripts/migrate-intake-cases.js`(배포 슬롯, PM2 reload 전). 설계 `docs/INTAKE_AUTO_CASE_DESIGN.md` §6 · 판정 `services/intakeCase` 한 곳.

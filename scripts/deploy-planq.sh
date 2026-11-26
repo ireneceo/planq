@@ -579,6 +579,9 @@ sync_database() {
   # 2026-11-25 열람 요청 — files·posts.hide_existence(기본 0) + access_requests 표(멱등 · docs/FILE_SEARCH_DISCOVERY_DESIGN.md).
   #   File·Post 모델이 새 칸을 SELECT 하므로 PM2 reload 전. 롤백은 코드만.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-access-requests.js 2>&1 | tail -3"
+  # 2026-11-26 접수 양식 → 사건 — intake_cases 표(멱등 · 새 표만 · q_record_row_id UNIQUE 확인 · docs/INTAKE_AUTO_CASE_DESIGN.md §6).
+  #   응답 목록·[사건 만들기] 가 이 표를 읽으므로 PM2 reload 전. 롤백은 코드만(표는 남겨도 무해).
+  prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-intake-cases.js 2>&1 | tail -3"
   # 2026-11-07 데스크탑 앱 받기 주소 — platform_settings.app_windows_url·app_mac_url(멱등). 모델이 SELECT 하므로 PM2 reload 전.
   prod_run "set -o pipefail; cd $PROD_BE && NODE_ENV=production node scripts/migrate-desktop-app-urls.js 2>&1 | tail -3"
   # 언어별 메일 서명 — email_accounts/email_account_aliases/businesses 의 `*_en` 3컬럼 (2026-09-18).

@@ -197,6 +197,8 @@ function sanitizeSettings(record, raw, prev = {}) {
     anonymous: s.anonymous === undefined ? !!prev.anonymous : !!s.anonymous,
     thanks: String(s.thanks ?? prev.thanks ?? '').slice(0, 500),
     owner_id: prev.owner_id || null,
+    // 접수 처리(2026-11-26) — 응답 → [사건 만들기]. 정리·검사는 services/intakeCase 한 곳
+    intake: require('./intakeCase').normalizeIntake(record, s.intake, prev.intake),
   };
 }
 

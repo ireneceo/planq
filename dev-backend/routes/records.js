@@ -462,7 +462,7 @@ router.put('/:id/survey', authenticateToken, async (req, res, next) => { // audi
     } else if (req.body.enabled === false && r.survey_token) {
       patch.survey_token = null;
     }
-    patch.survey_settings = settings;
+    try { patch.survey_settings = await require('../services/intakeCase').assertIntakeSettings(r, settings); } catch (e) { if (e.code && e.status) return errorResponse(res, e.code, e.status); throw e; }
     await r.update(patch);
     const action = patch.survey_token ? 'enable' : (patch.survey_token === null ? 'disable' : 'settings');
     await QRecordAudit.create({ q_record_id: r.id, user_id: req.user.id, action: 'survey.update', meta: { action } });

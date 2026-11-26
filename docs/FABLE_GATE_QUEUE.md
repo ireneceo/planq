@@ -2,6 +2,12 @@
 
 
 
+### 2026-11-26 방 1bd7dfcd — 접수 양식 응답 → [사건 만들기] 구현 — 완료 검증 1차 **FAIL**(차단 2) → 2차 **PASS**
+- 정본 docs/INTAKE_AUTO_CASE_DESIGN.md §6·§7 · 판정 services/intakeCase · API routes/intake_cases.js · 표 intake_cases(migrate-intake-cases.js 배포 슬롯)
+- 1차 차단: B1 멈춘 running 영구 409 · B2 업무 일부만 생긴 뒤 재시도가 done 으로 닫힘 → 5분 stale 조건부 재선점 · tasks_partial(done 아님, 다시 채우지 않음)
+- 2차 PASS 근거: 독립 32/32 · 브라우저 3폭 19/19 · 중간 실패 주입(Task.create 4번째 throw) → done 아님 · 경계 4분 409 / 6분 201 · 동시 재선점 201/409
+- 비차단(남김): ①첫 실패 직후 error 가 원 예외(한 번 더 눌러야 tasks_partial) ②창 닫을 때 목록 다시 읽기 없음 ③error 칸에 원 예외 메시지 120자가 API 로 나감(모르는 코드는 failed 로 저장 권고) ④카나리에 stale·partial·orphans 없음 ⑤tasks_partial 화면에서 닫을 길 없음 ⑥폰 일부만 줄 버튼이 화면 끝
+
 ### 2026-11-26 방 1bd7dfcd — 접수 양식 응답 → 사건·업무 만들기 — 설계 **DESIGN: CHANGE**(9건)
 - 정본 docs/INTAKE_AUTO_CASE_DESIGN.md §6 · auto 제거(review 만) · intake_cases UNIQUE 선점 · 템플릿 재시도 0개일 때만 · 기존 고객 자동 연결 금지 · 실행 주체 = 누른 사람 · 익명 설문 거절 · 행 삭제돼도 사건 보존 · 알림 기존 묶음
 - 같은 방 같은 날: 서비스 주소 appUrl 한 곳(16fd944d) · 윈도우 서명 단계(eb7c3575) = Fable 미검증(자체 검증 — 동작 불변 리팩터·아직 안 쓰는 길)

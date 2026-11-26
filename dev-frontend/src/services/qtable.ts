@@ -174,6 +174,14 @@ export interface SurveySettings {
   title?: string; intro?: string; required?: string[]; hidden?: string[];
   help?: Record<string, string>; closes_at?: string | null; max_responses?: number | null;
   anonymous?: boolean; thanks?: string;
+  // 접수 처리(2026-11-26) — 응답 → [사건 만들기]. 서버 services/intakeCase.normalizeIntake
+  intake?: SurveyIntake;
+}
+export interface SurveyIntake {
+  mode: 'off' | 'review';
+  template_id: number | null;
+  name_cols: string[];
+  map: { name: string | null; email: string | null; phone: string | null; company: string | null };
 }
 export interface SurveyView {
   enabled: boolean; token: string | null; path: string | null; settings: SurveySettings;

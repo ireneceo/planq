@@ -7,6 +7,7 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import SurveyEditor from './SurveyEditor';
 import SurveyPublishTab from './SurveyPublishTab';
+import SurveyIntakeList from './SurveyIntakeList';
 import SurveyStats from '../SurveyStats';
 import PostTableGrid from '../PostTableGrid';
 
@@ -45,9 +46,9 @@ const SurveyPanel: React.FC<Props> = ({ recordId, businessId, editable, canSeeRe
         ))}
       </Tabs>
       <Body>
-        {cur === 'questions' && <SurveyEditor recordId={recordId} editable={editable} descriptionSlot={descriptionSlot} />}
+        {cur === 'questions' && <SurveyEditor recordId={recordId} businessId={businessId} editable={editable} descriptionSlot={descriptionSlot} />}
         {cur === 'responses' && (
-          <GridBleed className="pq-fullbleed"><PostTableGrid recordId={recordId} businessId={businessId} readOnly={!editable} surveyMode /></GridBleed>
+          <><SurveyIntakeList recordId={recordId} /><GridBleed className="pq-fullbleed"><PostTableGrid recordId={recordId} businessId={businessId} readOnly={!editable} surveyMode /></GridBleed></>
         )}
         {cur === 'stats' && <SurveyStats recordId={recordId} />}
         {cur === 'publish' && <SurveyPublishTab recordId={recordId} onSend={onSend} onPreview={onPreview} reloadKey={publishReloadKey} />}

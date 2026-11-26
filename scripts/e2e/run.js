@@ -95,6 +95,7 @@ const SUITES = {
   docsdup: () => require('./canary-docs-duplicate'),
   // 설문 v2 Phase 1(2026-10-12) — 새 문서 «설문» · 네 탭 · 보내기 확인 단계에 주소 · 개인 링크 1회 응답 · NPS 카드 · 일반 표에 통계 없음 · 3폭
   survey: () => require('./canary-survey'),
+  intake: () => require('./canary-intake'),
   // 「지금 결제하면 1개월 추가」(2026-09-23) — 선불 2개월. 카드가 보이는가·문구가 서버 개월과 같은가·
   //   모달이 «2개월» 을 말하는가. 자격 없는 계정에서는 **안 보이는 것이 정답**이라 그대로 판정한다.
   prepay: () => require('./canary-prepay-bonus'),

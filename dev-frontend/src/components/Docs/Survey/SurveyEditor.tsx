@@ -14,6 +14,7 @@ import PlanQSelect, { type PlanQSelectOption } from '../../Common/PlanQSelect';
 import SingleDateField from '../../Common/SingleDateField';
 import { Switch, SwitchKnob } from '../../Common/switchShell';
 import { RatingInput, ScaleInput, YesNoInput } from './answerInputs';
+import SurveyIntakeSettings from './SurveyIntakeSettings';
 import { fetchRecord, updateRecord, fetchSurvey, saveSurvey, type QRecordColumn, type QRecordColumnType, type SurveySettings, type SurveyView } from '../../../services/qtable';
 import { onSocket } from '../../../services/socket';
 
@@ -37,11 +38,12 @@ const newColId = () => 'c' + Math.random().toString(16).slice(2, 10);
 
 interface Props {
   recordId: number;
+  businessId: number;
   editable: boolean;
   descriptionSlot?: React.ReactNode;
 }
 
-const SurveyEditor: React.FC<Props> = ({ recordId, editable, descriptionSlot }) => {
+const SurveyEditor: React.FC<Props> = ({ recordId, businessId, editable, descriptionSlot }) => {
   const { t } = useTranslation('qtable');
   const [cols, setCols] = useState<QRecordColumn[] | null>(null);
   const colsRef = useRef<QRecordColumn[]>([]);
@@ -254,6 +256,8 @@ const SurveyEditor: React.FC<Props> = ({ recordId, editable, descriptionSlot }) 
               </AutoSaveField>
             </div>
           </SetGrid>
+          <SurveyIntakeSettings businessId={businessId} columns={questions} value={st.intake} anonymous={!!st.anonymous}
+            onStage={(next) => stage({ intake: next })} onPersist={() => persist(['intake'])} />
         </Settings>
       )}
       <ConfirmDialog

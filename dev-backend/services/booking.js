@@ -532,11 +532,10 @@ async function requestForActor(actor, { start, purpose, memo }) {
   if (!client && actor.email) client = await findExistingByContact(actor.businessId, { email: actor.email });
   let createdClient = false;
   if (!client) {
-    const planEngine = require('./plan');
-    const can = await planEngine.can(actor.businessId, 'add_prospect');
-    if (!can.ok) {
+    const allowed = await require('./prospect').prospectAllowed(actor.businessId);
+    if (!allowed.ok) {
       const err = new BookingError('prospect_limit', 422);
-      err.quota = planEngine.buildQuotaError(can, actor.businessId);
+      err.quota = allowed.quota;
       throw err;
     }
   }
@@ -566,15 +565,8 @@ async function requestForActor(actor, { start, purpose, memo }) {
     if (!slots.includes(startIso)) throw new BookingError('slot_unavailable', 409);
 
     if (!client) {
-      client = await Client.create({
-        business_id: biz.id,
-        display_name: (actor.name || '').trim().slice(0, 100) || String(actor.email || '').split('@')[0],
-        invite_email: actor.email,
-        kind: 'customer',
-        status: 'prospect',
-        sales_source: 'guest_link',
-        assigned_member_id: memberId,
-        last_touch_at: new Date(),
+      client = await require('./prospect').createProspectRow({
+        businessId: biz.id, name: actor.name, email: actor.email, salesSource: 'guest_link', assignedMemberId: memberId,
       }, { transaction: t });
       createdClient = true;
     }

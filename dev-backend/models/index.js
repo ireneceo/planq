@@ -79,6 +79,7 @@ const CalendarEventAttendee = require('./CalendarEventAttendee');
 const CalendarEventAttachment = require('./CalendarEventAttachment');
 const InvoiceAttachment = require('./InvoiceAttachment');
 const AccessRequest = require('./AccessRequest');
+const IntakeCase = require('./IntakeCase');
 const FileFolder = require('./FileFolder');
 const BusinessStorageUsage = require('./BusinessStorageUsage');
 const OpsCapacityLog = require('./OpsCapacityLog');
@@ -780,6 +781,7 @@ module.exports = {
   CalendarEventAttachment,
   InvoiceAttachment,
   AccessRequest,
+  IntakeCase,
   FileFolder,
   BusinessStorageUsage,
   OpsCapacityLog,

@@ -675,6 +675,7 @@ app.use('/api/posts', require('./routes/post_billing_terms'));   // 문서 «청
 app.use('/api/posts', require('./routes/post_ai_edit'));   // 문서 AI 수정 — 제안·반영 (docs/DOC_AI_EDIT_DESIGN.md)
 app.use('/api/posts', require('./routes/posts'));
 app.use('/api/records', require('./routes/records'));
+app.use('/api/intake', require('./routes/intake_cases'));   // 접수 양식 응답 → [사건 만들기] (docs/INTAKE_AUTO_CASE_DESIGN.md §6)
 app.use('/api/search', require('./routes/search'));
 // Q6 — 현재 워크스페이스에서 404 인 상세 id 가 내 다른 워크스페이스 것인지(business_id 만) — 인증 필수, 새 접두사라 순서 간섭 없음
 app.use('/api/entity-workspace', require('./routes/entity_workspace'));
