@@ -9,10 +9,11 @@ const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { newToken } = require('./survey');
 const { primaryEmailOf, displayNameOf, cleanEmail } = require('./clientContact');
+const { appUrl } = require('../utils/appUrl');
 
 const MAX_RECIPIENTS = 500;   // 한 회차 받는 사람 상한
 const SYNC_SEND_MAX = 20;     // 이 이하면 응답 전에 다 보내고, 넘으면 응답 뒤 이어서 보낸다(HTTP 를 오래 붙잡지 않게)
-const APP_URL = () => process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = () => appUrl();
 
 class IssueError extends Error {
   constructor(code, status, extra) { super(code); this.code = code; this.status = status; this.extra = extra || null; }

@@ -721,6 +721,26 @@ const MAIL_MEMBER_FNS = ['sendInviteEmail', 'sendBillingInstructionEmail', 'send
 const MAIL_CUSTOMER_FNS = ['sendInviteEmail', 'sendPostShareEmail', 'sendEntityShareEmail', 'sendSignatureRequestEmail', 'sendSignatureOtpEmail',
   'sendGuestReplyNotifyEmail', 'sendGuestBookingEmail', 'sendSurveyInviteEmail', 'sendInvoiceEmail', 'sendPaymentReminderEmail',
   'sendReceiptIssuedEmail', 'sendReceiptCorrectionEmail'];
+// 6-a5. appurl — 서비스 주소는 utils/appUrl 한 곳 (2026-11-26, docs/CUSTOM_WORKSPACE_ONPREM_REVIEW_2026-11-26.md)
+//   옛 `process.env.APP_URL || 'https://dev.planq.kr'` 65곳 — 설정이 빠지면 운영 링크가 개발서버로 갔다.
+function checkAppUrl() {
+  const dirs = ['routes', 'services', 'middleware', 'config', 'utils', 'mcp'].map((d) => `${ROOT}/dev-backend/${d}`);
+  const files = [...dirs.flatMap((d) => (fs.existsSync(d) ? walk(d, ['.js']) : [])), `${ROOT}/dev-backend/server.js`].filter((f) => fs.existsSync(f));
+  const bad = [];
+  for (const f of files) {
+    if (rel(f).endsWith('utils/appUrl.js')) continue;
+    read(f).split('\n').forEach((l, i) => {
+      const t = l.trim();
+      if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) return;
+      const code = l.replace(/\s\/\/\s.*$/, '');
+      if (/['"`]https?:\/\/dev\.planq\.kr/.test(code)) bad.push(`${rel(f)}:${i + 1}: 개발서버 주소를 직접 쓴다 — utils/appUrl 의 appUrl() 를 쓴다`);
+      else if (/process\.env\.APP_URL\s*\|\|\s*['"`]/.test(code)) bad.push(`${rel(f)}:${i + 1}: APP_URL 을 따로 폴백한다 — utils/appUrl 의 appUrl() 를 쓴다`);
+    });
+  }
+  report('appurl', `서비스 주소 한 곳(utils/appUrl) (검사 파일 ${files.length} · 위반 ${bad.length})`, bad.length === 0 && files.length > 50,
+    files.length <= 50 ? ['검사 파일이 너무 적다 — 경로를 확인한다', ...bad] : bad);
+}
+
 function checkMailSender() {
   const src = read(`${ROOT}/dev-backend/services/emailService.js`);
   const bad = [];
@@ -4172,6 +4192,7 @@ const CATEGORIES = {
   floatplace: checkFloatPlace,
   enterime: checkEnterIme,
   mailsender: checkMailSender,
+  appurl: checkAppUrl,
   tenant: checkTenant,
   pagination: checkPagination,
   notify: checkNotify,

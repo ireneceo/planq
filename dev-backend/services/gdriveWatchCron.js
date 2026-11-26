@@ -11,6 +11,7 @@
 const { BusinessCloudToken } = require('../models');
 const { Op } = require('sequelize');
 const gdrive = require('./gdrive');
+const { appUrl } = require('../utils/appUrl');
 
 const INTERVAL_MS = 30 * 60 * 1000;          // 30분마다 점검
 const RENEW_BEFORE_MS = 24 * 60 * 60 * 1000; // 만료 24시간 전에 미리 갱신
@@ -57,7 +58,7 @@ async function runGdriveWatchCron() {
       //   { businessId } 를 넘기면 channelId 가 undefined 라 구글이 거부한다 — 조용히 안 열린다.
       const crypto = require('crypto');
       const channelId = crypto.randomUUID();
-      const webhookUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/api/cloud/webhook/gdrive`;
+      const webhookUrl = `${appUrl()}/api/cloud/webhook/gdrive`;
       const tokenHint = crypto.createHmac('sha256', process.env.JWT_SECRET).update(`biz:${token.business_id}`).digest('hex').slice(0, 32);
       const wasOpen = !!token.watch_channel_id;
       const { channel, startPageToken } = await gdrive.startChangesWatch(drive, { channelId, webhookUrl, tokenHint });

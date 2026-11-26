@@ -25,6 +25,7 @@ const hashToken = (raw) => crypto.createHash('sha256').update(String(raw)).diges
  *   읽히게 하기 위함이다. 판단은 전부 정본이 한다.
  */
 const { isVisibleToClient } = require('../utils/messageVisibility');
+const { appUrl } = require('../utils/appUrl');
 const visibleToGuest = isVisibleToClient;
 
 /** 원문 토큰 생성 — 추측 불가능해야 한다. 이 값이 곧 자격이다. */
@@ -631,7 +632,7 @@ function personalTokenFor(link) {
   return crypto.createHmac('sha256', secret).update(material).digest('base64url');
 }
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 function sharedSecret() {
   const secret = process.env.GUEST_LINK_SECRET;
   return secret && String(secret).length >= 32 ? secret : null;

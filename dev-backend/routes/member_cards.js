@@ -15,8 +15,9 @@ const { BusinessMember, NameCard, User } = require('../models');
 const { authenticateToken, checkBusinessAccess } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const nc = require('../services/nameCard');
+const { appUrl } = require('../utils/appUrl');
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 
 async function memberCard(req) {
   const bizId = Number(req.params.businessId);

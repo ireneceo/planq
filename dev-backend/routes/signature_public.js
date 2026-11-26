@@ -5,6 +5,7 @@
 //   보안 경계 자체가 다르다 — 무인증으로 들어오는 표면은 따로 두고 읽는 편이 안전하다.
 // 서버 마운트: app.use('/api', require('./routes/signature_public'))  ← signatures 와 같은 base.
 const express = require('express');
+const { appUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 지운 워크스페이스의 서명 링크는 닫힌다(10-09 A5 의 공개 라우터 규칙 — 서명만 빠져 있었다, 2026-10-23 보안 재점검).
 router.param('token', (req, res, next, token) => {
@@ -273,7 +274,7 @@ async function sendLinkAgain(sr) {
     ...wsSender,
     signerName: sr.signer_name,
     message: sr.note,
-    signUrl: `${process.env.APP_URL || 'https://dev.planq.kr'}/sign/${sr.token}`,
+    signUrl: `${appUrl()}/sign/${sr.token}`,
     expiresAt: sr.expires_at,
   });
   await sr.update({ reminder_count: sr.reminder_count + 1, last_reminder_at: new Date() });

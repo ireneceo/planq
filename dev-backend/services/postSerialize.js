@@ -1,7 +1,8 @@
 // 문서(post) 응답 모양 — 한 벌 (2026-10-27, routes/posts.js 에서 옮겼다 · 동작 무변경).
 //   문서 목록·상세·PUT 응답(routes/posts.js)과 프로젝트 «연결됨» 문서 행(routes/project_refs.js)이 같은 모양을 쓴다.
 //   (옮긴 이유: posts.js god-file 래칫 — 연결 행이 같은 모양을 쓰려면 꺼내야 했다)
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const { appUrl } = require('../utils/appUrl');
+const APP_URL = appUrl();
 
 function serialize(p, withContent = false) {
   return {

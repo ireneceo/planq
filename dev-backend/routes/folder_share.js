@@ -23,12 +23,13 @@ const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
 const share = require('../services/share_helper');
 const fs = require('../services/folderShare');
 const { serializeFolder } = require('../services/folderResponse');
+const { appUrl } = require('../utils/appUrl');
 
 // 지운 워크스페이스의 공개 링크는 닫힌다 — :token 하위 주소 전부(2026-10-09 규칙).
 router.param('token', (req, res, next, token) =>
   require('../services/shareOpenable').workspaceAliveParam([[FileFolder, 'share_token']])(req, res, next, token));
 
-const APP_URL = () => process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = () => appUrl();
 const DEFAULT_EXPIRES_DAYS = 30;   // 내용이 계속 바뀌는 그릇이라 무기한 기본은 과하다(판정 7). 무기한은 고를 수 있다.
 
 function previewKind(f) {

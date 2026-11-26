@@ -17,7 +17,8 @@ const { getUserScope, isMemberOrAbove } = require('../middleware/access_scope');
 const { applyShareUpdate } = require('../services/share_helper');
 const { blocksExternalShare } = require('../services/securityLevel');
 const { sendEntityShareEmail } = require('../services/emailService');
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const { appUrl } = require('../utils/appUrl');
+const APP_URL = appUrl();
 
 const ENTITY_CONFIG = {
   task: {

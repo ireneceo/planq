@@ -44,6 +44,7 @@ const { fetchProjectStats } = require('../services/weeklyReviewSnapshot');
 //   호출부 64곳은 그대로 이 이름을 쓴다.
 const { loadProjectOrForbidden, requireBusinessMember, visibleProjectWhere, projectForClient } = require('../services/projectAccess');
 const { serializeTasksForClient } = require('../utils/taskClientView');
+const { appUrl } = require('../utils/appUrl');
 // 고객용 업무 목록 — 내부 칸·공유 열쇠는 taskClientView 한 곳이 뺀다.
 const clientTasks = (rows) => serializeTasksForClient(rows);
 
@@ -1617,7 +1618,7 @@ router.post('/conversations/:id/messages', authenticateToken, async (req, res, n
       const previewBody = attachHint
         ? (lang) => attachmentBody(attachHint.kind, attachHint.count, lang)
         : (cleaned.length > 140 ? cleaned.slice(0, 140) + '…' : cleaned);
-      const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/talk?conv=${conv.id}`;
+      const link = `${appUrl()}/talk?conv=${conv.id}`;
       // #132 — 알림 표시명은 워크스페이스 표시명 우선(계정명 노출 금지).
       const senderUser = await User.findByPk(req.user.id, { attributes: ['name'] });
       const { getMemberDisplayName } = require('../services/displayName');

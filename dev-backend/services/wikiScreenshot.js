@@ -15,8 +15,9 @@ const crypto = require('crypto');
 const HelpArticle = require('../models/HelpArticle');
 const File = require('../models/File');
 const { getBrowser, retainBrowser, releaseBrowser } = require('./pdfService');
+const { appUrl } = require('../utils/appUrl');
 
-const FRONTEND_URL = (process.env.WIKI_FRONTEND_URL || 'https://dev.planq.kr').replace(/\/+$/, '');
+const FRONTEND_URL = (process.env.WIKI_FRONTEND_URL || appUrl()).replace(/\/+$/, '');
 const BACKEND_URL = (process.env.WIKI_BACKEND_URL || 'http://127.0.0.1:3003').replace(/\/+$/, '');
 
 function captureConfig() {

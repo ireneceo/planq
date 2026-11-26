@@ -15,7 +15,8 @@ const router = express.Router();
 const { Message, User, Conversation, Project } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 // 카드 302 대상 주소를 만들 때 쓴다 — guest_admin 과 같은 원천.
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const { appUrl } = require('../utils/appUrl');
+const APP_URL = appUrl();
 
 const { guestLimiter, attachGuest, requireRoom } = require('./guest_common');
 

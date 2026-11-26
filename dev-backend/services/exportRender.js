@@ -1,5 +1,6 @@
 // services/exportRender.js — 자료 내보내기 zip 의 문서 HTML·파일명 (routes/export.js 에서 나눔, 동작 그대로)
 const path = require('path');
+const { appUrl } = require('../utils/appUrl');
 
 function escapeHtml(s) {
   return String(s == null ? '' : s)
@@ -17,7 +18,7 @@ function escapeHtml(s) {
 // ★ 두 번째 인자에 `d.body_html` 을 **반드시 넘긴다** — processExport 의 Q Note 의사-doc 은
 //   content_json 없이 body_html 만 갖는다. null 을 넘기면 Q Note 문서가 전부 빈 HTML 이 된다.
 const PDF_ASSET_BASE = (process.env.PDF_ASSET_BASE_URL || `http://127.0.0.1:${process.env.PORT || 3003}`).replace(/\/+$/, '');
-const PUBLIC_ASSET_BASE = (process.env.APP_URL || 'https://dev.planq.kr').replace(/\/+$/, '');
+const PUBLIC_ASSET_BASE = appUrl().replace(/\/+$/, '');
 
 function renderDocHtml(d) {
   const title = escapeHtml(d.title || 'Untitled');

@@ -12,6 +12,7 @@
 const { Op } = require('sequelize');
 const { isVisibleToClient } = require('../utils/messageVisibility');
 const { NOTIFY_COOLDOWN_MS, personalTokenFor } = require('./guest_link');
+const { appUrl: getAppUrl } = require('../utils/appUrl');
 
 // 지금 화면을 보고 있는 사람에게는 메일을 보내지 않는다. 폴링이 last_used_at 을 갱신하므로
 //   이 값이 최근이면 그 사람은 지금 대화를 열고 있다.
@@ -68,7 +69,7 @@ async function notifyGuestsOfReply(message) {
     // 워크스페이스가 사라졌거나 게스트 링크를 껐으면 메일도 나가지 않는다.
     if (!biz || biz.deleted_at || biz.guest_links_enabled === false) return 0;
     const wsName = biz.brand_name || biz.name || null;
-    const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    const appUrl = getAppUrl();
 
     const { sendGuestReplyNotifyEmail } = require('./emailService');
     const { fromName, replyTo } = await require('./workspaceSender').loadWorkspaceSender(conversation.business_id);

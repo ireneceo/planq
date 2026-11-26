@@ -14,8 +14,9 @@ const { authenticateToken } = require('../middleware/auth');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { perUserDaily } = require('../middleware/costGuard');
 const nc = require('../services/nameCard');
+const { appUrl } = require('../utils/appUrl');
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 const PHOTO_MAX = 8 * 1024 * 1024;
 const photoUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: PHOTO_MAX, files: 1 } });
 

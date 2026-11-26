@@ -14,7 +14,8 @@
 // notification_prefs row 가 없으면 default ON (열린 문화). 명시적 OFF 만 차단.
 
 const { User } = require('../models');
-const APP_URL = process.env.APP_URL || 'https://planq.kr';
+const { appUrl } = require('../utils/appUrl');
+const APP_URL = appUrl();
 
 const EMAIL_ONLY_KINDS = new Set(['client_crash']);
 

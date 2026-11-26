@@ -9,6 +9,7 @@ const { successResponse, errorResponse } = require('../middleware/errorHandler')
 const { requireInternalKey } = require('../utils/internalAuth');
 const gdrive = require('../services/gdrive');
 const gcal = require('../services/google_calendar');
+const { appUrl } = require('../utils/appUrl');
 // googleScopes · oauthLog 는 콜백 전용이라 cloud_oauth.js 로 함께 옮겼다.
 
 
@@ -266,7 +267,7 @@ router.post('/watch/start/:businessId', authenticateToken, checkBusinessAccess, 
     const drive = await gdrive.getDriveClient(token);
     const crypto = require('crypto');
     const channelId = crypto.randomUUID();
-    const webhookUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/api/cloud/webhook/gdrive`;
+    const webhookUrl = `${appUrl()}/api/cloud/webhook/gdrive`;
     const tokenHint = crypto.createHmac('sha256', process.env.JWT_SECRET).update(`biz:${token.business_id}`).digest('hex').slice(0, 32);
     const { channel, startPageToken } = await gdrive.startChangesWatch(drive, {
       channelId, webhookUrl, tokenHint,

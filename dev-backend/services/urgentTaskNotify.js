@@ -13,6 +13,7 @@
 //   · Android: 최고 우선순위·잠금화면 공개 · 앱 안 토스트: 빨간 띠 · 팝아웃 업무리스트: 맨 위 «긴급 요청» 띠(my-week urgent_requests)
 //
 // «미확인 요청» 술어는 확인필요 ① 버킷(routes/dashboard.js unconfirmed)과 같은 선이다 — 한쪽만 바꾸지 말 것.
+const { appUrl } = require('../utils/appUrl');
 const UNACKED_STATUSES = ['not_started', 'waiting', 'in_progress'];
 
 function isUnackedRequest(task) {
@@ -67,7 +68,7 @@ async function notifyUrgentRequest(task, { actorUserId, wsName } = {}) {
     eventKind: 'task',
     title: mark + buildTitle({ feature: 'task', action: 'task_urgent_request', subject: `"${task.title}"`, lang }),
     body: `"${task.title}"${due ? (lang === 'en' ? ` · due ${due}` : ` · 마감 ${due}`) : ''}`,
-    link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`,
+    link: `${appUrl()}/tasks?task=${task.id}`,
     ctaLabel: lang === 'en' ? 'View task' : '업무 보기',
     workspaceName,
     tag: `task-urgent:${task.id}`,

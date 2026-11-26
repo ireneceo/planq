@@ -8,6 +8,7 @@
 //     회사가 개인 범위 업무를 가져가는 규칙은 그 사람이 겪기 전에 약관에 있어야 한다(이용약관 제13조 30일 전 공지).
 //   ★ 문서·파일·Q note·Q info 는 넘기지 않는다(작성자 사실 · 공개 범위가 이미 정한다).
 const { Op } = require('sequelize');
+const { appUrl } = require('../utils/appUrl');
 const {
   Task, TaskReviewer, TaskWatcher, Project, ProjectMember, Client, BusinessMember, User,
 } = require('../models');
@@ -223,7 +224,7 @@ async function apply({ businessId, fromUserId, toUserId, actor, io }) {
         body: (lang) => (lang === 'en'
           ? `Tasks ${moved.tasks} · projects ${moved.projects} · clients ${moved.clients}`
           : `업무 ${moved.tasks}건 · 프로젝트 ${moved.projects}건 · 고객 ${moved.clients}건`),
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks`,
+        link: `${appUrl()}/tasks`,
         ctaLabel: (lang) => (lang === 'en' ? 'Open tasks' : '업무 보기'),
         actorUserId: actor.userId, ioApp: io, skipChannels: ['email'],
       });

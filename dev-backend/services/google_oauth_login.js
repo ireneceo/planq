@@ -22,6 +22,7 @@ const SCOPES = ['openid', 'email', 'profile'];
 //   payload 는 먼저 읽되, 소비 권리는 `consume`(삭제 건수 === 1)이 가른다 — 콜백이 두 번
 //   로드돼도 한쪽만 통과한다.
 const ephemeral = require('./ephemeralStore');
+const { appUrl } = require('../utils/appUrl');
 const STATE_KIND = 'oauth_state';
 const STATE_TTL_MS = 5 * 60 * 1000;
 
@@ -59,7 +60,7 @@ function getRedirectUri() {
   if (!origin && process.env.GOOGLE_REDIRECT_URI) {
     try { origin = new URL(process.env.GOOGLE_REDIRECT_URI).origin; } catch (_) { /* 무시 */ }
   }
-  return `${origin || 'https://dev.planq.kr'}/api/auth/google/callback`;
+  return `${origin || appUrl()}/api/auth/google/callback`;
 }
 
 function newClient() {

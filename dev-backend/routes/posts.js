@@ -2,6 +2,7 @@
 // project_id NULL = 워크스페이스 전역 문서, NOT NULL = 프로젝트 소속
 const express = require('express');
 const { markdownToTipTap } = require('../utils/markdownToTipTap');
+const { appUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
 router.param('token', (req, res, next, token) => {
@@ -29,7 +30,7 @@ const postLinks = require('../services/postLinks');
 const { broadcastFile } = require('../services/fileBroadcast');   // 파일 실시간 반영 단일 원천 (#378)
 const { pickMatch } = require('../utils/searchMatch');   // 검색 결과 "왜 걸렸나" (2026-09-11)
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 
 // N+38 — 실시간 동기화 (CLAUDE.md 운영 안정성 16번 박제):
 // 다른 사용자가 문서 추가/수정/삭제 시 본인이 페이지 열고 있으면 즉시 보임.

@@ -19,6 +19,7 @@ const { Op } = require('sequelize');
 const { Business, Subscription, BusinessMember, User } = require('../models');
 const billing = require('./billing');
 const emailService = require('./emailService');
+const { appUrl } = require('../utils/appUrl');
 
 const TRIAL_PRE_BILL_DAYS_BEFORE = 7;
 const GRACE_DAYS = 7;
@@ -47,7 +48,7 @@ async function safeNotify(biz, kind) {
       to: owner.email,
       title: subjects[kind] || '결제 안내',
       body: bodies[kind] || '',
-      link: `${process.env.APP_URL || 'https://planq.kr'}/business/settings/plan`,
+      link: `${appUrl()}/business/settings/plan`,
       ctaLabel: '결제 페이지 열기',
       workspaceName: wsName,
       businessId: biz.id,

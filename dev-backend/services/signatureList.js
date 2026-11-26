@@ -6,8 +6,9 @@
 //   - canManageRows  : 취소·재알림·회차 닫기 **한 술어** — 요청자 ∨ 문서를 고칠 수 있는 사람 ∨ (owner/admin ∧ 그 문서를 읽을 수 있음).
 //   - hiddenRow      : 읽을 수 없는 문서의 행 — 빼지 않고 가린다(제목·문서 링크·IP·메모·사유 없음 · 이메일 가림 · 동작 불가).
 const { Post } = require('../models');
+const { appUrl } = require('../utils/appUrl');
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 
 // 모델이 underscored + timestamps 라 인스턴스 속성은 createdAt 이다 — sr.created_at 은 비어 있었다
 //   (2026-10-23 발견: 진행표·받은 목록·생성 응답의 created_at 이 늘 null 이었다)

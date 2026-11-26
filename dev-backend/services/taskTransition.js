@@ -11,6 +11,7 @@
 const { sequelize } = require('../config/database');
 const { Task, TaskReviewer, TaskStatusHistory, Business, TaskAttachment, TaskDeliverableVersion } = require('../models');
 const { syncFocusOnTaskStatus } = require('./focusSync');
+const { appUrl } = require('../utils/appUrl');
 
 // 라우트(req.app.get('io'))가 없는 실행 경로(Cue·cron)에서도 broadcast 하기 위한 global ref.
 // server.js 가 부팅 시 설정 (N+63 부터 notify() 가 쓰던 것과 같은 참조).
@@ -61,7 +62,7 @@ async function workspaceName(businessId) {
 }
 
 function taskLink(taskId) {
-  return `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${taskId}`;
+  return `${appUrl()}/tasks?task=${taskId}`;
 }
 
 // 검토 단계(reviewing / revision_requested) 진입 가드 — 컨펌자 0명이면 진입 금지.

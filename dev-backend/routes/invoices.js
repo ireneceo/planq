@@ -1,4 +1,5 @@
 const express = require('express');
+const { appUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
 router.param('token', (req, res, next, token) => {
@@ -316,7 +317,7 @@ async function notifyOwnerPaymentNotified(invoice, { label, payerName, ioApp }) 
       businessId: invoice.business_id, eventKind: 'payment',
       titleSpec: { feature: 'bill', action: 'bill_payment_notice' },
       body: `${invoice.invoice_number}${label ? ` ${label}` : ''} — ${who} 송금 완료를 알렸습니다. 입금 확인 후 처리해주세요.`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+      link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName,
       entityType: 'invoice', entityId: invoice.id, ioApp,
@@ -451,7 +452,7 @@ router.post('/public/:token/stripe-checkout', publicStripeLimiter, async (req, r
     }
 
     const { startWorkspaceInvoiceCheckout } = require('../services/stripeCheckoutService');
-    const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+    const APP_URL = appUrl();
     const back = `${APP_URL}/public/invoices/${invoice.share_token}`;
     try {
       const { url, session_id } = await startWorkspaceInvoiceCheckout({
@@ -572,7 +573,7 @@ router.post('/public/:token/receipt-request', publicReceiptLimiter, async (req, 
         businessId: invoice.business_id, eventKind: 'tax_invoice',
         title: `${kindLabel} 발행 요청 도착`,
         body: `${invoice.invoice_number} — 고객이 ${kindLabel} 정보를 확인·제출했습니다`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+        link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
         ctaLabel: '청구서 보기',
         workspaceName: biz?.brand_name || biz?.name || null,
       }).catch((e) => console.warn('[notify receipt]', e.message));
@@ -1453,7 +1454,7 @@ router.post('/:businessId/:id/send', authenticateToken, checkBusinessAccess, req
     //   여태 여기서 PDF(2.6초)와 SMTP(타임아웃 최대 30초)를 await 해서, 메일 서버가 느리면
     //   사용자가 30~50초를 빈 화면 앞에서 기다렸다(Irene: "발송 누르면 계속 로딩되고 있어").
     //   상태 전이는 위 트랜잭션에서 이미 끝났다 — 기다릴 이유가 없는 대기였다.
-    const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+    const APP_URL = appUrl();
     const shareUrl = `${APP_URL}/public/invoices/${invoice.share_token}`;
     const { queueDelivery } = require('../services/invoiceDelivery');
     const deliver = queueDelivery({
@@ -1569,7 +1570,7 @@ router.post('/:businessId/:id/send-reminder', authenticateToken, reminderLimiter
     const daysOverdue = invoice.due_date
       ? Math.max(0, Math.floor((Date.now() - new Date(invoice.due_date).getTime()) / 86400000))
       : 0;
-    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
+    const shareUrl = `${appUrl()}/public/invoices/${shareToken}`;
     const customMsg = req.body?.message ? String(req.body.message).slice(0, 1000) : '';
 
     const { sendPaymentReminderEmail } = require('../services/emailService');
@@ -1656,7 +1657,7 @@ router.post('/:businessId/:id/resend', authenticateToken, reminderLimiter, check
     // share_token 보장
     let shareToken = invoice.share_token;
     if (!shareToken) { shareToken = require('crypto').randomBytes(32).toString('hex'); await invoice.update({ share_token: shareToken }); }
-    const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
+    const shareUrl = `${appUrl()}/public/invoices/${shareToken}`;
 
     // ★ 발송은 /send 와 **같은 착지점**을 쓴다. 세 경로(send·resend·preview)가 각자 PDF 를 만들고
     //   각자 SMTP 를 부르면 반드시 갈라진다 — 실제로 입금자명 코드 폴백이 세 벌로 복사돼 있었다.
@@ -1858,7 +1859,7 @@ router.post('/:businessId/:id/installments/:installId/mark-tax-invoice', authent
         businessId: invoice.business_id, eventKind: 'tax_invoice',
         titleSpec: { feature: 'bill', action: 'bill_receipt_issued' },
         body: `${invoice.invoice_number} ${inst.label || ''} 회차 발행번호 ${no}`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+        link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
         ctaLabel: '청구서 보기',
         workspaceName: biz?.brand_name || biz?.name || null,
         excludeUserId: req.user.id,
@@ -1908,7 +1909,7 @@ router.post('/:businessId/:id/installments/:installId/mark-cash-receipt', authen
         businessId: invoice.business_id, eventKind: 'tax_invoice',
         title: '현금영수증 발행 완료',
         body: `${invoice.invoice_number} ${inst.label || ''} 회차 승인번호 ${no}`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+        link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
         ctaLabel: '청구서 보기',
         workspaceName: biz?.brand_name || biz?.name || null,
         excludeUserId: req.user.id,
@@ -1938,7 +1939,7 @@ async function notifyReceiptIssued(req, invoice, kindLabel, no) {
       businessId: invoice.business_id, eventKind: 'tax_invoice',
       title: `${kindLabel} 발행 완료`,
       body: `${invoice.invoice_number} 발행번호 ${no}`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+      link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName: biz?.brand_name || biz?.name || null,
       excludeUserId: req.user.id,
@@ -1964,7 +1965,7 @@ async function notifyCustomerReceiptIssued(req, invoice, kind, no, issuedAt) {
     const to = await resolveReceiptNotifyEmail(invoice);
     if (!to) return; // 명시적 수신자 + 형식 검증
     const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
-    const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+    const APP_URL = appUrl();
     const shareUrl = invoice.share_token ? `${APP_URL}/public/invoices/${invoice.share_token}` : null;
     const { sendReceiptIssuedEmail } = require('../services/emailService');
     await sendReceiptIssuedEmail({
@@ -2009,7 +2010,7 @@ async function notifyReceiptCorrectionNeeded(req, invoice) {
       businessId: invoice.business_id, eventKind: 'tax_invoice',
       title: `${kindLabel} 취소·수정 필요`,
       body: `${invoice.invoice_number} 청구서가 취소되었습니다. 이미 발행된 ${kindLabel}는 홈택스/팝빌에서 ${hadCash && !hadTax && !hadInstTax ? '취소' : '수정(수정세금계산서)'} 처리가 필요합니다.`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+      link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName: biz?.brand_name || biz?.name || null,
     }).catch((e) => console.warn('[receipt correction notify]', e.message));
@@ -2075,7 +2076,7 @@ async function notifyCustomerReceiptCorrected(req, invoice, corr) {
     const to = await resolveReceiptNotifyEmail(invoice);
     if (!to) return;
     const biz = await Business.findByPk(invoice.business_id, { attributes: ['name', 'brand_name', 'mail_from_name', 'mail_reply_to'] });
-    const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+    const APP_URL = appUrl();
     const shareUrl = invoice.share_token ? `${APP_URL}/public/invoices/${invoice.share_token}` : null;
     const { sendReceiptCorrectionEmail } = require('../services/emailService');
     await sendReceiptCorrectionEmail({
@@ -2107,7 +2108,7 @@ async function notifyMembersReceiptCorrected(req, invoice, corr) {
       businessId: invoice.business_id, eventKind: 'tax_invoice',
       title: `${kindLabel} ${verb} 발행`,
       body: `${invoice.invoice_number} ${kindLabel} ${verb} — 번호 ${corr.corrected_no}`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+      link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName: biz?.brand_name || biz?.name || null,
       excludeUserId: req.user.id,

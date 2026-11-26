@@ -34,6 +34,7 @@ const { RRule } = require('rrule');
 const { Task, TaskReviewer, TaskWatcher, TaskTagLink, TaskStatusHistory, Business, BusinessMember } = require('../models');
 const { dateStrInTz } = require('../utils/datetime');
 const { syncFocusOnTaskStatus } = require('./focusSync');
+const { appUrl: getAppUrl } = require('../utils/appUrl');
 
 // 시리즈 하나가 한 번의 실행에서 만들 수 있는 회차 상한.
 // 밀린 회차 캐치업용 — 일간 시리즈가 한 달 밀려도 한 번에 따라잡되, 잘못된 RRULE 폭주는 막는다.
@@ -261,7 +262,7 @@ async function createOccurrence(parent, nextDateStr, io = null, notifyBucket = n
 // 1건이면 기존 문구를 그대로 써서 해당 업무로 바로 들어가게 하고, 2건 이상이면 다이제스트로.
 async function flushRecurringNotifications(notifyBucket, io = null) {
   if (!notifyBucket || notifyBucket.size === 0) return 0;
-  const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+  const appUrl = getAppUrl();
   let sent = 0;
   for (const entry of notifyBucket.values()) {
     if (!entry.items.length) continue;

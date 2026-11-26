@@ -18,6 +18,7 @@
 //   - status='sent'/'viewed' && expires_at < now → 'expired'
 
 const express = require('express');
+const { appUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 지운 워크스페이스의 서명 링크는 닫힌다(10-09 A5 의 공개 라우터 규칙 — 서명만 빠져 있었다, 2026-10-23 보안 재점검).
 router.param('token', (req, res, next, token) => {
@@ -47,7 +48,7 @@ const {
   canReadPostFn, canEditPostFn, postOfRequest, canManageRequest, assertMember,   // 멤버 라우트 = 그 문서의 읽기/편집 술어 (0-C C-1)
 } = require('../services/signatureCore');
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 const TOKEN_BYTES = 32;
 const OTP_TTL_MIN = 5;
 const OTP_LOCK_MIN = 60;

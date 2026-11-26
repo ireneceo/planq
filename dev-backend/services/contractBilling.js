@@ -17,6 +17,7 @@ const {
 const { insertDraftInvoice, itemsAmountsValid, installmentsError, computeAmounts, MAX_INSTALLMENTS } = require('./invoiceCreate');
 const { ZERO_DECIMAL } = require('./money');
 const { workspaceTaxDefaults, parseRateFraction, parseTaxMode } = require('./taxCalc');
+const { appUrl } = require('../utils/appUrl');
 
 const CURRENCIES = ['KRW', 'USD', 'EUR', 'JPY', 'CNY'];   // 청구서 발행 창과 같은 다섯
 const MAX_ITEMS = 50;
@@ -257,7 +258,7 @@ async function afterCreated(invoice, post, actor, reason) {
   await require('./billEvents').logBillEvent('invoice', full.id, 'created', { actorUserId: actor, detail: { invoice_number: full.invoice_number, grand_total: full.grand_total, currency: full.currency, from_post_id: post.id, auto: true } });
   const { userIds, workspaceName } = await require('./billingRecipients').resolveBillingRecipients(full);
   const { notifyMany } = require('../routes/notifications');
-  const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+  const APP_URL = appUrl();
   await notifyMany({
     userIds,
     businessId: full.business_id,
@@ -283,7 +284,7 @@ async function notifyFailure(terms, post, code) {
   const uid = (r && r.requester_user_id) || terms.created_by;
   if (!uid) return;
   const { notify } = require('../routes/notifications');
-  const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+  const APP_URL = appUrl();
   await notify({
     userId: uid, businessId: post.business_id, eventKind: 'invoice',
     titleSpec: { feature: 'bill', action: 'bill_contract_draft_failed', subject: post.title },

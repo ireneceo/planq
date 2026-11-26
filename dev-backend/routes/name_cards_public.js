@@ -13,8 +13,9 @@ const { ipKeyGenerator } = require('express-rate-limit');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { guestLimiter } = require('./guest_common');
 const nc = require('../services/nameCard');
+const { appUrl } = require('../utils/appUrl');
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 
 const ipLimiter = (name, windowMs, max) => rateLimit({
   windowMs, max, standardHeaders: true, legacyHeaders: false,

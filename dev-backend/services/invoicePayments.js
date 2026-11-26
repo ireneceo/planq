@@ -7,6 +7,7 @@ const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
 const { Invoice, InvoiceInstallment, InvoiceStatusHistory, InvoicePayment, Message } = require('../models');
 const { logBillEvent } = require('./billEvents');
+const { appUrl } = require('../utils/appUrl');
 
 // 결제수단 → InvoicePayment.method ENUM(portone|bank_transfer|cash|other) 매핑.
 //   stripe 는 ENUM 에 없어 other + pg_provider='stripe' 로 기록(portone 전환 대비 최소 변경).
@@ -89,7 +90,7 @@ async function notifyOwnerCardPaid({ invoice, label, amount, io }) {
       businessId: invoice.business_id, eventKind: 'payment',
       title: '카드 결제 완료',
       body: `${invoice.invoice_number}${label ? ` ${label}` : ''} — 고객이 카드로 ${amtStr} 결제했습니다.`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+      link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
       ctaLabel: '청구서 보기',
       workspaceName: biz?.brand_name || biz?.name || null,
       entityType: 'invoice', entityId: invoice.id, ioApp: io,

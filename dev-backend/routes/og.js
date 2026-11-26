@@ -17,8 +17,9 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 const { Op } = require('sequelize');
+const { appUrl } = require('../utils/appUrl');
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 // 빌드 산출물 위치 — **후보를 순서대로 찾는다.**
 //   ★ 여기 단일 dev 경로(`dev-frontend-build`)를 박아둔 탓에 운영에서 `/insights/:slug` 가
 //     사람·크롤러 모두 404 로 죽었다(#374, 2026-08-22 실측). 운영 빌드는 `frontend-build` 다.

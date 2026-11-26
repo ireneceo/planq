@@ -16,6 +16,7 @@ const { perUserLimiter } = require('../middleware/costGuard');
 const { createAuditLog } = require('../middleware/audit');
 const calendarPermission = require('../services/calendarPermission');
 const { attachableRows, keyOf } = require('../services/eventAttachments');
+const { appUrl } = require('../utils/appUrl');
 const {
   CalendarEvent, CalendarEventAttachment, CalendarEventAttendee, BusinessMember, Client, File, Post, User,
 } = require('../models');
@@ -127,7 +128,7 @@ router.post('/by-business/:businessId/:id/notify-materials', authenticateToken, 
         businessId, eventKind: 'event',
         titleSpec: { feature: 'calendar', action: 'calendar_materials', subject: event.title },
         body: `"${event.title}" · ${count}`,
-        link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
+        link: `${appUrl()}/calendar?event=${event.id}`,
         ctaLabel: (lang) => (lang === 'en' ? 'View event' : '일정 보기'), workspaceName: biz?.brand_name || biz?.name || null,
         actorUserId: req.user.id, entityType: 'calendar_event', entityId: event.id, ioApp: req.app,
       };

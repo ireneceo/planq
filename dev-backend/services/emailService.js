@@ -6,6 +6,7 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
+const { appUrl } = require('../utils/appUrl');
 
 // 우리가 내보내는 **모든** 메일의 글꼴 — 고딕 계열 단일 원천 (2026-08-27).
 //   여태 플랫폼 메일만 이 스택을 썼고 Q Mail 발송(새 메일·답장·전달)에는 font-family 가
@@ -76,7 +77,7 @@ async function recordLog(payload) {
 //   PlanQ 플랫폼 운영자(워프로랩) 정보. 사용자/워크스페이스 정보 아님.
 //   메모 feedback_prod_equals_dev.md 정책: 운영 정보는 DB+관리자 UI 로, .env 는 시크릿만.
 //   첫 배포 후엔 /admin/platform-settings UI 에서 변경, .env 는 fallback 으로만 의미.
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 // 푸터에 표시되는 공개 웹사이트 — 환경(APP_URL: dev.planq.kr 등) 과 무관하게 항상 공개 도메인.
 //  기능 링크(초대/인증/공유)는 APP_URL(서버별) 을 쓰고, 표시용 website 만 공개 도메인 고정.
 const PUBLIC_SITE = process.env.PLATFORM_WEBSITE || 'https://planq.kr';
@@ -1452,11 +1453,11 @@ async function sendDiagnosisResultEmail({ to, scores, weakest, locale, responseI
   if (!to) return false;
   const en = String(locale || '').toLowerCase().startsWith('en');
   const { LAYER_NAMES } = require('./diagnosis');
-  const appUrl = (process.env.APP_URL || 'https://planq.kr').replace(/\/+$/, '');
+  const base = appUrl();
   return sendEmail({
     to,
     subject: en ? 'Your PlanQ work-system self-check result' : 'PlanQ 업무체계 자가진단 결과',
-    html: diagnosisResultEmailHtml({ scores, weakest, layerNames: LAYER_NAMES[en ? 'en' : 'ko'], locale, appUrl }),
+    html: diagnosisResultEmailHtml({ scores, weakest, layerNames: LAYER_NAMES[en ? 'en' : 'ko'], locale, appUrl: base }),
     template: 'diagnosis_result', relatedEntityType: 'diagnosis', relatedEntityId: responseId || null,
   });
 }

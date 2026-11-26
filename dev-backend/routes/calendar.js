@@ -1,5 +1,6 @@
 const express = require('express');
 const { Op } = require('sequelize');
+const { appUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
 router.param('token', (req, res, next, token) => {
@@ -998,7 +999,7 @@ router.put('/by-business/:businessId/:id/attendees/:attendeeId', authenticateTok
           userId: event.created_by, businessId, eventKind: 'event',
           title: `${respName} 님이 "${event.title}" ${respLabel}`,
           body: null,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
+          link: `${appUrl()}/calendar?event=${event.id}`,
           ctaLabel: '일정 보기',
           workspaceName: biz?.brand_name || biz?.name || null,
           actorUserId: req.user.id, entityType: 'calendar_event', entityId: event.id,
@@ -1172,7 +1173,7 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
 
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(ev, req.body || {});
-    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/calendar/${r.token}`;
+    const url = `${appUrl()}/public/calendar/${r.token}`;
     // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
     require('../services/auditService').logAudit(req, { action: 'event.share_create', targetType: 'event', targetId: ev.id, businessId: ev.business_id,
       newValue: { access_locked: !!ev.share_password_hash, expires_at: ev.share_expires_at || null } });

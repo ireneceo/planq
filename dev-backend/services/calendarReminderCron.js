@@ -31,6 +31,7 @@ const cron = require('node-cron');
 const { Op } = require('sequelize');
 const { CalendarEvent, CalendarEventAttendee, Business } = require('../models');
 const { filterWorkspaceMemberIds } = require('../middleware/access_scope');
+const { appUrl: getAppUrl } = require('../utils/appUrl');
 
 /**
  * 사람 말로 — "1440분 전" 같은 기계 말을 내보내지 않는다.
@@ -178,7 +179,7 @@ async function runCalendarReminderCron() {
     let sent = 0;
     let skipped = 0;
     const { notifyMany } = require('../routes/notifications');
-    const appUrl = process.env.APP_URL || 'https://planq.kr';
+    const appUrl = getAppUrl();
 
     for (const ev of events) {
       // ★ timezone 을 **반드시 attributes 에 넣는다** — 빠뜨리면 undefined 로 조용히 서울이 된다.

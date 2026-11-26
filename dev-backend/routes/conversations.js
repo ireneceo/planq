@@ -18,6 +18,7 @@ const { applyMemberDisplayName, applyMemberDisplayNameOne, getMemberNameMap, app
 // 워크스페이스 관리 판정 — owner·admin·platform_admin 한 함수(0-E E-1, middleware/access_scope)
 const { isWorkspaceAdminReq, isPlatformConversation } = require('../middleware/access_scope');
 const { isTeamConversation } = require('../services/team_channel');
+const { appUrl } = require('../utils/appUrl');
 const isAdmin = isWorkspaceAdminReq;
 
 // ─────────────────────────────────────────────────────────
@@ -1184,7 +1185,7 @@ router.post('/:businessId/:id/messages', authenticateToken, attachWorkspaceScope
       const biz = await Business.findByPk(req.params.businessId, { attributes: ['name', 'brand_name'] });
       const wsName = biz?.brand_name || biz?.name || null;
       const previewBody = String(content).length > 140 ? String(content).slice(0, 140) + '…' : String(content);
-      const link = `${process.env.APP_URL || 'https://dev.planq.kr'}/talk?conv=${conversation.id}`;
+      const link = `${appUrl()}/talk?conv=${conversation.id}`;
       // #132 — 알림 표시명은 워크스페이스 표시명(BusinessMember.name) 우선. 계정명(User.name) 노출 금지.
       const sender = await User.findByPk(req.user.id, { attributes: ['name'] });
       const { getMemberDisplayName } = require('../services/displayName');

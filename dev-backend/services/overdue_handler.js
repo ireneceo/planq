@@ -27,14 +27,11 @@
 const { Op } = require('sequelize');
 const { Project, Invoice } = require('../models');
 const { resolveBillingRecipients } = require('./billingRecipients');
+const { appUrl } = require('../utils/appUrl');
 
 // 같은 청구서를 다시 묻기까지의 최소 간격
 const REASK_DAYS = 7;
 const REASK_MS = REASK_DAYS * 86400000;
-
-function appUrl() {
-  return process.env.APP_URL || 'https://dev.planq.kr';
-}
 
 // 단일 invoice 처리
 async function handleOverdueInvoice(invoice, today = new Date(), ioApp = null) {

@@ -2,6 +2,7 @@
 // 내부 명칭 kb_*, 사용자 표기 "대화 자료"
 
 const express = require('express');
+const { appUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
 router.param('token', (req, res, next, token) => {
@@ -1453,7 +1454,7 @@ router.post('/kb-documents/:id/share', authenticateToken, async (req, res, next)
 
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(doc, req.body || {});
-    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/kb/${r.token}`;
+    const url = `${appUrl()}/public/kb/${r.token}`;
     // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
     require('../services/auditService').logAudit(req, { action: 'kb.share_create', targetType: 'kb', targetId: doc.id, businessId: doc.business_id,
       newValue: { access_locked: !!doc.share_password_hash, expires_at: doc.share_expires_at || null } });
@@ -1683,7 +1684,7 @@ router.post('/businesses/:businessId/kb/share-bundle', authenticateToken, checkB
       created_by: req.user.id,
       expires_at: expiresAt,
     });
-    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/kb-bundle/${token}`;
+    const url = `${appUrl()}/public/kb-bundle/${token}`;
     require('../services/auditService').logAudit(req, { action: 'kb.share_bundle_create', targetType: 'kb_share_bundle', targetId: bundle.id, businessId: bundle.business_id, newValue: { kind, count: kind === 'selection' ? docIds.length : null, expires_at: expiresAt || null } }); // 감사 — 외부 노출(토큰 미기록)
     return successResponse(res, { id: bundle.id, share_token: token, share_url: url, kind, count: kind === 'selection' ? docIds.length : null });
   } catch (err) { next(err); }

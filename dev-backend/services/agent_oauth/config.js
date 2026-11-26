@@ -4,7 +4,8 @@
 //   Resource(MCP)  = {APP_URL}/agent/mcp
 //   Issuer(AS)     = {APP_URL}/agent         ← 엔드포인트는 전부 /agent/* 아래(최상위 /register 는 회원가입 화면이라 겹친다)
 //   동의 화면       = {APP_URL}/connect/agent?request=<id>
-const APP_URL = (process.env.APP_URL || 'https://dev.planq.kr').replace(/\/+$/, '');
+const { appUrl } = require('../../utils/appUrl');
+const APP_URL = appUrl().replace(/\/+$/, '');
 
 const ISSUER = `${APP_URL}/agent`;
 const RESOURCE = `${APP_URL}/agent/mcp`;

@@ -19,8 +19,9 @@ const { guestLimiter, attachGuest } = require('./guest_common');
 const { guestPartyLabels } = require('../services/guestParty');
 const { isRenderableImage, effectiveMimeType } = require('../services/filePreview');
 const { GUEST_VLEVELS, guestProjectOf, findGuestPost } = require('../services/guestPost');
+const { appUrl } = require('../utils/appUrl');
 
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 
 // ── GET /api/guest/:token/tasks ───────────────────────────────────────────
 //   프로젝트 링크의 **업무 탭**. docs/PROJECT_EXTERNAL_VIEW_DESIGN.md §3.2 화이트리스트.

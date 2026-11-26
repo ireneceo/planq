@@ -11,6 +11,7 @@
 //   - 고객에게는 **앱 알림만**(skipChannels ['email']) — 메일·.ics 는 외부 발송 표면을 넓히는 일이라 넣지 않는다.
 //   - 상담 예약(booking)은 여기로 오지 않는다 — PUT 이 시간·참석자 변경을 409 로 막고 services/booking.js 가 맡는다.
 const { CalendarEventAttendee, Client, User, Business } = require('../models');
+const { appUrl } = require('../utils/appUrl');
 
 const MESSAGE_MAX = 300;
 
@@ -106,7 +107,7 @@ async function send({ kind, event, before, businessId, actorUserId, members, cli
     businessId, eventKind: 'event',
     titleSpec: { feature: 'calendar', action, subject: event.title },
     body,
-    link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${event.id}`,
+    link: `${appUrl()}/calendar?event=${event.id}`,
     ctaLabel: (lang) => (lang === 'en' ? 'View event' : '일정 보기'),
     workspaceName: biz?.brand_name || biz?.name || null,
     actorUserId, entityType: 'calendar_event', entityId: event.id, ioApp,

@@ -7,6 +7,7 @@
 // state 에 businessId + userId encoded.
 const { google } = require('googleapis');
 const crypto = require('crypto');
+const { appUrl } = require('../utils/appUrl');
 
 const SCOPES = [
   'https://mail.google.com/',
@@ -20,7 +21,7 @@ function getRedirectUri() {
   if (!origin && process.env.GOOGLE_REDIRECT_URI) {
     try { origin = new URL(process.env.GOOGLE_REDIRECT_URI).origin; } catch (_) { /* 무시 */ }
   }
-  return `${origin || 'https://dev.planq.kr'}/api/businesses/email-accounts/oauth/gmail/callback`;
+  return `${origin || appUrl()}/api/businesses/email-accounts/oauth/gmail/callback`;
 }
 
 function newClient() {

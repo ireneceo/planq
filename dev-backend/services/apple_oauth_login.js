@@ -16,6 +16,7 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const ephemeral = require('./ephemeralStore');
+const { appUrl } = require('../utils/appUrl');
 
 const APPLE_ISS = 'https://appleid.apple.com';
 const AUTH_URL = 'https://appleid.apple.com/auth/authorize';
@@ -72,7 +73,7 @@ function getRedirectUri() {
   if (!origin && process.env.GOOGLE_REDIRECT_URI) {
     try { origin = new URL(process.env.GOOGLE_REDIRECT_URI).origin; } catch (_) { /* 무시 */ }
   }
-  return `${origin || 'https://dev.planq.kr'}/api/auth/apple/callback`;
+  return `${origin || appUrl()}/api/auth/apple/callback`;
 }
 
 // ─── state ──────────────────────────────────────────────

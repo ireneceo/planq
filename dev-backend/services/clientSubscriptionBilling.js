@@ -12,6 +12,7 @@ const { sequelize } = require('../config/database');
 // invoice_number 는 services/invoiceNumber.js 한 곳에서 뽑는다(워크스페이스×연도 카운터 — FIX_0AB B-②).
 const { withInvoiceNumber } = require('./invoiceNumber');
 const { singleLineInvoice, percentToFraction } = require('./taxCalc');
+const { appUrl } = require('../utils/appUrl');
 
 // DATEONLY 값(Date | string) → 'YYYY-MM-DD' 문자열 정규화
 function toDateStr(v) {
@@ -228,7 +229,7 @@ async function billOneSubscription(sub, today = new Date()) {
         const { sendInvoiceEmail } = require('./emailService');
         const recipient = billRecipientOf(client);
         if (!recipient) { console.warn('[clientSub email] sub', sub.id, 'no recipient'); return; }
-        const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
+        const shareUrl = `${appUrl()}/public/invoices/${shareToken}`;
         // PDF 첨부 — 실패해도 메일은 발송(수동 발송 라우트와 동일 정책). 조용히 넘어가지 않는다.
         let attachments = null;
         try {
@@ -269,7 +270,7 @@ async function billOneSubscription(sub, today = new Date()) {
           userIds: members.map((m) => m.user_id), businessId: sub.business_id, eventKind: 'invoice',
           title: '정기 구독 청구서 검토 요청',
           body: `${title} 초안이 생성되었습니다. 검토 후 발송해주세요.`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+          link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
           ctaLabel: '검토하기', workspaceName: business.brand_name || business.name || null,
         });
       } catch (e) { console.warn('[clientSub notify async] sub', sub.id, e.message); }

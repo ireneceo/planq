@@ -6,6 +6,7 @@
 //   더 나쁘게는 **미발행 글이 크롤러에게만 새는** 방향으로도 갈라질 수 있다.
 //   공개 여부를 정하는 술어는 한 벌이어야 한다.
 const { Op } = require('sequelize');
+const { appUrl } = require('../utils/appUrl');
 
 /** 랜딩 인사이트(블로그)에 실제로 공개된 글인가 — routes/blog.js BLOG_WHERE 와 같은 조건 */
 function publishedInsightWhere(slug) {
@@ -24,7 +25,7 @@ function publishedInsightWhere(slug) {
  */
 function insightOgImageUrl(a) {
   if (!a || !a.og_image_path || !a.slug) return null;
-  const origin = String(process.env.APP_URL || 'https://planq.kr').replace(/\/+$/, '');
+  const origin = StringappUrl().replace(/\/+$/, '');
   const at = a.updatedAt || a.updated_at;
   const v = at ? Math.floor(new Date(at).getTime() / 1000) : 0;
   return `${origin}/api/insights/${encodeURIComponent(a.slug)}/og.jpg${v ? `?v=${v}` : ''}`;
@@ -81,7 +82,7 @@ function fileShareOgEligible(f) {
 /** 위 조건이면 미리보기 이미지 주소, 아니면 null. ?v= 는 다시 공유(shared_at 바뀜)했을 때 크롤러 캐시를 넘기려는 것. */
 function fileShareOgImageUrl(f) {
   if (!fileShareOgEligible(f)) return null;
-  const origin = String(process.env.APP_URL || 'https://planq.kr').replace(/\/+$/, '');
+  const origin = StringappUrl().replace(/\/+$/, '');
   const v = f.shared_at ? Math.floor(new Date(f.shared_at).getTime() / 1000) : 0;
   return `${origin}/api/share-og/files/${encodeURIComponent(f.share_token)}/og.jpg${v ? `?v=${v}` : ''}`;
 }

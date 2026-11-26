@@ -26,6 +26,7 @@ const {
   Conversation, GuestLink,
 } = require('../models');
 const { createAuditLog } = require('./auditService');
+const { appUrl: getAppUrl } = require('../utils/appUrl');
 
 const PURPOSES = ['new_project', 'quote', 'ongoing', 'other'];
 const PURPOSE_LABEL = {
@@ -291,7 +292,7 @@ function icsEscape(v) {
 const icsTime = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 /** 확정 메일 첨부 — 고객 캘린더에 들어가야 예약이 끝난다(§4.5). UID 는 일정마다 고정(다시 받아도 한 건). */
 function buildIcs(ev, { workspaceName, meetingUrl }) {
-  const host = (process.env.APP_URL || 'https://planq.kr').replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const host = getAppUrl().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
   const lines = [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PlanQ//Booking//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
     'BEGIN:VEVENT',
@@ -334,7 +335,7 @@ async function recipientLinkOf(ev) {
  *  ② 없으면 그 고객의 **계정**(P3 로그인 고객) → 계정 이메일 · 앱 «홈 › 내 문의»
  *  둘 다 없으면 null(메일 없음). 계정 쪽은 앱 알림도 같이 간다(notifyClientUser). */
 async function recipientOf(ev) {
-  const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+  const appUrl = getAppUrl();
   const link = await recipientLinkOf(ev);
   if (link) {
     const { personalTokenFor } = require('./guest_link');
@@ -373,7 +374,7 @@ async function notifyClientUser(ev, kind, { biz }) {
       userId: client.user_id, businessId: ev.business_id, eventKind: 'event',
       titleSpec: { feature: 'calendar', action: `booking_${kind}`, subject: ev.title },
       body: whenText(ev, tz, 'ko'),
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/home?tab=mine`,
+      link: `${getAppUrl()}/home?tab=mine`,
       workspaceName: biz.brand_name || biz.name || null,
       entityType: 'calendar_event', entityId: ev.id,
       // ★ 메일은 빼고 앱·푸시만 (Fable FAIL D1). 메일은 바로 뒤 sendGuestBookingEmail 이 **한 통** 보낸다 —
@@ -419,7 +420,7 @@ async function notifyMember(ev, action, { biz, clientName }) {
       userIds: [ev.created_by], businessId: ev.business_id, eventKind: 'event',
       titleSpec: { feature: 'calendar', action, subject: clientName || ev.title },
       body: `${ev.title} · ${whenText(ev, tz, 'ko')}`,
-      link: `${process.env.APP_URL || 'https://dev.planq.kr'}/calendar?event=${ev.id}`,
+      link: `${getAppUrl()}/calendar?event=${ev.id}`,
       workspaceName: biz.brand_name || biz.name || null,
       entityType: 'calendar_event', entityId: ev.id,
     });

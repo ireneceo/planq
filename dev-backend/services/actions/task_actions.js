@@ -41,6 +41,7 @@ const { applyMemberDisplayName, applyMemberDisplayNameOne } = require('../displa
 const { resolveSubject, assertMenuWrite, fail, done } = require('./_subject');
 const { dateOnlyOf } = require('../../utils/dateOnly');
 const { serializeTaskComment } = require('../../utils/rowTimestamps');
+const { appUrl } = require('../../utils/appUrl');
 
 // #353 ⑤ 중요도 허용값 — models/Task.js 의 ENUM 과 **같은 순서·같은 값**이어야 한다.
 //   갈라지면 한쪽만 아는 값이 생기고, 그 값은 저장 시점에 조용히 떨어진다.
@@ -84,7 +85,7 @@ function logHistory({ taskId, eventType, fromStatus = null, toStatus = null, act
 }
 
 function taskLink(taskId) {
-  return `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${taskId}`;
+  return `${appUrl()}/tasks?task=${taskId}`;
 }
 
 async function workspaceName(businessId) {

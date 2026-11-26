@@ -14,6 +14,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const { appUrl } = require('../utils/appUrl');
 
 // ★ 링크 미리보기 크롤러 UA만. 카카오톡은 크롤러가 'Kakaotalk-scrap' 이고, 인앱 브라우저는
 //   '...KAKAOTALK 10.x' 로 온다. bare 'KakaoTalk' 를 넣으면 인앱 브라우저(=실사용자)까지 봇으로
@@ -154,7 +155,7 @@ async function resolvePostShare(token, settings) {
       // 제목이 언제 바뀌었는지 — 다시 읽으러 온 크롤러에게 주는 근거(buildHtml 주석)
       updatedAt: post.updated_at ? new Date(post.updated_at).toISOString() : null,
       description: preview || settings?.seo_description || `${post.category || '문서'} - PlanQ 에서 공유한 문서입니다.`,
-      image: settings?.og_image_url || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`,
+      image: settings?.og_image_url || `${appUrl()}/og-default.png`,
       siteName: settings?.brand || 'PlanQ',
       bodyParagraphs,
     };
@@ -187,7 +188,7 @@ async function resolveSignShare(token, settings) {
     return {
       title: `${baseTitle} — ${entityTitle} 서명 요청`,
       description: settings?.seo_description || `${entityTitle} 문서에 서명을 요청드립니다.`,
-      image: settings?.og_image_url || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`,
+      image: settings?.og_image_url || `${appUrl()}/og-default.png`,
       siteName: settings?.brand || 'PlanQ',
     };
   } catch { return null; }
@@ -195,7 +196,7 @@ async function resolveSignShare(token, settings) {
 
 // 운영 #49 — posts/sign 외 모든 공개 공유 타입에도 페이지별 OG (기존엔 그 외 전부 기본 OG → "다 같은 안내내용").
 function ogImage(settings) {
-  return settings?.og_image_url || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`;
+  return settings?.og_image_url || `${appUrl()}/og-default.png`;
 }
 function ogPack(baseTitle, entityTitle, typeLabel, desc, settings) {
   const title = `${baseTitle} — ${entityTitle || typeLabel}`;
@@ -418,7 +419,7 @@ async function ogMetaMiddleware(req, res, next) {
           ? String(article.description).replace(/\s+/g, ' ').trim().slice(0, 200)
           : (settings && settings.seo_description) || undefined,
         // 순서: 글 이미지 → 플랫폼 설정 이미지 → 기본 (SNS 발송 단계 1 · Fable 지적 1)
-        image: article.image || (settings && settings.og_image_url) || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`,
+        image: article.image || (settings && settings.og_image_url) || `${appUrl()}/og-default.png`,
         siteName: (settings && settings.brand) || 'PlanQ',
       }));
     }
@@ -429,7 +430,7 @@ async function ogMetaMiddleware(req, res, next) {
   const data = {
     title: base.seo_title || `${base.brand || 'PlanQ'} — ${base.tagline || '일이 일이 되지 않게'}`,
     description: base.seo_description || base.tagline || '업무·프로젝트·사람·시간·고객·청구를 하나로 연결해 시간을 돈으로 바꾸는 수익성 엔진.',
-    image: base.og_image_url || `${process.env.APP_URL || 'https://planq.kr'}/og-default.png`,
+    image: base.og_image_url || `${appUrl()}/og-default.png`,
     siteName: base.brand || 'PlanQ',
   };
   setNoIndex(res);

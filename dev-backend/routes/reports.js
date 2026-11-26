@@ -9,6 +9,7 @@
 
 const express = require('express');
 const fs = require('fs');
+const { appUrl: getAppUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
 router.param('token', (req, res, next, token) => {
@@ -364,7 +365,7 @@ router.post('/:biz/integrated/share', authenticateToken, async (req, res, next) 
       defaults: { token: crypto.randomBytes(24).toString('hex'), created_by: req.user.id },
     });
     logAudit(req, { action: 'report_integrated.share', targetType: 'report_share', targetId: share.id, businessId, newValue: { period_type: periodType, period_start: periodStart, dim } });
-    const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    const appUrl = getAppUrl();
     return successResponse(res, { token: share.token, share_url: `${appUrl}/public/report/${share.token}` });
   } catch (err) { next(err); }
 });
@@ -398,7 +399,7 @@ router.get('/:biz/integrated/share', authenticateToken, async (req, res, next) =
     const periodStart = normalizePeriodStart(periodType, periodStartRaw);
     const share = await ReportShare.findOne({ where: { business_id: businessId, period_type: periodType, period_start: periodStart, dim } });
     if (!share) return successResponse(res, { token: null });
-    const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    const appUrl = getAppUrl();
     return successResponse(res, { token: share.token, share_url: `${appUrl}/public/report/${share.token}` });
   } catch (err) { next(err); }
 });

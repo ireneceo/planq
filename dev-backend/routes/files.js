@@ -1,4 +1,5 @@
 const express = require('express');
+const { appUrl: getAppUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
 router.param('token', (req, res, next, token) => {
@@ -129,7 +130,7 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
 
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(file, req.body || {});
-    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/files/${r.token}`;
+    const url = `${getAppUrl()}/public/files/${r.token}`;
     // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
     require('../services/auditService').logAudit(req, { action: 'file.share_create', targetType: 'file', targetId: file.id, businessId: file.business_id,
       newValue: { access_locked: !!file.share_password_hash, expires_at: file.share_expires_at || null } });
@@ -1789,7 +1790,7 @@ router.post('/:businessId/:id/share-link', authenticateToken, checkBusinessAcces
       share_expires_at: expiresAt,
       share_created_at: new Date(),
     });
-    const appUrl = process.env.APP_URL || 'https://dev.planq.kr';
+    const appUrl = getAppUrl();
     // 사이클 N+59 — audit. 파일 외부 노출 (share token 발급) = 보안 critical
     require('../services/auditService').logAudit(req, {
       action: 'file.share_link_create',

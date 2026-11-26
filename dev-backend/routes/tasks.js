@@ -1,6 +1,7 @@
 const express = require('express');
 const { writeAudit, logAudit, auditDiff } = require('../services/auditService');
 const { Op, fn, col, literal } = require('sequelize');
+const { appUrl } = require('../utils/appUrl');
 const router = express.Router();
 // 공개 링크 — 워크스페이스가 지워졌으면 이 라우터의 모든 :token 주소(하위 PDF·다운로드 포함)가 닫힌다(services/shareOpenable).
 router.param('token', (req, res, next, token) => {
@@ -1701,7 +1702,7 @@ router.put('/by-business/:businessId/:id', authenticateToken, async (req, res, n
       const TaskReviewer = require('../models').TaskReviewer;
       const biz = await Business.findByPk(task.business_id, { attributes: ['name', 'brand_name'] });
       const wsName = biz?.brand_name || biz?.name || null;
-      const taskLink = `${process.env.APP_URL || 'https://dev.planq.kr'}/tasks?task=${task.id}`;
+      const taskLink = `${appUrl()}/tasks?task=${task.id}`;
 
       // 담당자 변경 → Cue 자동 실행(#81) + 새 담당자 알림(본인 지정이면 생략). reassign() 과 같은 함수.
       if (updates.assignee_id !== undefined && updates.assignee_id !== prev.assignee_id) {
@@ -2699,7 +2700,7 @@ router.post('/:id/share', authenticateToken, async (req, res, next) => {
     }
     const { applyShareUpdate } = require('../services/share_helper');
     const r = await applyShareUpdate(task, req.body || {});
-    const url = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/tasks/${r.token}`;
+    const url = `${appUrl()}/public/tasks/${r.token}`;
     // 감사 — 외부 노출을 연다(AUDIT_GAPS 1순위). 토큰 원문은 싣지 않는다(기록이 곧 유출이 된다).
     require('../services/auditService').logAudit(req, { action: 'task.share_create', targetType: 'task', targetId: task.id, businessId: task.business_id,
       newValue: { access_locked: !!task.share_password_hash, expires_at: task.share_expires_at || null } });

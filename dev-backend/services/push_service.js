@@ -16,6 +16,7 @@ const { PushSubscription, PushLog } = require('../models');
 const { sendApns } = require('./apns_sender');
 const { sendFcm } = require('./fcm_sender');
 const { isTransientPushFailure, RETRY_DELAY_MS, sleep } = require('./pushTransient');
+const { appUrl } = require('../utils/appUrl');
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || '';
 const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || '';
@@ -26,7 +27,7 @@ const DEFAULT_TTL_SECONDS = 86400;   // 1일
 const DEFAULT_URGENCY = 'high';      // immediate delivery
 
 // Declarative Web Push (Safari 18.4+ / iOS 18.4·iOS 26) — navigate 는 절대 URL 필수.
-const APP_URL = process.env.APP_URL || 'https://dev.planq.kr';
+const APP_URL = appUrl();
 function toAbsoluteUrl(link) {
   if (!link) return APP_URL.replace(/\/$/, '') + '/';
   if (/^https?:\/\//i.test(link)) return link;

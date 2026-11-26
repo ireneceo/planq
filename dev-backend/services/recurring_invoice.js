@@ -19,6 +19,7 @@ const { recurringMetaForProject } = require('./invoiceRecurring');
 const { defaultReceiptTypeFor } = require('./receiptsDue');
 const { withInvoiceNumber } = require('./invoiceNumber');
 const { singleLineInvoice, workspaceTaxDefaults } = require('./taxCalc');
+const { appUrl } = require('../utils/appUrl');
 
 // invoice_number 는 services/invoiceNumber.js 한 곳에서 뽑는다(워크스페이스×연도 카운터 — FIX_0AB B-②).
 
@@ -168,7 +169,7 @@ async function billOneProject(project, today = new Date()) {
           console.warn('[recurring_invoice email] proj', project.id, 'no recipient');
           return;
         }
-        const shareUrl = `${process.env.APP_URL || 'https://dev.planq.kr'}/public/invoices/${shareToken}`;
+        const shareUrl = `${appUrl()}/public/invoices/${shareToken}`;
         // PDF 첨부 — 실패해도 메일 자체는 보낸다(수동 발송 라우트와 동일 정책).
         //   본문 shareUrl 로 고객이 청구서에 도달할 수 있어, 첨부 실패로 청구를 막으면 수금만 멈춘다.
         //   단 **조용히 넘어가지 않는다** — 빈 catch 가 이 기능을 통째로 지웠던 전례(pdfBuilder 오타).
@@ -221,7 +222,7 @@ async function billOneProject(project, today = new Date()) {
           eventKind: 'invoice',
           title: '정기 청구서 검토 요청',
           body: `${project.name} ${ym} 월 사용료 초안이 생성되었습니다. 검토 후 발송해주세요.`,
-          link: `${process.env.APP_URL || 'https://dev.planq.kr'}/bills?tab=invoices&invoice=${invoice.id}`,
+          link: `${appUrl()}/bills?tab=invoices&invoice=${invoice.id}`,
           ctaLabel: '검토하기',
           workspaceName: business.brand_name || business.name || null,
         });
