@@ -1103,29 +1103,32 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
     const isOwner = req.scope.isOwner || req.scope.isPlatformAdmin || req.businessRole === 'admin';
     const isUploader = file.uploader_id === req.user.id;
     if (!isOwner && !isUploader) return errorResponse(res, 'forbidden', 403);
-    // N+74 — L2 = project_id 또는 target_member_ids 둘 중 하나 필수
+    // ★ 2026-11-27 — **공개 범위(vlevel)와 소속(project_id)을 가른다** (문서 2026-08-28 과 같은 원칙 · Fable 설계 A·B).
+    //   Irene: «특정프로젝트에서 특정멤버로 바꿨다가 다시 특정프로젝트로 옮기면 … 연결된 프로젝트는 그래도 끊기면 안되는데 끊겨».
+    //   옛 코드는 L1/L3/L4·«특정 멤버» 로 바꿀 때마다 project_id 를 지워 파일이 프로젝트에서 빠져나갔다.
+    //   · 소속이 바뀌는 길은 **명시한 project_id 하나**(null = 프로젝트에서 빼기).
+    //   · L2 + 명단 = 소속 유지 + «명단이 이긴다»(판정 access_scope.fileLevelAllows / fileListWhereByLevel).
+    //   · L2 + project_id = 명단 비움. L2 아님 = 명단 null.
+    //   · L2 에 대상이 아무것도 없으면: 소속이 있으면 그 프로젝트 L2 · 없으면 «청중 없는 L2»(#378 문서 첨부 — 워크스페이스 전체).
     let nextProjectId = file.project_id;
     let nextTargetMemberIds = null;
-    if (level === 'L2') {
-      if (project_id) {
-        nextProjectId = Number(project_id);
-      } else if (Array.isArray(target_member_ids) && target_member_ids.length > 0) {
-        // L2-members 분기 — project_id 없이 명시 멤버 리스트
-        nextProjectId = null;
-        nextTargetMemberIds = target_member_ids.map(Number).filter(n => Number.isFinite(n));
-        if (nextTargetMemberIds.length === 0) return errorResponse(res, 'invalid_target_member_ids', 400);
-      } else {
-        // ★ "청중 없는 L2" 를 허용한다 (#378). 문서(posts)는 이미 이 상태로 저장되고,
-        //   그 경우 문서 술어는 **워크스페이스 전체**로 본다 — 파일만 막으면 문서에 첨부를
-        //   붙일 때마다 400 이 나서 첨부가 L1 로 남고, 문서는 보이는데 첨부만 안 열린다.
-        //   (이 400 때문에 #378 결손이 계속 재축적되고 있었다 — Fable 실측)
-        nextProjectId = null;
-        nextTargetMemberIds = null;
+    if (project_id !== undefined) {
+      nextProjectId = project_id === null || project_id === '' ? null : Number(project_id);
+      if (nextProjectId !== null && !(Number.isInteger(nextProjectId) && nextProjectId > 0)) return errorResponse(res, 'invalid_project_id', 400);
+      if (nextProjectId && String(nextProjectId) !== String(file.project_id)) {
+        // 다른 워크스페이스·볼 수 없는 프로젝트에 붙이지 않는다(쓰기 문 규칙 — 업로드·Drive 가져오기와 같은 판정)
+        if (!(await require('../services/fileScope').isProjectInBusiness(nextProjectId, file.business_id))) return errorResponse(res, 'invalid_project_id', 400);
+        if (!(await require('../middleware/access_scope').userCanSeeProject(req.user.id, file.business_id, nextProjectId, req.user.platform_role))) return errorResponse(res, 'forbidden', 403);
       }
-    } else {
-      // L1/L3/L4 — project_id, target_member_ids 모두 null
-      nextProjectId = null;
-      nextTargetMemberIds = null;
+    }
+    if (level === 'L2' && !(project_id !== undefined && nextProjectId) && Array.isArray(target_member_ids) && target_member_ids.length > 0) {
+      // «특정 멤버» — 그 워크스페이스의 활성 멤버만(고객·내보낸 사람·남의 워크스페이스 id 는 거절)
+      const ids = [...new Set(target_member_ids.map(Number).filter(n => Number.isInteger(n) && n > 0))];
+      if (ids.length === 0 || ids.length !== target_member_ids.length) return errorResponse(res, 'invalid_target_member_ids', 400);
+      const { BusinessMember } = require('../models');
+      const ok = await BusinessMember.count({ where: { business_id: file.business_id, user_id: ids, role: ['owner', 'admin', 'member'] } });   // 모델 defaultScope 가 removed_at NULL 만 본다
+      if (ok !== ids.length) return errorResponse(res, 'invalid_target_member_ids', 400);
+      nextTargetMemberIds = ids;
     }
     const prevVisibility = file.visibility;
     const prevVlevel = file.vlevel;
@@ -1143,6 +1146,11 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
       project_id: nextProjectId,
       target_member_ids: nextTargetMemberIds,
     };
+    // 소속이 바뀌었는데 폴더가 다른 프로젝트 것이면 폴더에서 뺀다 — «폴더가 곧 소속» (업로드 결정 5-a) 이 어긋나지 않게.
+    if (file.folder_id && String(file.project_id) !== String(nextProjectId)) {
+      const fo = await FileFolder.findOne({ where: { id: file.folder_id, business_id: file.business_id }, attributes: ['id', 'project_id'] });
+      if (fo && String(fo.project_id || '') !== String(nextProjectId || '')) visPatch.folder_id = null;
+    }
     // 외부 공개(L4)는 보안등급을 본다 — 대외비 파일이 L4 가 되면 문서·업무 공개 첨부로 무인증 다운로드된다.
     if (level === 'L4' && require('../services/securityLevel').blocksExternalShare(file)) {
       return errorResponse(res, 'security_level_blocks_share', 403, 'security_level_blocks_share');
@@ -1197,7 +1205,9 @@ router.put('/:businessId/:id/visibility', authenticateToken, attachWorkspaceScop
     //   자리 계산은 업로드·이동·미러와 **같은 함수**를 쓴다.
     // 색인 문서의 scope 도 같이 옮긴다 — 프로젝트를 바꿨는데 Cue 는 옛 프로젝트 사람에게만
     //   보이거나(또는 반대로) 하는 어긋남이 생긴다. 본문은 그대로 두고 자리만 고친다.
-    if (String(prevProjectId) !== String(nextProjectId)) {
+    //   ★ 등급·명단이 바뀌어도 다시 본다 — L1·«특정 멤버» 로 좁히면 색인을 지워야 한다(2026-11-27 Fable 설계 A).
+    if (String(prevProjectId) !== String(nextProjectId) || prevVlevel !== level
+      || JSON.stringify(prevTargetIds || null) !== JSON.stringify(nextTargetMemberIds)) {
       setImmediate(() => { require('../services/fileIndex').indexFile(file.id).catch(() => {}); });
     }
     if (file.gdrive_mirror_id && String(prevProjectId) !== String(nextProjectId)) {

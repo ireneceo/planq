@@ -231,6 +231,8 @@ router.get('/:token/files', guestLimiter('guest-files', { windowMs: 60 * 1000, m
         project_id: project.id, business_id: link.business_id,
         deleted_at: null,
         vlevel: GUEST_VLEVELS,
+        // «특정 멤버» 파일은 소속 프로젝트가 있어도 게스트에게 안 나간다(명단이 이긴다 · 2026-11-27)
+        [Op.and]: [require('../middleware/access_scope').fileNotMemberListedLiteral()],
       },
       // ★ file_path·external_id·storage_provider 는 **썸네일 주소를 만드는 데만** 읽는다 —
       //   응답에는 싣지 않는다(아래 list 는 나열한 키만 낸다).
@@ -328,6 +330,7 @@ router.get('/:token/files/:fileId/preview',
         id: Number(req.params.fileId) || 0,
         project_id: project.id, business_id: link.business_id,
         deleted_at: null, vlevel: GUEST_VLEVELS,
+        [Op.and]: [require('../middleware/access_scope').fileNotMemberListedLiteral()],   // 목록과 같은 술어(명단 파일 제외)
       },
       attributes: ['id', 'business_id', 'file_name', 'file_size', 'mime_type', 'security_level', 'vlevel',
         'file_path', 'external_id', 'storage_provider', 'content_hash'],

@@ -101,6 +101,8 @@ router.get('/:id/files', authenticateToken, async (req, res, next) => {
         // 2026-11-18 — Drive 사본이 PlanQ 와 다른데 반영 못 한 이유(gdriveMirrorSync §4.2 B-5). 세 직렬화가 같이 싣는다.
         drive_sync_issue: f.drive_sync_issue || null,
         visibility: f.visibility,
+        // «특정 멤버» 명단 — 파일 상세 공개 범위 칸이 고른 멤버를 그대로 보여 준다(2026-11-27)
+        target_member_ids: (f.vlevel || f.visibility) === 'L2' ? require('../middleware/access_scope').fileMemberList(f) : null,
         hide_existence: !!f.hide_existence,   // «검색에서 숨기기»(services/lockedDiscovery) — 파일 상세의 숨김 칸이 읽는다
         project_id: f.project_id,
         description: f.description,

@@ -6,7 +6,7 @@ import { Modal, ModalButton } from '../UI/Modal';
 import { fetchUsageSummary, isNarrowing, type UsageSummary } from './fileUsageApi';
 import UsageWarning from './UsageWarning';
 
-type Level = { level?: string | null; projectId?: number | null };
+type Level = { level?: string | null; projectId?: number | null; members?: number[] | null };
 
 export function useNarrowConfirm(businessId: number | null | undefined) {
   const { t } = useTranslation('qfile');

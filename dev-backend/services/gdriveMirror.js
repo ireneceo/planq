@@ -74,10 +74,11 @@ function isEligible(file, token) {
   // ★ L2 중 **특정 멤버만 지정된 것**(`target_member_ids`)도 제외한다 (2026-09-17, Fable 3차).
   //   그런 파일은 프로젝트 폴더가 없어 `resolveDriveParent` 가 `Workspace Files` 로 보내는데,
   //   그 폴더가 곧 [파인더 공유]가 여는 곳이다 — **청중이 제한된 파일이 전원에게 열린다.**
-  //   프로젝트로 제한된 L2(`project_id` 있음)는 프로젝트 폴더로 가므로 해당 없다.
+  //   ★ 2026-11-27 — 프로젝트 소속 파일도 명단이 있으면 제외한다(소속 유지 + «명단이 이긴다» · Fable 설계 B).
+  //     프로젝트 폴더는 프로젝트 멤버 전원이 보는 곳이라 명단보다 넓다.
   const targets = file.target_member_ids;
   const hasTargets = Array.isArray(targets) ? targets.length > 0 : !!targets;
-  if (level === 'L2' && !file.project_id && hasTargets) return false;
+  if (level === 'L2' && hasTargets) return false;
   // ★ **프로젝트로 제한된 L2 는 프로젝트 폴더가 있어야만 미러한다** (2026-09-17, Fable 8차 ⑮).
   //   `resolveDriveParent` 는 프로젝트를 못 찾으면 `Workspace Files` 로 **폴백**한다.
   //   그래서 프로젝트가 하드삭제되면 그 프로젝트 파일이 조용히 **공유 폴더에 놓인다** —

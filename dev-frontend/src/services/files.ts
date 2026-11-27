@@ -69,6 +69,8 @@ export interface ProjectFile {
   visibility?: 'L1' | 'L2' | 'L3' | 'L4' | null;
   /** «검색에서 숨기기» — 제한(L2) 자료가 잠금 줄로도 안 나온다(services/lockedDiscovery). */
   hide_existence?: boolean;
+  /** «특정 멤버»(L2) 명단 — 서버 fileMemberList 그대로. 그 밖의 등급은 null. */
+  target_member_ids?: number[] | null;
   security_level?: 'general' | 'internal' | 'confidential';  // D4 #62
   /** Cue 가 이 파일 **내용**을 읽는가. 판정은 서버의 `services/fileIndex.indexability`
    *  한 함수다 — 화면에서 다시 계산하지 않는다(공식이 두 벌이면 이미 갈라져 있다).
@@ -107,8 +109,9 @@ export async function updateFileMeta(
 export async function updateFileVisibility(
   businessId: number,
   fileId: number,
-  body: { level: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number }
-): Promise<{ id: number; visibility: string; project_id: number | null;
+  // project_id: 명시할 때만 소속을 바꾼다(null = 프로젝트에서 빼기). 안 보내면 소속 그대로(2026-11-27).
+  body: { level: 'L1' | 'L2' | 'L3' | 'L4'; project_id?: number | null; target_member_ids?: number[] }
+): Promise<{ id: number; visibility: string; project_id: number | null; target_member_ids: number[] | null;
   /** 가시성을 좁히면(예: L3→L1) 서버가 Drive 공유 사본을 거둔다 — 그 결과.
    *  ★ 보안등급 쪽과 **같은 축**이다. 여기만 안 읽으면 "개인으로 내렸는데 사본은 공유 폴더에
    *    그대로" 를 사용자가 모른다(Fable 10차 #4). */

@@ -178,3 +178,16 @@ Q file(`ProjectGroups`)과 프로젝트>파일(`FolderTree`)은 **같은 행**�
 - **문서 첨부 응답은 보는 사람 기준**(`services/postAttachmentView`) — 휴지통 = `state:'trashed'`, 못 읽음 = 빼고 멤버에게만 숫자, 고객은 흔적 없음. 첨부를 싣는 새 문서 응답은 이 함수를 부른다.
 - 파일 삭제·범위 쓰기 AI 도구를 더하면 결과에 `fileUsage.summarize` 를 싣는다.
 - 휴지통 파일은 어느 공개 문으로도 안 나간다(`shareOpenable.isPublicFile`).
+
+## 파일 공개 범위 ≠ 프로젝트 소속 — 범위를 바꿔도 소속은 남는다 (2026-11-27 박제)
+
+> Irene: *"파일을 특정프로젝트에서 특정멤버로 바꿨다가 다시 특정프로젝트로 옮기면 제대로 적용을 할 수가 없고 프로젝트 연결이 다시 안돼. 연결된 프로젝트는 그래도 끊기면 안되는데 끊겨 버리고"* · Fable 설계 A~D
+
+- `vlevel` = 누가 보나 / `project_id` = 어디 소속(문서 2026-08-28 과 같은 원칙). `PUT /api/files/:biz/:id/visibility` 는 **명시한 `project_id` 로만** 소속을 바꾼다(null = 빼기 · 같은 워크스페이스 + 볼 수 있는 프로젝트만).
+  L1/L3/L4 로 바꿔도 소속 유지. L2 에 대상이 없으면 소속이 있으면 그 프로젝트 L2, 없으면 «청중 없는 L2»(#378).
+- **«특정 멤버»(L2 + `target_member_ids`)는 소속이 있어도 명단이 이긴다** — 판정 5곳이 같이 간다: 단건 `fileLevelAllows`(숨은 프로젝트 판정보다 먼저) · 목록 `fileListWhereByLevel`(프로젝트 L2 줄에 «명단 없음», 명단 줄은 `scopedOr` 밖) ·
+  고객 `clientFileReadable`/`clientFileListWhere`(명단 L2 제외) · Drive 미러 `isEligible`(명단 L2 는 소속 무관 제외) · 색인 `fileIndex.indexability`(명단 L2 색인 안 함). 프로젝트 이력(`event_stream`)도 명단·올린 사람에게만. 명단 읽기는 `access_scope.fileMemberList` 한 함수.
+  명단은 그 워크스페이스 활성 멤버만(고객 400).
+- 화면(`DocsTab` 파일 상세): 라디오를 누르는 것만으로는 저장하지 않는다 — «특정 멤버» 는 1명 이상, «특정 프로젝트» 는 프로젝트가 정해졌을 때(소속이 있으면 바로 그 프로젝트). 저장 뒤 값은 서버 응답으로. 공용 `VisibilityField.applyVariant` 는 바꾸지 않았다(문서·업무가 같이 쓴다).
+- 옛 버그로 빠진 소속: `node dev-backend/scripts/restore-file-project-from-audit.js`(읽기만 기본 · `--apply` 는 L1 만, 나머지는 목록 — 소속을 되돌리면 그 프로젝트 고객에게 열린다). 운영 `--apply` 는 Irene 지시 뒤.
+- 회귀 = dev 왕복 스크립트(34항목, 커밋 안 함) + 양성 대조군(옛 access_scope 로 바꾸면 명단 밖 프로젝트 멤버가 보임으로 뒤집힘).

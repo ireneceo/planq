@@ -53,7 +53,7 @@ import {
   createShareLink, bulkDownloadZip, updateFileVisibility, updateFileSecurityLevel,
   formatBytes, extOf, isImage, getUploadLimits, type UploadLimits,
   type ProjectFile, type FileSource, type FileFolder, parseFileId, canOpenInNewTab } from '../../services/files';
-import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
+import VisibilityField, { parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
 import { listProjects, listWorkspaceClients, type ApiProject, type WorkspaceClientRow } from '../../services/qtalk';
 import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import { cacheKey, readCache, hasCache, writeCache } from '../../lib/pageCache';
@@ -184,6 +184,9 @@ const DocsTab: React.FC<Props> = (props) => {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('recent');
   const [preview, setPreview] = useState<ProjectFile | null>(null);
+  // 공개 범위 «고르는 중» 초안 — 대상(멤버·프로젝트)이 필요한 선택은 대상이 정해졌을 때만 저장한다(2026-11-27 Fable 설계 C).
+  //   라디오만 누르고 대상을 안 고르면 서버에 아무것도 안 간다. 파일이 바뀌면(id 다름) 버린다.
+  const [visDraft, setVisDraft] = useState<{ id: string; v: VisibilityValue } | null>(null);
   const [quickFile, setQuickFile] = useState<ProjectFile | null>(null);
 
   // ── 딥링크 소생 (2026-08-30) ────────────────────────────────────────────
@@ -1918,24 +1921,44 @@ const DocsTab: React.FC<Props> = (props) => {
                 <VisibilitySection>
                   <SectionLabel>{t('docs.visibility', { defaultValue: '공개' }) as string}</SectionLabel>
                   <VisibilityField
-                    value={parseVisibility({
-                      vlevel: preview.visibility ?? null,
-                      project_id: preview.project_id ?? null,
-                      client_id: null,
-                      client_ids: null,
-                      target_member_ids: null,
-                    })}
-                    onChange={async (v: VisibilityValue) => {
+                    value={visValueOf(preview, visDraft)}
+                    onChange={async (picked: VisibilityValue) => {
                       const fileIdNum = Number(String(preview.id).replace(/^direct-/, ''));
                       if (!fileIdNum) return;
                       const bizId = scope.businessId;
-                      const ser = serializeVisibility(v);
-                      await narrow.guard(fileIdNum, { level: preview.visibility, projectId: preview.project_id ?? null }, { level: v.vlevel, projectId: ser.project_id ?? null }, async () => { try {
+                      const rowId = String(preview.id);
+                      let v = picked;
+                      // 소속이 있는 파일에서 «특정 프로젝트» 를 누르면 그 프로젝트로 바로 되돌린다(고를 것이 없다).
+                      if (v.variant === 'L2_project' && !v.project_id && preview.project_id) v = { ...v, project_id: preview.project_id };
+                      // 대상이 아직 없으면 화면 초안만 — 저장하지 않는다(옛 동작: 누르는 순간 소속·범위가 빠졌다).
+                      if ((v.variant === 'L2_project' && !v.project_id) || (v.variant === 'L2_members' && v.target_member_ids.length === 0)) {
+                        setVisDraft({ id: rowId, v });
+                        return;
+                      }
+                      const members2 = v.variant === 'L2_members' ? v.target_member_ids : null;
+                      const prevMembers = preview.visibility === 'L2' ? (preview.target_member_ids || null) : null;
+                      // 저장된 값과 같으면 보내지 않는다(이미 고른 라디오를 다시 누른 경우 등) — 초안만 걷는다.
+                      const saved = visValueOf(preview, null);
+                      const sameList = (a: number[], b: number[]) => [...a].sort().join(',') === [...b].sort().join(',');
+                      if (saved.variant === v.variant && saved.vlevel === v.vlevel
+                        && (v.variant !== 'L2_project' || saved.project_id === v.project_id)
+                        && (v.variant !== 'L2_members' || sameList(saved.target_member_ids, v.target_member_ids))) {
+                        setVisDraft(null);
+                        return;
+                      }
+                      await narrow.guard(fileIdNum,
+                        { level: preview.visibility, projectId: preview.project_id ?? null, members: prevMembers },
+                        { level: v.vlevel, projectId: v.variant === 'L2_project' ? v.project_id : (preview.project_id ?? null), members: members2 },
+                        async () => { try {
+                        // 소속(project_id)은 «특정 프로젝트» 로 고를 때만 보낸다 — 나머지는 소속 그대로(서버도 같은 규칙).
                         const rv = await updateFileVisibility(bizId, fileIdNum, {
                           level: v.vlevel,
-                          ...(v.variant === 'L2_project' && ser.project_id ? { project_id: ser.project_id } : {}),
+                          ...(v.variant === 'L2_project' && v.project_id ? { project_id: v.project_id } : {}),
+                          ...(members2 ? { target_member_ids: members2 } : {}),
                         });
-                        setPreview(prev => prev ? { ...prev, visibility: v.vlevel, project_id: ser.project_id } : prev);
+                        setVisDraft(null);
+                        // 추측값이 아니라 서버가 저장한 값으로 채운다.
+                        setPreview(prev => prev && String(prev.id) === rowId ? { ...prev, visibility: rv.visibility as ProjectFile['visibility'], project_id: rv.project_id, target_member_ids: rv.target_member_ids ?? null } : prev);
                         // ★ 보안등급과 **같은 처리** (2026-09-17, Fable 10차 #4).
                         //   개인(L1)으로 내렸는데 사본을 못 거둔 경우(`is_origin`·`failed`)를
                         //   말하지 않으면, 사용자는 «개인으로 돌렸다» 고 믿는데 공유 폴더엔 그대로다.
@@ -2514,6 +2537,16 @@ const HeaderIconBtn = styled.button<{ $danger?: boolean }>`
 `;
 const MetaList = styled.div`display:flex;flex-direction:column;gap:10px;`;
 // N+67 — visibility 변경 영역 (preview drawer)
+/** 파일 상세 공개 범위 칸의 값 — 고르는 중 초안이 있으면 그것, 아니면 저장된 값.
+ *  L2 에 명단이 있으면 «특정 멤버»(소속이 남아 있어도 — 명단이 이긴다). 소속은 값에 실어 «특정 프로젝트» 로 돌아갈 때 미리 채운다. */
+function visValueOf(file: ProjectFile, draft: { id: string; v: VisibilityValue } | null): VisibilityValue {
+  if (draft && draft.id === String(file.id)) return draft.v;
+  const members = file.visibility === 'L2' ? (file.target_member_ids || []) : [];
+  const base = parseVisibility({ vlevel: file.visibility ?? null, project_id: file.project_id ?? null, client_id: null, client_ids: null, target_member_ids: members });
+  if (base.vlevel === 'L2' && members.length > 0) return { ...base, variant: 'L2_members', project_id: file.project_id ?? null };
+  return base;
+}
+
 const VisibilitySection = styled.div`
   margin-top: 18px; padding-top: 14px;
   border-top: 1px solid #E2E8F0;

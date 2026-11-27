@@ -39,6 +39,8 @@ function indexability(file) {
   // 개인 파일은 검색 스코프에 없다 — 색인해도 읽히지 않으므로 만들지 않는다.
   const level = file.vlevel || file.visibility || 'L3';
   if (level === 'L1') return { ok: false, reason: 'personal' };
+  // «특정 멤버» 로 좁힌 파일(L2 + 명단)은 색인하지 않는다 — 색인 범위(프로젝트·워크스페이스)가 명단보다 넓다(2026-11-27 Fable 설계 B).
+  if (level === 'L2' && require('../middleware/access_scope').fileMemberList(file).length > 0) return { ok: false, reason: 'members_only' };
   const can = extractability(file);
   if (!can.ok) return { ok: false, reason: can.reason };   // 'unsupported_type' | 'no_path'
   return { ok: true, kind: can.kind };

@@ -35,9 +35,12 @@ export function fileIdOfRow(row: { id: string | number; download_url?: string | 
 }
 
 /** 공개 범위가 좁아지는가 — 등급이 내려가거나(L4>L3>L2>L1) L2 의 프로젝트가 바뀔 때. 넓히기는 묻지 않는다. */
-export function isNarrowing(prev: { level?: string | null; projectId?: number | null }, next: { level?: string | null; projectId?: number | null }): boolean {
+export function isNarrowing(prev: { level?: string | null; projectId?: number | null; members?: number[] | null }, next: { level?: string | null; projectId?: number | null; members?: number[] | null }): boolean {
   const rank = (l?: string | null) => ({ L1: 1, L2: 2, L3: 3, L4: 4 } as Record<string, number>)[String(l || 'L3')] || 3;
   if (rank(next.level) < rank(prev.level)) return true;
+  // «특정 멤버» 로 좁히거나 명단을 바꾸는 것도 좁힘이다(2026-11-27) — 명단 밖 사람에게서 연결된 곳이 닫힌다.
+  const key = (m?: number[] | null) => [...(m || [])].sort((a, b) => a - b).join(',');
+  if (next.level === 'L2' && (next.members || []).length > 0 && key(next.members) !== key(prev.members)) return true;
   if (next.level === 'L2' && prev.level === 'L2' && (next.projectId ?? null) !== (prev.projectId ?? null)) return true;
   return false;
 }

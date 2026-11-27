@@ -820,6 +820,16 @@ async function canAccessPost(userId, post, scope) {
 // File — N+74 vlevel 컬럼 우선 (legacy visibility 도 fallback). Post 와 동일 정책.
 //   L1=uploader / L2=project_id 또는 target_member_ids / L3=workspace / L4=workspace member + share_token
 // ★ 열람 요청 승인(services/accessGrants)은 술어가 거절한 뒤에만 본다 — 그 사람·그 항목 하나·L2 일 때만(2026-11-25).
+/** 파일 «특정 멤버» 명단 — JSON 칸이 문자열로 올 때도 숫자 배열로. 판정·색인이 같이 쓴다. */
+function fileMemberList(file) {
+  let t = file && file.target_member_ids;
+  if (typeof t === 'string') { try { t = JSON.parse(t); } catch (_) { t = null; } }
+  return Array.isArray(t) ? t.map(Number).filter(Number.isFinite) : [];
+}
+/** «특정 멤버» 명단이 없는 파일만 — 명단 밖 표면(고객·무인증 게스트 링크)의 목록 조건 한 벌(2026-11-27 Fable 게이트 FAIL: 게스트 링크가 명단 파일을 냈다). */
+function fileNotMemberListedLiteral() {
+  return sequelize.literal("NOT (IFNULL(`File`.`vlevel`, `File`.`visibility`) <=> 'L2' AND `File`.`target_member_ids` IS NOT NULL AND JSON_LENGTH(`File`.`target_member_ids`) > 0)");
+}
 async function canAccessFileByLevel(userId, file, scope) {
   if (!file) return false;
   if (!scope) scope = await getUserScope(userId, file.business_id);
@@ -830,13 +840,19 @@ async function fileLevelAllows(userId, file, scope) {
   if (scope.isPlatformAdmin) return true;
   // 본인 업로드 무조건 OK
   if (file.uploader_id === userId) return true;
-  // 숨은 프로젝트의 파일 — 올린 사람만(2026-10-16 프로젝트 가시성)
-  if (!canSeeProject(scope, file.project_id)) return false;
   // N+74 — vlevel 신컬럼 우선, legacy visibility fallback
   const v = file.vlevel || file.visibility;
   if (v === 'L1') return false;
   // admin(N+21) 은 owner 급 전권 — 모든 분기에서 owner 와 동일 취급 (Post 헬퍼 동일 패턴)
   const fullView = scope.isOwner || scope.isAdmin;
+  // ★ «특정 멤버»(L2 + 명단)는 **명단이 이긴다** — 프로젝트 소속이 있어도 프로젝트 멤버십은 보지 않는다(2026-11-27 Fable 설계 B).
+  //   이름 박힌 사람 규칙이라 숨은 프로젝트 판정보다 먼저 본다. 고객은 명단에 들 수 없다(clientFileReadable 도 뺀다).
+  if (v === 'L2') {
+    const list = fileMemberList(file);
+    if (list.length > 0) return !scope.isClient && (list.includes(Number(userId)) || fullView);
+  }
+  // 숨은 프로젝트의 파일 — 올린 사람만(2026-10-16 프로젝트 가시성)
+  if (!canSeeProject(scope, file.project_id)) return false;
   // L4 도 워크스페이스 멤버는 보여야 (N+72 fix)
   if (v === 'L4') return fullView || scope.isMember;
   if (v === 'L3') return fullView || scope.isMember;
@@ -844,12 +860,7 @@ async function fileLevelAllows(userId, file, scope) {
     if (file.project_id) {
       return (scope.projectMemberIds || []).includes(file.project_id) || fullView;
     }
-    // N+74 — L2-members 분기 (target_member_ids)
-    const targetIds = Array.isArray(file.target_member_ids) ? file.target_member_ids : [];
-    if (targetIds.length > 0) {
-      return targetIds.includes(userId) || fullView;
-    }
-    return fullView || scope.isMember;
+    return fullView || scope.isMember;   // 청중 없는 L2(#378) — 명단 있는 L2 는 위에서 끝났다
   }
   return fullView || scope.isMember;
 }
@@ -865,6 +876,7 @@ function clientFileReadable(scope, file) {
   const lv = file.vlevel || file.visibility;
   if (lv === 'L1') return false;
   if ((file.security_level || 'general') !== 'general') return false;
+  if (lv === 'L2' && fileMemberList(file).length > 0) return false;   // 명단 있는 L2 — 고객은 명단에 없다(2026-11-27)
   return !!file.project_id && (scope.projectClientProjectIds || []).includes(file.project_id);
 }
 function clientFileListWhere(scope) {
@@ -880,6 +892,8 @@ function clientFileListWhere(scope) {
           { vlevel: null, visibility: { [Op.ne]: 'L1' } },
           { vlevel: null, visibility: null },
         ] },
+        // 명단 있는 L2 는 고객에게 안 보인다(단건 clientFileReadable 과 같은 선 · 2026-11-27)
+        fileNotMemberListedLiteral(),
       ],
     });
   }
@@ -925,17 +939,21 @@ function fileListWhereByLevel(scope) {
     conds.push({ vlevel: null, visibility: 'L2' });
   } else {
     // L2 — project_id 매칭 OR target_member_ids 안 본인 포함
+    // ★ 프로젝트 L2 는 «명단 없음» 일 때만 프로젝트 멤버에게 — 명단이 있으면 명단이 이긴다(2026-11-27 Fable 설계 B · 단건 fileLevelAllows 와 같은 선).
+    const noList = sequelize.literal("(`File`.`target_member_ids` IS NULL OR JSON_LENGTH(`File`.`target_member_ids`) = 0)");
     if ((scope.projectMemberIds || []).length > 0) {
-      conds.push({ vlevel: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
-      conds.push({ vlevel: null, visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } });
+      conds.push({ [Op.and]: [{ vlevel: 'L2', project_id: { [Op.in]: scope.projectMemberIds } }, noList] });
+      conds.push({ [Op.and]: [{ vlevel: null, visibility: 'L2', project_id: { [Op.in]: scope.projectMemberIds } }, noList] });
     }
-    // N+74 — L2-members (target_member_ids JSON contains userId). MySQL JSON_CONTAINS 사용.
-    //   자격 부여 — 위와 같은 이유(조인 시 ambiguous). 여태 안 터진 것은 운이 좋았을 뿐이다.
-    conds.push(sequelize.literal(
-      `\`File\`.\`vlevel\` = 'L2' AND JSON_CONTAINS(\`File\`.\`target_member_ids\`, '${Number(scope.userId)}')`));
   }
+  // N+74 — L2-members (target_member_ids JSON contains userId). MySQL JSON_CONTAINS 사용.
+  //   자격 부여 — 위와 같은 이유(조인 시 ambiguous). 여태 안 터진 것은 운이 좋았을 뿐이다.
+  //   ★ 이름 박힌 사람이라 프로젝트 범위(scopedOr) **밖**에 둔다 — 숨은 프로젝트 소속이어도 명단에 들면 본다(단건과 같은 순서, 2026-11-27).
+  //   fullView 는 위 { vlevel:'L2' } 로 본다.
+  const memberListF = fullView ? [] : [sequelize.literal(
+    `\`File\`.\`vlevel\` = 'L2' AND JSON_CONTAINS(\`File\`.\`target_member_ids\`, '${Number(scope.userId)}')`)];
   // 올린 사람 밖의 조건은 보이는 프로젝트로 감싼다(2026-10-16) — `File` 자격은 where 키라 Sequelize 가 붙인다.
-  const fconds = [mineF, ...scopedOr(scope, conds)];
+  const fconds = [mineF, ...memberListF, ...scopedOr(scope, conds)];
   // 열람 요청 승인 — 그 사람·그 항목(L2)만. 프로젝트 범위로 감싸지 않는다(승인이 곧 «이름 박힌 사람» 이다).
   const grant = require('../services/accessGrants').grantListCond(scope, 'file');
   if (grant) fconds.push(grant);
@@ -1216,6 +1234,8 @@ async function canDownloadFile(scope, userId, file) {
 }
 
 module.exports = {
+  fileMemberList,
+  fileNotMemberListedLiteral,
   isWorkspaceAdmin,
   isWorkspaceAdminReq,
   getUserScope,

@@ -441,6 +441,9 @@ async function getProjectStream(project, viewerUserId, opts = {}) {
               { vlevel: { [Op.ne]: 'L1' } },
               { uploader_id: viewer },
             ] },
+            // «특정 멤버»(L2 + 명단) 파일은 명단·올린 사람에게만 — 프로젝트 소속이 남아도 프로젝트 멤버 전원 이력에 이름이 나가지 않게(2026-11-27)
+            require('sequelize').literal(`(NOT (\`File\`.\`vlevel\` <=> 'L2' AND \`File\`.\`target_member_ids\` IS NOT NULL AND JSON_LENGTH(\`File\`.\`target_member_ids\`) > 0)`
+              + ` OR \`File\`.\`uploader_id\` = ${Number(viewer) || 0} OR JSON_CONTAINS(\`File\`.\`target_member_ids\`, '${Number(viewer) || 0}'))`),
           ],
         },
         attributes: ['id', 'file_name', 'uploader_id', 'created_at'],
