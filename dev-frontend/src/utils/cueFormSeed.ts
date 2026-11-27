@@ -6,12 +6,13 @@
 //
 // 폼에 칸이 없는 인자(조용히 버리지 않고 여기 목록으로 남긴다):
 //   create_task — client_id(폼은 고객이 정해진 화면에서만 붙인다) · workstream_id(그룹 칸은 프로젝트 탭에서만) ·
-//                 source(메일·채팅 출처) · completed · priority 는 «긴급»(urgent)만 옮긴다(폼에 우선순위 칸이 없다)
+//                 source(메일·채팅 출처) · completed · priority 는 폼 «중요도» 칸(priority_level)으로 그대로 옮긴다
 //   create_event — source
 import type { TaskCreateInitial } from '../components/QTask/TaskCreateForm';
 import type { EventFormSeed } from '../pages/QCalendar/NewEventModal';
 import type { EventCategory } from '../pages/QCalendar/types';
 import { plainToHtml } from './plainToHtml';
+import { asPriorityLevel } from './taskPriority';
 import { toWall } from '../pages/QCalendar/calTz';
 
 type P = Record<string, unknown>;
@@ -38,7 +39,7 @@ export function taskParamsToInitial(params: P): TaskCreateInitial {
     watcherIds: nums(params.watcher_user_ids),
     tagNames: tags,
     estimatedHours: num(params.estimated_hours),
-    urgent: params.priority === 'urgent',
+    priorityLevel: asPriorityLevel(params.priority),
   };
 }
 

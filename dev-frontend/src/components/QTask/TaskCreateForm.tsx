@@ -24,6 +24,8 @@ import { apiFetch, useAuth } from '../../contexts/AuthContext';
 import CreateDrawer from '../Common/CreateDrawer';
 import CalendarPicker from '../Common/CalendarPicker';
 import PlanQSelect from '../Common/PlanQSelect';
+import TaskImportanceField from './TaskImportanceField';
+import { asPriorityLevel, type TaskPriorityLevel } from '../../utils/taskPriority';
 import RichEditor from '../Common/RichEditor';
 import AttachmentField from '../Common/AttachmentField';
 import PartnerKindBadge from '../Common/PartnerKindBadge';
@@ -68,7 +70,10 @@ export interface TaskCreateInitial {
   /** 태그 이름 — 사전(tagDict)에 있는 것만 칸에 들어간다 */
   tagNames?: string[];
   estimatedHours?: number | null;
+  /** 옛 호출 호환 — true 면 중요도 «긴급» */
   urgent?: boolean;
+  /** 중요도(priority_level) — 업무 상세 «중요도» 칸과 같은 값 */
+  priorityLevel?: TaskPriorityLevel | null;
 }
 
 export interface TaskCreatedTask { id: number; [k: string]: unknown }
@@ -178,27 +183,29 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
   //   여기에 프리셋 셀렉트를 다시 그리면 달력과 업무의 반복 UI 가 갈라진다(그 컴포넌트의 주석이
   //   "Q Calendar / (향후) Q Task 가 공유" 라고 적어 둔 자리다 — 이제 실제로 공유한다).
   const [recurrence, setRecurrence] = useState<string | null>(null);
-  // 긴급 요청 — 남에게 요청할 때만 고른다. 담당자에게 «[긴급]» 강조 알림 + 팝아웃 맨 위 띠(services/urgentTaskNotify)
-  const [urgent, setUrgent] = useState(false);
-  // 긴급을 켜면 마감을 오늘(워크스페이스 시간대)로 먼저 채운다 — 이미 고른 기간이 있어도 오늘이 우선(2026-10-21 Irene).
-  //   시작일이 오늘보다 뒤면 기간이 뒤집히므로 비운다. 끄면 우리가 채운 값 그대로일 때만 켜기 전 값으로 되돌린다.
+  // 중요도 — 업무 상세 «중요도» 칸(priority_level)과 같은 칸·같은 옵션(2026-11-27 Irene «등록할 때도 상세와 합쳐져야»).
+  //   옛 «긴급으로 요청» 토글(남에게 맡길 때만)을 이 칸으로 합쳤다. 남에게 맡기며 «긴급» 이면 담당자에게 «[긴급]» 강조 알림
+  //   + 팝아웃 맨 위 띠(services/urgentTaskNotify — 서버가 요청일 때만 보낸다, 상세에서 고를 때와 같음).
+  const [priorityLevel, setPriorityLevelState] = useState<TaskPriorityLevel | null>(null);
+  const urgent = priorityLevel === 'urgent';
+  // 남에게 맡기며 긴급을 고르면 마감을 오늘(워크스페이스 시간대)로 먼저 채운다 — 이미 고른 기간이 있어도 오늘이 우선(2026-10-21 Irene).
+  //   시작일이 오늘보다 뒤면 기간이 뒤집히므로 비운다. 긴급에서 벗어나면 우리가 채운 값 그대로일 때만 고르기 전 값으로 되돌린다.
   const urgentPrevDatesRef = useRef<{ start: string; due: string; today: string } | null>(null);
-  const toggleUrgent = () => {
-    if (!urgent) {
+  const setPriorityLevel = (next: TaskPriorityLevel | null, fillToday: boolean) => {
+    if (next === 'urgent' && !urgent && fillToday) {
       const today = todayInTz(user?.workspace_timezone || 'Asia/Seoul');
       urgentPrevDatesRef.current = { start: startDate, due: dueDate, today };
       setDueDate(today);
       if (startDate && startDate > today) setStartDate('');
-      setUrgent(true);
-      return;
+    } else if (next !== 'urgent' && urgent) {
+      const prev = urgentPrevDatesRef.current;
+      if (prev && dueDate === prev.today && (startDate === prev.start || (startDate === '' && prev.start > prev.today))) {
+        setDueDate(prev.due);
+        setStartDate(prev.start);
+      }
+      urgentPrevDatesRef.current = null;
     }
-    const prev = urgentPrevDatesRef.current;
-    if (prev && dueDate === prev.today && (startDate === prev.start || (startDate === '' && prev.start > prev.today))) {
-      setDueDate(prev.due);
-      setStartDate(prev.start);
-    }
-    urgentPrevDatesRef.current = null;
-    setUrgent(false);
+    setPriorityLevelState(next);
   };
 
   const [aiEstimating, setAiEstimating] = useState(false);
@@ -230,7 +237,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
     if (initial.reviewerIds !== undefined) setReviewerIds(initial.reviewerIds);
     if (initial.watcherIds !== undefined) setWatcherIds(initial.watcherIds);
     if (initial.estimatedHours !== undefined) setEstHours(initial.estimatedHours == null ? '' : String(initial.estimatedHours));
-    if (initial.urgent !== undefined) setUrgent(initial.urgent);
+    if (initial.priorityLevel !== undefined) setPriorityLevelState(asPriorityLevel(initial.priorityLevel));
+    else if (initial.urgent !== undefined) setPriorityLevelState(initial.urgent ? 'urgent' : null);
     pendingTagNamesRef.current = initial.tagNames ?? null;
     if (initial.tagNames !== undefined) setTagIds([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -397,8 +405,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           // «요청하기» 뜻 — 서버는 이 값 ∧ 담당자 ≠ 나 일 때만 요청으로 저장한다(자동 컨펌자·확인 단계). 아니면 배정 업무.
           as_request: isRequest && assignedToOther,
           ...(outputKinds.length ? { output_kind_ids: outputKinds.map((k) => k.id) } : {}),
-          // 남에게 요청할 때만 긴급을 싣는다 — 내 업무로 바꾼 뒤 남은 토글 값이 «중요도 긴급» 으로 새지 않게
-          ...(assignedToOther && urgent ? { priority_level: 'urgent' } : {}),
+          // 중요도 — 칸이 늘 보이므로 보낸 값 = 화면 값(상세에서 고르는 것과 같은 컬럼)
+          ...(priorityLevel ? { priority_level: priorityLevel } : {}),
           ...(canPickSecurity ? { vlevel: vis.vlevel, target_member_ids: vis.target_member_ids, security_level: securityLevel } : {}),
         }),
       })).json();
@@ -573,17 +581,8 @@ const TaskCreateForm: React.FC<TaskCreateFormProps> = ({
           <TaskWatcherSelect businessId={bizId ? Number(bizId) : null} myId={myId} value={watcherIds}
             excludeIds={[assigneeId, myId, ...reviewerIds]} onChange={setWatcherIds} />
         </AddOptField>
-        {assignedToOther && (
-          <AddOptField data-field="urgent" style={{ flex: '0 1 150px' }}>
-            <AddOptLabel>{t('add.urgentLabel', '긴급')}</AddOptLabel>
-            <UrgentToggle type="button" data-testid="task-add-urgent" aria-pressed={urgent} $on={urgent}
-              title={t('add.urgentHint', '담당자에게 강조 알림이 가고, 확인할 때까지 업무리스트 맨 위에 남습니다. 마감은 오늘로 먼저 정해집니다') as string}
-              onClick={toggleUrgent}>
-              <UrgentDot $on={urgent} aria-hidden>!</UrgentDot>
-              {urgent ? t('add.urgentOn', '긴급 요청') : t('add.urgentOff', '긴급으로 요청')}
-            </UrgentToggle>
-          </AddOptField>
-        )}
+        <TaskImportanceField value={priorityLevel} onChange={(v) => setPriorityLevel(v, assignedToOther)}
+          showUrgentHint={assignedToOther} Field={AddOptField} Label={AddOptLabel} />
         <AddOptField data-field="dates" style={{ flex: '1 1 200px' }}>
           <AddOptLabel>{t('add.dateRange', '시작 ~ 마감')}</AddOptLabel>
           <AddDateTrigger ref={dateAnchorRef} type="button" onClick={() => setDatePickerOpen((v) => !v)}>
@@ -789,6 +788,4 @@ const AddDatePH = styled.span`color:#94A3B8;`;
 const AddBtnRow = styled.div`display:flex;justify-content:flex-end;gap:6px;`;
 const AddSaveBtn = styled.button`flex:0 0 auto;padding:6px 14px;font-size:0.8125rem;font-weight:600;background:#14B8A6;color:#FFFFFF;border:none;border-radius:6px;cursor:pointer;&:hover:not(:disabled){background:#0D9488;}&:disabled{background:#CBD5E1;cursor:not-allowed;}`;
 const AddCancelBtn = styled.button`flex:0 0 auto;padding:6px 10px;font-size:0.8125rem;color:#64748B;background:transparent;border:1px solid #E2E8F0;border-radius:6px;cursor:pointer;&:hover{background:#F8FAFC;color:#0F172A;}`;
-const UrgentToggle = styled.button<{ $on: boolean }>`height:36px;padding:0 10px;display:inline-flex;align-items:center;gap:6px;font-size:0.8125rem;font-weight:600;font-family:inherit;cursor:pointer;border-radius:6px;white-space:nowrap;color:${(p) => (p.$on ? '#BE123C' : '#475569')};background:${(p) => (p.$on ? '#FFF1F2' : '#FFF')};border:1px solid ${(p) => (p.$on ? '#FDA4AF' : '#E2E8F0')};&:hover{border-color:${(p) => (p.$on ? '#FB7185' : '#CBD5E1')};}&:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(244,63,94,0.2);}`;
-const UrgentDot = styled.span<{ $on: boolean }>`display:inline-block;padding:0 5px;line-height:1.5;border-radius:4px;font-size:0.6875rem;font-weight:800;color:#FFF;background:${(p) => (p.$on ? '#E11D48' : '#CBD5E1')};`;
 const RecurRow = styled.div`display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:6px;`;
