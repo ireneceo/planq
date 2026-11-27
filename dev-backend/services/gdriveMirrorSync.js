@@ -67,7 +67,7 @@ async function liveMirrorRows(businessId, driveId, t) {
 
 /**
  * 증빙·스냅샷으로 묶인 파일인가 (§4.2 B-제외) — 내용이 바뀌면 «그때 보낸·서명한 것» 이 달라진다.
- *   청구서·회차 세금계산서/현금영수증 · 급여 명세서 · 서명 요청 첨부 스냅샷 · 메일 첨부(주고받은 기록).
+ *   청구서·회차 세금계산서/현금영수증 · 급여 명세서 · 서명 요청 첨부 스냅샷 · 메일 첨부(주고받은 기록) · 서명 완료 사본.
  *   새 증빙 표가 files.id 를 참조하면 여기에 한 줄 더한다.
  */
 async function isEvidenceBound(fileId) {
@@ -87,6 +87,8 @@ async function isEvidenceBound(fileId) {
     'SELECT 1 FROM payroll_runs WHERE statement_file_id = :id LIMIT 1',
     'SELECT 1 FROM email_attachments WHERE file_id = :id LIMIT 1',
     "SELECT 1 FROM signature_requests WHERE JSON_CONTAINS(attachments_snapshot, JSON_OBJECT('file_id', :id)) LIMIT 1",
+    // 서명 완료 문서 «파일로 저장» 사본(2026-11-27, services/signedPdfSave) — 서명본 증빙이라 Drive 고침을 덮어쓰지 않는다.
+    "SELECT 1 FROM files WHERE id = :id AND source_key LIKE 'signed-post:%' LIMIT 1",
   ];
   for (const sql of checks) { if (await q(sql)) return true; }
   return false;

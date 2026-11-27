@@ -243,7 +243,8 @@
     "menuSendToKnowledge": "Q info 로 보내기",
     "menuDownloadDocx": "워드로 내려받기",
     "menuPrint": "인쇄",
-    "remove": "제거"
+    "remove": "제거",
+    "saveSignedToFiles": "파일로 저장"
   },
   "project": {
     "docs": {
@@ -1513,5 +1514,20 @@
     "exit": "전체 화면 끝내기",
     "viewEnter": "내용만 보기",
     "viewExit": "내용만 보기 끝내기"
+  },
+  "signedSave": {
+    "saved": "프로젝트 > 파일에 저장했어요",
+    "already": "이미 프로젝트 > 파일에 저장되어 있어요",
+    "open": "열기",
+    "driveQueued": "Google Drive 에도 백업해요",
+    "driveDone": "Google Drive 에도 백업됐어요",
+    "driveNotConnected": "Google Drive 가 연결되지 않아 PlanQ 에만 저장했어요",
+    "driveExcluded": "보안 등급이 «일반» 이 아니라 Google Drive 에는 백업하지 않아요",
+    "noProject": "프로젝트에 속한 문서만 파일로 저장할 수 있어요. 문서를 프로젝트로 옮긴 뒤 저장하세요",
+    "notComplete": "서명이 모두 끝난 뒤에 저장할 수 있어요",
+    "inProgress": "저장하는 중이에요. 잠시 뒤 다시 눌러 주세요",
+    "quota": "저장 공간이 모자라 저장하지 못했어요",
+    "noAccess": "저장했지만 지금 범위에서는 이 파일을 열 수 없어요",
+    "failed": "파일로 저장하지 못했어요"
   }
 }

@@ -227,6 +227,8 @@ const SECRET_HASH_KEYS = new Set([
   'portone_api_secret', 'portone_webhook_secret', 'popbill_secret_key',
   // 워크스페이스 참여 코드 — 알면 참여 신청을 낼 수 있는 열쇠. 읽는 문은 GET …/join-settings(대표) 하나(2026-11-06)
   'join_code',
+  // 파일 출처 열쇠(서명 완료 사본 'signed-post:<문서>:<회차 지문>') — 서버 내부 판정용. 문서 id·회차를 고객 응답에 싣지 않는다(2026-11-27 Fable 지적)
+  'source_key',
 ]);
 Sequelize.Model.prototype.toJSON = function () {
   const obj = _origToJSON.call(this);

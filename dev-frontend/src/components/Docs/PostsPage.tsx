@@ -54,10 +54,12 @@ import {
   attachToPost, detachFromPost, fetchPostsMeta,
   createCategory, renameCategory, deleteCategory,
   updatePostVisibility, updatePostSecurityLevel, downloadPostPdf,
-  downloadPostDocx, getSignedHtml, duplicatePost,
+  downloadPostDocx, getSignedHtml, duplicatePost, saveSignedPdfToFiles,
   type PostRow, type PostDetail, type PostsMeta, type SignedDocView,
 } from '../../services/posts';
 import VisibilityChangeModal from '../Common/VisibilityChangeModal';
+import { tabStore } from '../../stores/tabStore';
+import { ToastLink } from './signedSaveNote.styles';
 import DetailFallback from '../Common/DetailFallback';
 import { isOtherWorkspace } from '../../utils/workspaceMatch';
 import type { DetailStatus } from '../../hooks/useDetailResource';
@@ -448,6 +450,16 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
   const [saveTplError, setSaveTplError] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [docxBusy, setDocxBusy] = useState(false);   // #225 — 워드 생성 중 중복 클릭 차단
+  // 서명 완료 문서 «파일로 저장» (2026-11-27) — 결과는 성공 토스트가 아니라 안내 줄 하나(무엇이 어디에 · Drive 백업 여부 · 열기)
+  const [signedSaveBusy, setSignedSaveBusy] = useState(false);
+  const [signedSaveNote, setSignedSaveNote] = useState<{ text: string; projectId: number | null } | null>(null);
+  const signedSaveTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (signedSaveTimer.current) window.clearTimeout(signedSaveTimer.current); }, []);
+  const showSignedSaveNote = (text: string, projectId: number | null) => {
+    if (signedSaveTimer.current) window.clearTimeout(signedSaveTimer.current);
+    setSignedSaveNote({ text, projectId });
+    signedSaveTimer.current = window.setTimeout(() => setSignedSaveNote(null), 9000);
+  };
   // 운영 #338 — 목차가 이동할 대상(렌더된 본문 컨테이너). 목차는 여기서 h1~h3 을 찾는다.
   const docBodyRef = useRef<HTMLDivElement>(null);
 
@@ -2656,6 +2668,39 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                         .finally(() => setPdfBusy(false));
                     },
                   },
+                  // 서명 완료 문서 → 프로젝트 > 파일 (2026-11-27 · 서버 services/signedPdfSave). 멤버만 · 서명이 다 끝난 문서만.
+                  //   프로젝트 없는 문서는 항목은 보이되 누르면 서버를 부르지 않고 이유를 말한다(공용 메뉴에 «비활성 이유» 칸이 없다).
+                  ...(!isClientViewer && signedDoc?.complete === true ? [{
+                    key: 'save-signed-file', testId: 'post-save-signed-file',
+                    label: t('actions.saveSignedToFiles', '파일로 저장') as string,
+                    disabled: signedSaveBusy,
+                    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><polyline points="9 13 12 16 15 13"/><line x1="12" y1="10" x2="12" y2="16"/></svg>,
+                    onClick: () => {
+                      if (signedSaveBusy) return;   // 중복 제출 가드
+                      if (!detail.project_id) { showSignedSaveNote(t('signedSave.noProject', '프로젝트에 속한 문서만 파일로 저장할 수 있어요. 문서를 프로젝트로 옮긴 뒤 저장하세요') as string, null); return; }
+                      setSignedSaveBusy(true); setError(null);
+                      void saveSignedPdfToFiles(detail.id)
+                        .then((r) => {
+                          const head = r.already ? t('signedSave.already', '이미 프로젝트 > 파일에 저장되어 있어요') : t('signedSave.saved', '프로젝트 > 파일에 저장했어요');
+                          const drive = r.drive_backup === 'done' ? t('signedSave.driveDone', 'Google Drive 에도 백업됐어요')
+                            : r.drive_backup === 'queued' ? t('signedSave.driveQueued', 'Google Drive 에도 백업해요')
+                            : r.drive_backup === 'excluded_security' ? t('signedSave.driveExcluded', '보안 등급이 «일반» 이 아니라 Google Drive 에는 백업하지 않아요')
+                            : t('signedSave.driveNotConnected', 'Google Drive 가 연결되지 않아 PlanQ 에만 저장했어요');
+                          const tail = r.file_id ? '' : ` · ${t('signedSave.noAccess', '저장했지만 지금 범위에서는 이 파일을 열 수 없어요')}`;
+                          showSignedSaveNote(`${head} · ${drive}${tail}`, r.file_id ? r.project_id : null);
+                        })
+                        .catch((e: unknown) => {
+                          const code = (e as Error)?.message || '';
+                          const msg = code === 'project_required' ? t('signedSave.noProject', '프로젝트에 속한 문서만 파일로 저장할 수 있어요. 문서를 프로젝트로 옮긴 뒤 저장하세요')
+                            : code === 'signature_not_complete' ? t('signedSave.notComplete', '서명이 모두 끝난 뒤에 저장할 수 있어요')
+                            : code === 'save_in_progress' ? t('signedSave.inProgress', '저장하는 중이에요. 잠시 뒤 다시 눌러 주세요')
+                            : code === 'storage_quota_exceeded' ? t('signedSave.quota', '저장 공간이 모자라 저장하지 못했어요')
+                            : t('signedSave.failed', '파일로 저장하지 못했어요');
+                          showSignedSaveNote(msg as string, null);
+                        })
+                        .finally(() => setSignedSaveBusy(false));
+                    },
+                  }] : []),
                   {
                     key: 'docx', testId: 'post-download-docx',
                     label: t('actions.menuDownloadDocx', { defaultValue: '워드로 내려받기' }) as string,
@@ -3345,6 +3390,17 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
         />
       )}
       {knowledgeMsg && <KnowledgeToast>{knowledgeMsg}</KnowledgeToast>}
+      {signedSaveNote && (
+        <KnowledgeToast role="status" data-testid="post-signed-save-note">
+          {signedSaveNote.text}
+          {signedSaveNote.projectId && (
+            <ToastLink type="button" data-testid="post-signed-save-open"
+              onClick={() => { tabStore.openInNewTab(`/projects/p/${signedSaveNote.projectId}?tab=files`); setSignedSaveNote(null); }}>
+              {t('signedSave.open', '열기')}
+            </ToastLink>
+          )}
+        </KnowledgeToast>
+      )}
     </Layout>
   );
 };

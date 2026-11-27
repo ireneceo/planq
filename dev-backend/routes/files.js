@@ -1236,6 +1236,10 @@ router.put('/:businessId/:id/security-level', authenticateToken, attachWorkspace
     const isOwner = req.scope.isOwner || req.scope.isPlatformAdmin || req.businessRole === 'admin';
     const isUploader = file.uploader_id === req.user.id;
     if (!isOwner && !isUploader) return errorResponse(res, 'forbidden', 403);
+    // ★ 서명 완료 사본(files.source_key 'signed-post:…')은 원본 문서 등급을 바꿀 수 있는 사람만, 원본 등급 아래로는 못 내린다
+    //   (2026-11-27 Fable 완료 검증 FAIL 1 — 저장한 멤버가 내부 계약서 사본을 일반으로 내려 고객·Drive 로 나갔다). 판정은 services/signedPdfSave 한 곳.
+    const sigBlock = await require('../services/signedPdfSave').signedCopyDowngradeBlock(file, level, req.user, req.scope);
+    if (sigBlock) return errorResponse(res, sigBlock.code, sigBlock.status);
     const prev = file.security_level;
     const patch = { security_level: level };
     // 일반 외로 상향 시 기존 외부 공유 링크 즉시 무효화

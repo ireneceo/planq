@@ -167,6 +167,14 @@ File.init({
     allowNull: false,
     defaultValue: false,
   },
+  // 출처 열쇠 — 서버가 만든 사본이 «무엇에서 몇 번째로» 왔는지(2026-11-27 · 서명 완료 문서 «파일로 저장»).
+  //   `signed-post:<post_id>:<회차 지문>` — 같은 회차를 다시 저장하면 새로 만들지 않는다(살아 있는 행 기준 · 유니크 아님:
+  //   휴지통 행이 열쇠를 쥐면 다시 저장이 막힌다). 내부 열쇠 — 응답에 싣지 않는다. 판정 services/signedPdfSave 한 곳.
+  source_key: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    defaultValue: null,
+  },
   target_member_ids: {
     type: DataTypes.JSON,
     allowNull: true,
@@ -216,6 +224,7 @@ File.init({
     { unique: true, fields: ['share_token'], name: 'files_share_token_unique' },
     { fields: ['deleted_at'] },
     { fields: ['business_id', 'visibility', 'uploader_id'] },
+    { fields: ['business_id', 'source_key'], name: 'files_business_source_key' },
   ]
 });
 

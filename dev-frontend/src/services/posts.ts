@@ -645,6 +645,30 @@ export async function getSignedHtml(postId: number): Promise<SignedDocView> {
   return j.data as SignedDocView;
 }
 
+/** 서명 완료 문서 «파일로 저장» 결과 — 서버 services/signedPdfSave 응답 그대로 */
+export interface SignedPdfSaveResult {
+  already: boolean;
+  file_id: number | null;
+  file_name: string | null;
+  project_id: number;
+  security_level: 'general' | 'internal' | 'confidential';
+  drive_backup: 'queued' | 'done' | 'not_connected' | 'excluded_security';
+  download_url: string | null;
+}
+/**
+ * 서명본 PDF(증명서 장 없음)를 그 문서의 프로젝트 > 파일에 저장한다 — POST /api/posts/:id/save-signed-pdf.
+ *   같은 회차를 다시 누르면 새로 만들지 않고 있는 파일을 돌려준다(already). 실패는 서버 코드(message)를 던진다.
+ */
+export async function saveSignedPdfToFiles(postId: number): Promise<SignedPdfSaveResult> {
+  const r = await apiFetch(`/api/posts/${postId}/save-signed-pdf`, { method: 'POST' });
+  const j = await r.json().catch(() => null);
+  if (!r.ok || !j?.success) {
+    const code = (j && (j.code || j.message)) || `HTTP ${r.status}`;
+    throw new Error(r.status === 413 ? 'storage_quota_exceeded' : String(code));
+  }
+  return j.data as SignedPdfSaveResult;
+}
+
 /** 보내는 쪽 서명 — 인증번호 없이 로그인으로 본인 확인. 서버: POST /api/signatures/:id/sign-internal */
 export async function signInternal(signatureId: number, items: Array<{ mode: 'draw' | 'image'; b64: string }>): Promise<void> {
   const r = await apiFetch(`/api/signatures/${signatureId}/sign-internal`, {

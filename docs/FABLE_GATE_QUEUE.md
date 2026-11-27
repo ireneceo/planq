@@ -2,6 +2,13 @@
 
 
 
+### 2026-11-27 방 a56b8c07 — 서명 완료 문서 «파일로 저장» → 프로젝트 > 파일 — 설계 **DESIGN-OK** → 완료 검증 1차 **FAIL**(차단 2) → 2차 **PASS**
+- 설계: L2 프로젝트 · 보안 등급 = 문서 것(바닥 일반) · 증명서 장 없음 · 프로젝트 없음 409 · files.source_key 회차당 1건 · GET_LOCK · ingestDownloadedFile 한 벌 · 권한 멤버∧canReadPost∧userCanSeeProject · ⋯ 메뉴 한 곳 · 자동 저장 안 함
+- 1차 차단: ①저장한 멤버가 사본 등급을 내려 내부 계약서가 고객·Drive 로 나감 ②«이미 저장됨» 이 사본 위치·범위를 안 봄 → 사본 내리기는 원본 등급 바꿀 수 있는 사람만·원본 등급 아래 409(signedCopyDowngradeBlock) · existing 에 project_id·vlevel L2
+- 같이 닫음(기존 구멍): GET /api/posts/:id/pdf·docx 가 canReadPost 를 안 봐 못 읽는 문서의 서명본을 증명서 장(이메일·IP)까지 멤버 누구나 받음 → canReadPost 추가 · source_key 응답에서 내림(models/index SECRET_HASH_KEYS)
+- 2차 PASS 근거: 실HTTP 47 + 함수 7 = 54/54 · guard 88/89 · health 101/101 · 마이그레이션 2회 skip
+- 비차단(남김): ①저장 뒤 문서 등급을 올려도 옛 사본 등급은 그대로(올릴 때 같이 올리거나 알리기 권고) ②«숨김 → 저장» 반복이면 사본이 계속 생김(쿼터·감사에 묶임) ③저장한 멤버가 사본을 L3 로 넓힐 수 있음(고객·Drive 로는 안 나감) ④감사 newValue 에 source_key
+
 ### 2026-11-26 방 1bd7dfcd — 접수 양식 응답 → [사건 만들기] 구현 — 완료 검증 1차 **FAIL**(차단 2) → 2차 **PASS**
 - 정본 docs/INTAKE_AUTO_CASE_DESIGN.md §6·§7 · 판정 services/intakeCase · API routes/intake_cases.js · 표 intake_cases(migrate-intake-cases.js 배포 슬롯)
 - 1차 차단: B1 멈춘 running 영구 409 · B2 업무 일부만 생긴 뒤 재시도가 done 으로 닫힘 → 5분 stale 조건부 재선점 · tasks_partial(done 아님, 다시 채우지 않음)

@@ -243,7 +243,8 @@
     "menuSendToKnowledge": "Send to Q info",
     "menuDownloadDocx": "Download Word",
     "menuPrint": "Print",
-    "remove": "Remove"
+    "remove": "Remove",
+    "saveSignedToFiles": "Save to files"
   },
   "project": {
     "docs": {
@@ -1513,5 +1514,20 @@
     "exit": "Exit full screen",
     "viewEnter": "Content only",
     "viewExit": "Exit content-only view"
+  },
+  "signedSave": {
+    "saved": "Saved to Project > Files",
+    "already": "Already saved in Project > Files",
+    "open": "Open",
+    "driveQueued": "Backing up to Google Drive too",
+    "driveDone": "Backed up to Google Drive too",
+    "driveNotConnected": "Google Drive isn't connected, so it's saved in PlanQ only",
+    "driveExcluded": "Not backed up to Google Drive because the security level isn't \"General\"",
+    "noProject": "Only documents in a project can be saved to files. Move the document to a project, then save",
+    "notComplete": "You can save once everyone has signed",
+    "inProgress": "Saving now. Try again in a moment",
+    "quota": "Not enough storage space to save",
+    "noAccess": "Saved, but you can't open this file with your current access",
+    "failed": "Couldn't save to files"
   }
 }

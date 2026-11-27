@@ -254,7 +254,7 @@ async function importDriveFile(ctx, meta, opts = {}) {
  *   실패하면 임시 파일을 지운다.
  * @param ctx { businessId, uploaderId }
  * @param opts { projectId, folderId, visibility, fileName, mimeType, originProvider, externalId, externalUrl, driveMd5, auditValue,
- *               securityLevel(기본 general), private(true 면 실시간 신호·본문 색인 안 함 — 급여 대장처럼 AI·검색에 들어가면 안 되는 파일) }
+ *               securityLevel(기본 general), sourceKey(출처 열쇠 — files.source_key), private(true 면 실시간 신호·본문 색인 안 함 — 급여 대장처럼 AI·검색에 들어가면 안 되는 파일) }
  */
 async function ingestDownloadedFile(ctx, temp, opts) {
   const { businessId, uploaderId } = ctx;
@@ -313,6 +313,8 @@ async function ingestDownloadedFile(ctx, temp, opts) {
       visibility,
       vlevel: visibility,
       security_level: ['general', 'internal', 'confidential'].includes(opts.securityLevel) ? opts.securityLevel : 'general',
+      // 출처 열쇠(서명 완료 사본 등 서버가 만든 사본) — 없으면 NULL. 다른 호출자는 그대로.
+      source_key: opts.sourceKey ? String(opts.sourceKey).slice(0, 100) : null,
     };
 
     if (existing) {

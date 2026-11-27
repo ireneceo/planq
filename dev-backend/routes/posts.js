@@ -1682,42 +1682,8 @@ router.post('/:id/share-to-chat', authenticateToken, async (req, res, next) => {
 });
 
 // ─── PDF 다운로드 (멤버) ───
-// 서명본 — **고정본 + 서명**. 서명 요청이 하나라도 있으면 PDF 는 서명본으로 나간다.
-//   재료를 모으는 곳은 services/signedDocument.loadSignedView **한 곳**이다.
-async function postSignedView(post, req) {
-  const sd = require('../services/signedDocument');
-  const view = await sd.loadSignedView('post', post.id);
-  if (!view.total) return { view: null, doc: post, labels: null };
-  const doc = view.frozen
-    ? {
-      ...post.toJSON(),
-      title: view.frozen.title || post.title,
-      content_json: view.frozen.content_json,
-      content_html: null, content_text: null,
-    }
-    : post;
-  return { view, doc, labels: sd.labelsFor(req) };
-}
-
-// @param {boolean} withCert  증명서 장(이메일·IP 포함) — 멤버 PDF 만 true. 공개 링크 PDF 는 false.
-async function buildPostPdf(post, req, withCert) {
-  let author = post.author ? { id: post.author.id, name: post.author.name } : null;
-  // 워크스페이스 표시명 우선 (PDF 작성자도 닉네임)
-  if (author?.id) {
-    const { getMemberDisplayName } = require('../services/displayName');
-    const d = await getMemberDisplayName(post.business_id, author.id, author.name);
-    if (d.name) author.name = d.name;
-  }
-  const business = await require('../models').Business.findByPk(post.business_id, {
-    attributes: ['name', 'brand_name', 'legal_name'],
-  });
-  const { postPdfHtml } = require('../services/pdfTemplates');
-  const { renderPdfFromHtml } = require('../services/pdfService');
-  const { view, doc, labels } = await postSignedView(post, req);
-  const html = postPdfHtml(doc, author, business?.toJSON() || {},
-    view ? { requests: view.requests, labels, cert: !!withCert } : null);
-  return renderPdfFromHtml(html);
-}
+// 서명본 재료·PDF 조립은 services/postPdf 한 곳(2026-11-27 라우트 파일 크기 때문에 옮김 — 동작 그대로).
+const { postSignedView, buildPostPdf } = require('../services/postPdf');
 
 // GET /api/posts/:id/signed-html — 앱 안 문서 화면이 서명본을 그릴 때 쓴다.
 //   화면이 스스로 서명을 끼우면 PDF·공유 링크와 갈라진다 — 조립은 서버 한 곳이다.
@@ -1759,6 +1725,9 @@ router.get('/:id/pdf', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    // ★ 읽을 수 있는 문서만 (2026-11-27 Fable 지적) — 멤버이기만 하면 못 보는 프로젝트·특정 멤버 문서의 서명본을
+    //   **증명서 장(서명자 이메일·IP)까지** 받았다. 본문 조회·서명본(signed-html)과 같은 술어.
+    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
     const pdf = await buildPostPdf(post, req, true);
     res.setHeader('Content-Type', 'application/pdf');
     // ASCII filename + RFC 5987 UTF-8 filename* (한글 등 비 ASCII 문자 지원)
@@ -1766,6 +1735,34 @@ router.get('/:id/pdf', authenticateToken, async (req, res, next) => {
     const utf8Name = encodeURIComponent(`${post.title || 'document'}.pdf`);
     res.setHeader('Content-Disposition', `attachment; filename="${asciiName}.pdf"; filename*=UTF-8''${utf8Name}`);
     res.send(pdf);
+  } catch (err) { next(err); }
+});
+
+// ─── 서명 완료 문서 «파일로 저장» (2026-11-27 · Fable 설계 DESIGN-OK · services/signedPdfSave) ───
+//   서명본 PDF(증명서 장 없음)를 그 문서의 프로젝트 파일로 저장한다 — 공개 범위 프로젝트(L2) · 보안 등급은 문서 것 그대로.
+//   일반 등급이면 Drive 미러가 프로젝트 폴더로 가져간다(이중 백업). 같은 회차를 다시 누르면 있는 파일을 돌려준다.
+//   ★ 권한은 위 PDF 보다 좁다 — 멤버 ∧ 문서 읽기(canReadPost) ∧ 프로젝트 보임. 읽을 수 없는 문서를 파일로 꺼내는 문이 되면 안 된다.
+router.post('/:id/save-signed-pdf', authenticateToken, async (req, res, next) => { // audit-exempt: 감사(file.ingest · source signed_pdf)는 services/driveImport.ingestDownloadedFile 이 남긴다
+  try {
+    const post = await Post.findByPk(req.params.id, {
+      include: [{ model: User, as: 'author', attributes: ['id', 'name', 'name_localized'] }],
+    });
+    if (!post) return errorResponse(res, 'not_found', 404);
+    if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
+      return errorResponse(res, 'forbidden', 403);
+    }
+    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);
+    const sd = require('../services/signedDocument');
+    const lang = sd.labelsFor(req) === sd.LABELS.en ? 'en' : 'ko';
+    const r = await require('../services/signedPdfSave').saveSignedPdf(req.user, post, {
+      buildPdf: () => buildPostPdf(post, req, false),   // ★ 증명서 장 없음 — 고객·Drive 로 나가는 자리다
+      lang,
+    });
+    if (!r.ok) {
+      if (r.status === 413 && r.quota) return res.status(413).json(r.quota);
+      return errorResponse(res, r.code, r.status);
+    }
+    return successResponse(res, r.data, r.data.already ? 'already_saved' : 'saved');
   } catch (err) { next(err); }
 });
 
@@ -1780,6 +1777,7 @@ router.get('/:id/docx', authenticateToken, async (req, res, next) => {
     if (!(await assertMember(req.user.id, post.business_id, req.user.platform_role === 'platform_admin'))) {
       return errorResponse(res, 'forbidden', 403);
     }
+    if (!(await canReadPost(req.user, post))) return errorResponse(res, 'forbidden', 403);   // PDF 와 같은 술어(2026-11-27)
     const { buildDocx, sendDocx } = require('../services/docxService');
     const buf = await buildDocx({
       title: post.title,
