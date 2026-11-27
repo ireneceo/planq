@@ -2,6 +2,11 @@
 
 
 
+### 2026-11-27 방 dd0e68e9 — 일정 분류 커스텀(추가·이름·색·끄기·순서·삭제) — 설계 판정(새 표 + category_id, ENUM 거울) → 완료 검증 1차 **PASS**
+- 설계: docs/CALENDAR_CATEGORIES_DESIGN.md — 워크스페이스 공용 · 추가 멤버 / 관리 대표·관리자 · 기본 5개 끄기만 · «기타» 잠금 · 삭제 = «기타» 로 옮김 · AI 도구 이름/code(거절+목록) · 공개 3칸
+- 게이트 ★6(마이그레이션 멱등·백필 양성 대조군 36건 / 격리 / 권한 / 삭제·롤백 / 에이전트 표면 불변 62도구 / 공개 3칸) 전부 통과 · 차단 0
+- 비차단(다음 손볼 때): ① 이름 중복 우회 두 길 — 시스템 이름 비울 때 assertNameFree 안 부름 · 동시 POST 3번 201×3(검사 후 삽입 경합) ② 반복 회차 분리(single/future)는 분류 오류를 삼킴(.catch → 지금 값 유지 200) ③ 서버가 임의 #RRGGBB 받음(설계는 10색) ④ is_active "false" 문자열 = 켜짐 ⑤ 운영 calendar_events 정렬 다르면 백필 JOIN 이 exit 1(reload 전 멈춤·안전)
+
 ### 2026-11-27 방 a56b8c07 — 서명 완료 문서 «파일로 저장» → 프로젝트 > 파일 — 설계 **DESIGN-OK** → 완료 검증 1차 **FAIL**(차단 2) → 2차 **PASS**
 - 설계: L2 프로젝트 · 보안 등급 = 문서 것(바닥 일반) · 증명서 장 없음 · 프로젝트 없음 409 · files.source_key 회차당 1건 · GET_LOCK · ingestDownloadedFile 한 벌 · 권한 멤버∧canReadPost∧userCanSeeProject · ⋯ 메뉴 한 곳 · 자동 저장 안 함
 - 1차 차단: ①저장한 멤버가 사본 등급을 내려 내부 계약서가 고객·Drive 로 나감 ②«이미 저장됨» 이 사본 위치·범위를 안 봄 → 사본 내리기는 원본 등급 바꿀 수 있는 사람만·원본 등급 아래 409(signedCopyDowngradeBlock) · existing 에 project_id·vlevel L2
