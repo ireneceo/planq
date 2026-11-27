@@ -223,6 +223,15 @@ function resolveAssignees(candidates, pool) {
       const byAccount = byDisplay ? null : members.find((m) => m.accountName && String(m.accountName).trim() === nameNorm);
       const hit = byDisplay || byAccount;
       if (hit) assigneeId = hit.user_id;
+      // 1-b (2026-11-27): 호칭·직함·성 뺀 이름·한 글자 오차 — services/memberMention 한 벌(Cue·말로 추가와 같은 규칙, 한 명일 때만)
+      if (!assigneeId) {
+        const mm = require('./memberMention');
+        const r = mm.resolveSaid(nameNorm, members.map((m) => ({
+          user_id: m.user_id, role: m.role || null, display_name: m.displayName || m.accountName || null,
+          names: [m.displayName, m.accountName].filter((x) => x && String(x).trim()).map(String), job_title: m.job_title || null, expertise: m.expertise || null,
+        })), {});
+        if (r.status === 'matched') assigneeId = r.userId;
+      }
     }
 
     // 2차: role 매칭

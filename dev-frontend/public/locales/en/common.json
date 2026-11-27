@@ -315,6 +315,7 @@
       "yes": "Yes",
       "no": "No",
       "assigneeDefault": "Default (leave empty)",
+      "assigneeDefaultMe": "Me (default)",
       "remove": "Remove",
       "addPerson": "＋ Add person",
       "commaHint": "Separate with commas",
@@ -616,6 +617,8 @@
       "clients_gain": "These clients will see the task: {{names}}",
       "clients_see": "These clients will see the project right away: {{names}}",
       "meet_replaces": "Replaces the current meeting link",
+      "assignee_unresolved": "Couldn't find \"{{names}}\" among members — pick an assignee. If you run it as is, it becomes your task.",
+      "assignee_ambiguous": "Couldn't tell who you meant ({{names}}) — pick an assignee.",
       "reviewer_requester_auto": "You (the requester) become a reviewer automatically",
       "reviewers_notified": "{{count}} reviewer(s) will be notified",
       "watchers_notified": "Watchers are notified and can see this task: {{names}}"

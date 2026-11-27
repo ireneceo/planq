@@ -16,7 +16,6 @@ const { authenticateToken, checkBusinessAccess } = require('../middleware/auth')
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { perUserDaily } = require('../middleware/costGuard');
 const { callLLM } = require('../services/llm');
-const { matchMemberByName } = require('../services/aiTaskPlanner');
 const { todayInTz, addDaysStr } = require('../utils/datetime');
 const { correctWhenStart, calendarHint } = require('../services/relativeDate');
 const plan = require('../services/plan');
@@ -255,7 +254,7 @@ ${ctx}`;
   }
   const calls = rawCalls.map((tc) => cleanCallTitle(tc, text, members));
   if (calls.length) {
-    const proposed = await cueTools.buildProposedAction(businessId, calls, userId, platformRole);
+    const proposed = await cueTools.buildProposedAction(businessId, calls, userId, platformRole, text);   // 말한 문장으로 담당자를 맞춘다(memberMention)
     if (proposed) return { proposed_action: proposed, ...tokens };
   }
   // 툴 없음 → 메모/메일. JSON 이 깨졌으면 메모(가장 안전)로.
@@ -374,20 +373,13 @@ async function classifyIntent(text, opts = {}) {
 //   해당 화면에 착지하면 그 화면의 기존 안내를 그대로 본다(이 라우트가 판단을 앞당기지 않는다).
 async function resolveAssignee(assigneeName, businessId) {
   if (!assigneeName) return { assignee_user_id: null, assignee_display_name: null };
-  const rows = await BusinessMember.findAll({
-    where: { business_id: businessId, removed_at: null },
-    attributes: ['user_id', 'name'],
-    include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
-  });
-  const members = rows.map((m) => ({
-    user_id: m.user_id,
-    name: m.name || m.user?.name || '',
-    account_name: m.user?.name || '',
-  }));
-  const id = matchMemberByName(assigneeName, members, { exactOnly: true });
-  if (!id) return { assignee_user_id: null, assignee_display_name: null };
-  const hit = members.find((m) => m.user_id === id);
-  return { assignee_user_id: id, assignee_display_name: hit?.name || hit?.account_name || null };
+  // 2026-11-27 — 업무 담당자 이름 해석은 services/memberMention 한 벌(Cue·Cue 업무 바와 같은 규칙).
+  //   그 함수도 포함 일치(«지원팀» → 김지원)는 하지 않는다 — 호칭·직함을 뗀 이름·성 뺀 이름·한 글자 오차만, 한 명일 때만.
+  const mm = require('../services/memberMention');
+  const pool = await mm.memberPool(businessId);
+  const r = mm.resolveSaid(assigneeName, pool, {});
+  if (r.status !== 'matched') return { assignee_user_id: null, assignee_display_name: null };
+  return { assignee_user_id: r.userId, assignee_display_name: pool.find((m) => m.user_id === r.userId)?.display_name || null };
 }
 
 // ── 받아쓴 말 → 제안(Cue 카드) 또는 옛 의도. 녹음(/capture)과 고친 문장 다시 해석(/interpret)이 같은 한 벌을 쓴다.

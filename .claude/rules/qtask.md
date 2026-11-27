@@ -88,3 +88,12 @@ paths:
 > - 기본 목록 22개는 서버 코드 한 곳(`services/taskOutputKindPresets.js` — key 는 바꾸거나 빼지 않는다), 처음 고를 때 사전 행 생성(`preset_key`), 보는 사람 언어로 보인다. 직접 입력은 워크스페이스 사전(상한 100·이름 40자·업무당 10).
 > - 고치기 = 태그 축(작성자·담당자·owner·admin, 고객 403) · 반복은 `series_scope` 델타 · 보기 = 상세에만(고객도 읽기 전용) — 목록·공개 링크·게스트엔 싣지 않는다. 드로어가 상세 값으로 교체 PUT 을 보내므로 `attachOutputKindsTo` 를 빼면 데이터가 지워진다.
 > - 따라가는 곳: 만들기·요청하기(생성 트랜잭션 안 `output_kind_ids`) · 반복 회차 · 복사 · 템플릿(`output_names`, 적용 때 없는 이름은 만든다) · AI 도구(있는 이름만). 회귀 `node dev-backend/scripts/check-task-output-kinds.js`(51항목 · 양성 대조군 2).
+
+> **Cue 에게 맡긴 업무의 담당자 = 사용자가 한 말로 정한다 (2026-11-27, Irene «큐에게 업무를 요청하면 기본적으로는 요청한 사람에게 … 누구한테 요청 넣어 달라고 하면 그 사람이 담당»)**
+> - 이름·직함 해석은 **`services/memberMention` 한 벌** — Cue 대화창(`cue_tools.settleTaskAssignee`)·말로 추가(voice)·Cue 업무 바/AI 업무 추가(`aiTaskPlanner.matchMemberByName`)·채팅 업무 후보(`task_extractor.resolveAssignees` 1-b). 이름 비교를 길마다 새로 쓰지 않는다.
+>   단계: 그대로 → 호칭·조사·직함 뗀 이름 → 성 뺀 이름·표시명 앞부분 → 한 글자 오차(3자↑) → 직함·전문 분야(«대표님»·«박 개발자»), **단계마다 한 명일 때만**. 포함 일치(«지원팀» → 김지원)는 하지 않는다.
+> - 지목 = «OO에게/한테/께 + 요청·부탁·시켜·맡겨…» · «담당은 OO» (`findTargets`). **언급만**(«OO가 보내준 자료», «OO한테 받은 파일»)은 지목이 아니다 → 요청한 사람.
+> - Cue 대화창은 모델 인자를 사용자 말과 맞춘다: 말에 없는 사람·맡기는 말 없는 언급 → 비움(=나) · 지목 하나인데 모델이 비움 → 그 사람 · 못 찾음/여럿 → 비우고 카드 안내(`qhelper.note.assignee_unresolved|ambiguous`) + 설명 «요청 대상: OO» · 담당=나 → 요청 아님. 카드에서 사람이 고친 값(executeTool)은 덮지 않는다.
+> - «OO에게 요청해줘» 에 카드 없이 답하면(«메시지는 못 보낸다») 한 번 되돌려 create_task 를 부르게 한다(`looksLikeTaskRequest` — 메일·휴가 결재·질문 제외).
+> - 역할 힌트로 동료에게 배정하는 것은 **프로젝트 전체 일정 짜기(planCtx)만** — Cue 업무 바·일반 AI 업무 추가는 이름을 말했을 때만 남에게 간다.
+> - 회귀 `node dev-backend/scripts/check-member-mention.js`(LLM 없음 · dev DB 읽기 · 옛 정확 일치 대조군).

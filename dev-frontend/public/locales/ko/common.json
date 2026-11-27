@@ -315,6 +315,7 @@
       "yes": "예",
       "no": "아니요",
       "assigneeDefault": "기본(비워두기)",
+      "assigneeDefaultMe": "나 (기본)",
       "remove": "빼기",
       "addPerson": "＋ 사람 추가",
       "commaHint": "쉼표로 구분",
@@ -616,6 +617,8 @@
       "clients_gain": "이 고객이 업무를 보게 돼요: {{names}}",
       "clients_see": "이 고객은 바로 프로젝트를 보게 돼요: {{names}}",
       "meet_replaces": "지금 있는 화상회의 링크를 새것으로 바꿔요",
+      "assignee_unresolved": "«{{names}}» 을(를) 멤버에서 찾지 못했어요 — 담당자를 골라 주세요. 그대로 실행하면 내 업무가 돼요.",
+      "assignee_ambiguous": "누구인지 하나로 정하지 못했어요({{names}}) — 담당자를 골라 주세요.",
       "reviewer_requester_auto": "요청한 분(나)은 자동으로 컨펌자가 돼요",
       "reviewers_notified": "컨펌자 {{count}}명에게 알림이 가요",
       "watchers_notified": "참조 알림이 가고 이 업무를 볼 수 있게 돼요: {{names}}"

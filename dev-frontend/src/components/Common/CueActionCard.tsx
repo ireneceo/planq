@@ -256,7 +256,10 @@ const CueActionCard: React.FC<Props> = ({ proposal, onExecuted, onDismiss, onHan
         );
       }
       case 'member': {
-        const opts: PlanQSelectOption[] = [{ value: '', label: t('qhelper.action.assigneeDefault', '기본(비워두기)') as string }, ...(f.options || []).map(optLabel)];
+        // 업무 만들기의 담당자를 비우면 서버가 요청한 사람(나)에게 배정한다(task_actions.createTask) — «기본» 이 무엇인지 그대로 말한다
+        const emptyLabel = proposal.tool === 'create_task' && f.key === 'assignee_user_id'
+          ? t('qhelper.action.assigneeDefaultMe', '나 (기본)') : t('qhelper.action.assigneeDefault', '기본(비워두기)');
+        const opts: PlanQSelectOption[] = [{ value: '', label: emptyLabel as string }, ...(f.options || []).map(optLabel)];
         const cur = opts.find((o) => String(o.value) === String(v ?? '')) || opts[0];
         return (
           <Field as="div" key={f.key}>

@@ -109,16 +109,73 @@ async function resolveAssigneeName(businessId, name) {
   return { userId: uid, displayName: uid ? (pool.get(uid)?.displayName || null) : null };
 }
 
-/** 모델·옛 카드가 보낸 인자 → 카탈로그 인자. 별칭·편의 칸(assignee_name)만 바꾼다 — 검증은 레지스트리가 한다. */
-async function normalizeCall(businessId, name, raw = {}) {
+// ─────────────────────────────────────────────
+// 업무 담당자 정하기 (2026-11-27, Irene «큐에게 업무를 요청하면 기본적으로는 요청한 사람에게 … 누구한테 요청 넣어 달라고 하면 그 사람이 담당»)
+//   모델이 고른 값만 믿지 않는다 — 사용자가 **한 말**(ctx.lastText = 이번 말 · ctx.userText = 이 대화의 사용자 말 전부)과 맞춘다.
+//   ① 지목 없음 → 비움(= 요청한 사람, createTask) · 모델이 말에 없는 사람을 골랐거나 맡기는 말 없이 이름만 나왔으면(«박개발이 보내준 자료») 비움
+//   ② 지목 있음(«OO에게 요청·시켜·맡겨», «담당은 OO») → 그 사람(services/memberMention 한 벌 — 호칭·직함·성 뺀 이름·한 글자 오차)
+//   ③ 지목했는데 못 찾음/여럿 → 비우고 카드에 «못 찾음/누구인지» 안내(조용히 «나» 로 만들지 않는다)
+//   ④ 담당 = 요청한 사람 → 요청 아님(as_request 뺌)
+// ─────────────────────────────────────────────
+async function settleTaskAssignee(businessId, args, saidName, ctx = {}) {
+  const mm = require('./memberMention');
+  const notes = []; let unresolved = null;
+  const askerId = ctx.askerId ? Number(ctx.askerId) : null;
+  const pool = await mm.memberPool(businessId);
+  const lastText = String(ctx.lastText || '');
+  const allText = String(ctx.userText || lastText);
+  const targets = lastText ? mm.resolveTargetsInText(lastText, pool, { askerId }) : [];
+  const hitIds = [...new Set(targets.filter((t) => t.userId).map((t) => t.userId))];
+  const say = (r) => {
+    if (r.status === 'matched' || r.status === 'self') { args.assignee_user_id = r.userId; return true; }
+    if (r.status === 'ambiguous') notes.push({ key: 'assignee_ambiguous', names: `${r.said} → ${r.candidates.map((c) => c.name).filter(Boolean).join(', ')}` });
+    else unresolved = r.said;
+    return false;
+  };
+  if (args.assignee_user_id != null) args.assignee_user_id = Number(args.assignee_user_id) || undefined;
+  // 모델이 이름만 준 경우
+  if (saidName && !args.assignee_user_id) say(mm.resolveSaid(saidName, pool, { askerId }));
+  const cur = args.assignee_user_id ? pool.find((m) => m.user_id === args.assignee_user_id) : null;
+  if (lastText && args.assignee_user_id && args.assignee_user_id !== askerId) {
+    const named = hitIds.includes(args.assignee_user_id);
+    const mentioned = cur && mm.isMentioned(allText, cur);
+    // 말에 없는 사람 · 이름은 나왔지만 맡기는 말이 없음 → 지목이 아니다
+    if (!cur || (!named && (!mentioned || !mm.ASSIGN_VERB.test(allText)))) delete args.assignee_user_id;
+  }
+  // 이번 말에 지목이 하나뿐인데 모델이 비웠다 → 지목한 사람(업무 한 건일 때만 — 여러 건이면 항목마다 다를 수 있다)
+  if (!args.assignee_user_id && (ctx.taskCount || 1) === 1) {
+    if (hitIds.length === 1) args.assignee_user_id = hitIds[0];
+    else if (!hitIds.length && targets.length && !unresolved && !notes.length) say(targets[0]);
+  }
+  if (args.assignee_user_id === askerId) { delete args.assignee_user_id; delete args.as_request; }
+  if (!args.assignee_user_id) {
+    delete args.as_request;
+    if (unresolved) {
+      notes.push({ key: 'assignee_unresolved', names: unresolved });
+      const lead = `요청 대상: ${unresolved}`;
+      if (!String(args.description || '').includes(lead)) args.description = args.description ? `${lead}\n${args.description}` : lead;
+    }
+  } else if (args.title) {
+    args.title = mm.cleanRequestTitle(args.title);
+  }
+  return { notes, unresolved };
+}
+
+/** 모델·옛 카드가 보낸 인자 → 카탈로그 인자. 별칭·편의 칸(assignee_name)만 바꾼다 — 검증은 레지스트리가 한다.
+ *  ctx(선택) — { lastText, userText, askerId, taskCount }: 사용자가 한 말로 업무 담당자를 맞춘다(settleTaskAssignee).
+ *  사람이 카드에서 고친 뒤 실행할 때(executeTool)는 넘기지 않는다 — 사람이 고른 값을 덮지 않는다. */
+async function normalizeCall(businessId, name, raw = {}, ctx = null) {
   let tool = name; let args = { ...(raw || {}) };
+  let notes = []; let assigneeSaid = null;
   if (isAlias(tool)) ({ name: tool, args } = ALIASES[tool](args));
   if (tool === 'create_task') {
     if (args.assignee_id && !args.assignee_user_id) args.assignee_user_id = args.assignee_id;
     delete args.assignee_id;
     const nm = args.assignee_name;
     delete args.assignee_name; delete args.assignee_resolved_name;
-    if (nm && !args.assignee_user_id) {
+    if (ctx) {
+      ({ notes, unresolved: assigneeSaid } = await settleTaskAssignee(businessId, args, nm, ctx));
+    } else if (nm && !args.assignee_user_id) {
       const r = await resolveAssigneeName(businessId, nm);
       if (r.userId) args.assignee_user_id = r.userId;
     }
@@ -127,8 +184,8 @@ async function normalizeCall(businessId, name, raw = {}) {
   //   공개 범위를 안 정하면 미리보기가 meet_requires_team_visibility 로 거절하고 모델이 «직접 하세요» 로 답했다.
   //   인자에 넣어 카드에 «공개 범위» 로 보이게 한다 — 실행은 사람이 카드를 확인한 뒤다. 사람이 private 을 말했으면 그대로 둔다.
   if (tool === 'create_event' && args.create_meeting && !args.visibility) args.visibility = 'team';
-  for (const k of Object.keys(args)) if (args[k] === null || args[k] === '') { if (!(tool === 'create_document' && k === 'content')) delete args[k]; }
-  return { tool, args };
+  for (const k of Object.keys(args)) if (args[k] === null || args[k] === '' || args[k] === undefined) { if (!(tool === 'create_document' && k === 'content')) delete args[k]; }
+  return { tool, args, notes, assigneeSaid };
 }
 
 // ─────────────────────────────────────────────
@@ -146,9 +203,12 @@ async function buildToolSystemContext(businessId, todayIso, askerId = null) {
   });
   const ids = bms.filter((m) => m.role !== 'ai' && m.role !== 'client' && m.user_id).map((m) => m.user_id);
   const nameMap = await getMemberNameMap(businessId, ids);
-  const roster = bms.filter((m) => m.role !== 'ai' && m.role !== 'client' && m.user_id).map((m) => {
+  // 직함·전문 분야도 싣는다 — «대표님께», «디자이너한테» 를 사람으로 알아듣게(2026-11-27). 같은 사람이 두 줄이면 한 줄만.
+  const seenIds = new Set();
+  const roster = bms.filter((m) => m.role !== 'ai' && m.role !== 'client' && m.user_id && !seenIds.has(m.user_id) && seenIds.add(m.user_id)).map((m) => {
     const dn = nameMap.get(m.user_id);
-    return `- ${dn?.name || dn?.name_localized || m.user?.name || `#${m.user_id}`} (user_id ${m.user_id}${m.role ? `, ${m.role}` : ''})`;
+    const job = [m.job_title, m.expertise].filter(Boolean).join(' · ');
+    return `- ${dn?.name || dn?.name_localized || m.user?.name || `#${m.user_id}`} (user_id ${m.user_id}${m.role ? `, ${m.role}` : ''}${job ? `, ${job}` : ''})`;
   }).join('\n');
   // 질문자 — 없으면 «담당자는 나» 를 로스터의 다른 사람으로 골랐다(2026-10-12 실측: 김오너가 물었는데 김미정 배정).
   const askerDn = askerId ? nameMap.get(askerId) : null;
@@ -163,7 +223,13 @@ async function buildToolSystemContext(businessId, todayIso, askerId = null) {
     + `이번 답에서 새로 만드는 업무에 일정을 연결해야 하면 업무 카드와 일정 카드(task_id 없이)를 **둘 다** 내고, 답에 «업무 카드를 실행한 뒤 '그 업무에 일정 연결해' 라고 말해 주시면 연결할게요» 를 쓴다 — 다음 턴에 앞 대화의 [실행됨] 줄(#번호)로 update_event task_id 카드를 낸다. `
     + `카드를 낼 때도 답을 비우지 않는다 — 한두 문장으로 카드 몇 장에 무엇이 들어 있고 각각 확인해 실행하면 된다는 것을 말한다. `
     + `지우기·보내기·청구는 할 수 없다.\n`
-    + `[쓰기 원칙] 사용자가 말한 것만 넣는다 — 말하지 않은 고객·담당자·참석자·태그를 붙이지 말고, 본문·메모에 조언·후속 조치·추측을 덧붙이지 않는다. `
+    // 2026-11-27 Irene «큐에게 업무를 요청하면 기본적으로는 요청한 사람에게 … 누구한테 요청 넣어 달라고 하면 그 사람이 담당»
+    //   실측: «대표님께 계약서 검토 요청해줘» 에 «메신저는 못 보낸다» 며 복붙 문구만 줬고, «루아에게 …» 는 카드 없이 멤버 목록만 읊었다.
+    + `[업무 담당자] 사람을 지목하지 않은 업무는 assignee 를 비운다(= 질문자 본인 업무). 다른 사람 이름이 **언급만** 된 것(«OO가 보내준 자료 정리», «OO에게 받은 파일»)은 지목이 아니다. `
+    + `«OO에게/한테/께 ~ 요청·부탁해줘 / 시켜줘 / 맡겨줘», «담당은 OO» 는 그 사람을 담당자로 한 create_task 다 — 메시지·메일을 보내 달라는 뜻이 아니다(«메신저는 못 보낸다» 고 답하지 않는다). `
+    + `호칭·직함·성 뺀 이름(«디자님», «박 개발자», «대표님», «팀장님»)도 [멤버] 의 이름·직함으로 맞춰 assignee_user_id 를 넣는다. 확실히 못 맞추면 assignee_name 에 **말한 그대로**(«대표님», «루아») 넣고 create_task 를 부른다 — 서버가 이름·직함으로 다시 맞춘다. 누구인지·요청 방식(담당/컨펌자)을 **되묻지 않는다**. 목록에 없다고 카드를 안 내거나 멤버 목록을 읊지 않는다(사람이 카드에서 고른다). `
+    + `«요청·부탁» 을 직접 말했으면 as_request:true. 요청 업무의 제목은 받는 사람이 할 일이다 — 끝에 «요청» 을 붙이지 않는다.\n`
+    + `[쓰기 원칙] 사용자가 말한 것만 넣는다 —말하지 않은 고객·담당자·참석자·태그를 붙이지 말고, 본문·메모에 조언·후속 조치·추측을 덧붙이지 않는다. `
     + `꼭 골라야 하는 값은 가장 중립적인 쪽으로(프로젝트 종류는 고객을 말했을 때만 client, 아니면 internal) — 사람이 카드에서 고친다. `
     + `화상회의·구글 미팅 링크를 원하면 create_event 에 create_meeting:true + visibility:'team'(Meet 은 팀 공개 일정만 — 카드에 보인다) 또는 기존 일정이면 add_meeting_to_event. `
     + `«화상회의는 못 붙인다/화면에서 직접 켜라» 고 답하지 않는다 — 카드를 실행하면 만든 링크가 결과 줄에 나온다.\n`
@@ -338,13 +404,14 @@ async function buildCard(p, tool, args, preview) {
 }
 
 /** 쓰기 호출 하나 → 제안(카드). 실행하지 않는다. 실패면 { error } — 루프가 모델에게 돌려줘 이유를 말하게 한다. */
-async function proposeOne(p, name, rawArgs) {
-  const { tool, args } = await normalizeCall(p.businessId, name, rawArgs);
+async function proposeOne(p, name, rawArgs, ctx = null) {
+  const { tool, args, notes, assigneeSaid } = await normalizeCall(p.businessId, name, rawArgs, ctx ? { askerId: p.userId, ...ctx } : null);
   if (!WRITE_TOOLS.has(tool)) return { error: { code: 'NOT_FOUND', message: 'unknown_tool' } };
   const r = await proposeTool(p, tool, args);
   if (!r.ok) return { error: r.error };
   const card = await buildCard(p, tool, r.args, r.preview);
-  return { proposal: { tool, params: r.args, card } };
+  if (notes && notes.length) card.notes = [...notes, ...(card.notes || [])];
+  return { proposal: { tool, params: r.args, card, ...(assigneeSaid ? { assignee_said: assigneeSaid } : {}) } };
 }
 
 // ─────────────────────────────────────────────
@@ -381,6 +448,8 @@ async function buildTaskBatch(p, taskProposals) {
       assignee_hint: null,
       assignee_user_id: a.assignee_user_id || null,
       assignee_display_name: a.assignee_user_id ? (nameOf.get(a.assignee_user_id) || null) : null,
+      // 지목했는데 멤버에서 못 찾은 이름 — 후보 카드가 «못 찾았어요» 를 띄운다(AiCandidateCard)
+      assignee_name: a.assignee_user_id ? null : (pr.assignee_said || null),
       depends_on_index: null,
       vague: false,
       selected: true,
@@ -408,9 +477,11 @@ async function finalizeProposals(p, accepted) {
 }
 
 /** /help·음성 — tool_calls 중 첫 쓰기 하나를 제안으로. (음성은 읽기 루프 없이 이것만 쓴다) */
-async function buildProposedAction(businessId, toolCalls, userId = null, platformRole = null) {
+async function buildProposedAction(businessId, toolCalls, userId = null, platformRole = null, userText = null) {
   if (!Array.isArray(toolCalls) || !toolCalls.length || !userId) return null;
   const p = await principalOf(userId, businessId, platformRole);
+  const taskCount = toolCalls.filter((tc) => tc?.function?.name === 'create_task').length;
+  const ctx = userText ? { lastText: userText, userText, taskCount } : null;
   // 음성도 카드 한 장(D4) — 다만 업무를 여럿 말했으면 그 한 장이 업무 묶음이다(Fable 2026-10-12 (다))
   const tasks = []; let first = null;
   for (const tc of toolCalls) {
@@ -418,7 +489,7 @@ async function buildProposedAction(businessId, toolCalls, userId = null, platfor
     if (!WRITE_TOOLS.has(name) && !isAlias(name)) continue;
     let args = {};
     try { args = JSON.parse(tc.function.arguments || '{}'); } catch { args = {}; }
-    const r = await proposeOne(p, name, args);
+    const r = await proposeOne(p, name, args, ctx);
     if (!r.proposal) continue;
     if (r.proposal.tool === 'create_task') { if (tasks.length < MAX_CONFIRM_CANDIDATES) tasks.push(r.proposal); }
     else if (!first) first = r.proposal;
@@ -435,6 +506,14 @@ async function buildProposedAction(businessId, toolCalls, userId = null, platfor
 const MAX_ROUNDS = 4; const MAX_READS = 6; const MAX_MS = 12000;
 const WRITE_ONLY_CHOICE = { type: 'allowed_tools', allowed_tools: { mode: 'auto', tools: [...WRITE_TOOLS].map((name) => ({ type: 'function', function: { name } })) } };
 const RESULT_CHARS = 6000;
+const TASK_ONLY_CHOICE = { type: 'allowed_tools', allowed_tools: { mode: 'required', tools: [{ type: 'function', function: { name: 'create_task' } }] } };
+/** 사용자 말이 «사람에게 업무를 맡겨 달라» 인가 — 지목(memberMention.findTargets) + 맡기는 말, 메일·휴가 결재·질문은 아니다. */
+function looksLikeTaskRequest(text) {
+  const s = String(text || '');
+  if (!s || /메일|답장|회신|휴가|연차|반차|결재|[?？]|어떻게|방법|할\s*수\s*있|되나요|돼요/.test(s)) return false;
+  if (!/요청|부탁|시켜|맡겨|달라고|하라고|넘겨/.test(s)) return false;
+  return require('./memberMention').findTargets(s).length > 0;
+}
 // 한 답의 쓰기 카드 상한 — 서로 독립인 카드만(Fable 2026-10-12 D2). 넘친 호출은 모델에 too_many_writes 로 돌려준다.
 const MAX_WRITES = 3;
 
@@ -450,12 +529,15 @@ function proposalKey(pr) {
 async function converse({ p, messages, callLLM, llmOpts = {}, onEvent = null, isCanceled = null }) {
   const started = Date.now();
   const msgs = [...messages];
+  // 사용자가 한 말 — 업무 담당자를 모델 추측이 아니라 이 말로 맞춘다(settleTaskAssignee)
+  const userTexts = messages.filter((m) => m.role === 'user' && typeof m.content === 'string').map((m) => m.content);
   const reads = [];
   const accepted = [];            // 이 답에 낼 카드(제안) — 라운드를 건너 모인다
   const seen = new Set();
   // round_ms — 라운드(LLM 왕복)마다 걸린 시간. 로그에만 쓴다(운영에서 «어디가 느린지» 를 재는 유일한 숫자).
   let usage = { input_tokens: 0, cached_tokens: 0, output_tokens: 0, model: null, rounds: 0, round_ms: [] };
   let last = null;
+  let nudged = false; let forceTask = false;   // «OO에게 요청해줘» 에 카드 없이 답했을 때 한 번 되돌린다(아래)
   const done = async (content) => {
     const out = accepted.length ? await finalizeProposals(p, accepted) : [];
     return { content: content || '', usage, reads, ...(out.length ? { proposal: out[0], proposals: out } : {}) };
@@ -474,14 +556,27 @@ async function converse({ p, messages, callLLM, llmOpts = {}, onEvent = null, is
       onDelta: (t) => { if (searching) return; streamed = true; onEvent('delta', t); },
       onToolStart: (name) => { if (READ_TOOLS.has(name)) toSearching(); },
     } : {};
-    const r = await callLLM({ ...llmOpts, ...streamOpts, messages: msgs, tools: TOOL_SCHEMAS, ...(overBudget ? { toolChoice: WRITE_ONLY_CHOICE } : {}) });
+    const choice = forceTask ? TASK_ONLY_CHOICE : overBudget ? WRITE_ONLY_CHOICE : null;
+    const r = await callLLM({ ...llmOpts, ...streamOpts, messages: msgs, tools: TOOL_SCHEMAS, ...(choice ? { toolChoice: choice } : {}) });
     last = r;
     usage = { input_tokens: usage.input_tokens + (r.input_tokens || 0), cached_tokens: usage.cached_tokens + (r.cached_tokens || 0),
       output_tokens: usage.output_tokens + (r.output_tokens || 0), model: r.model || usage.model, rounds: usage.rounds + 1,
       round_ms: [...usage.round_ms, Date.now() - roundStarted] };
     if (r.fallback) return accepted.length ? await done(r.content) : { fallback: true, usage, reads };
     const calls = Array.isArray(r.tool_calls) ? r.tool_calls : [];
-    if (!calls.length) return await done(r.content);
+    if (!calls.length) {
+      // «OO에게 ~ 요청해줘» 인데 카드 없이 «메시지는 못 보낸다·누구 말씀인가요» 로 답했다(2026-11-27 dev 실측 «대표님께 계약서 검토 요청해줘»).
+      //   한 번만 되돌려 create_task 를 부르게 한다 — 담당자는 settleTaskAssignee 가 사용자 말로 맞춘다. 흘린 글은 지운다.
+      if (!nudged && !accepted.length && round < MAX_ROUNDS && looksLikeTaskRequest(userTexts[userTexts.length - 1])) {
+        nudged = true; forceTask = true;
+        if (onEvent && streamed) onEvent('reset');
+        msgs.push({ role: 'assistant', content: r.content || '' });
+        msgs.push({ role: 'system', content: '[다시] 사용자의 방금 말은 «그 사람을 담당자로 한 업무를 만들어 달라» 는 뜻이다(메시지·메일 발송이 아니다). 되묻지 말고 create_task 를 지금 부른다 — 담당자를 [멤버] 에서 확실히 못 맞추면 assignee_name 에 사용자가 말한 그대로(«대표님» 등), 요청·부탁이면 as_request:true. 답에는 카드에서 담당자를 확인해 실행하면 된다고 한 문장.' });
+        continue;
+      }
+      return await done(r.content);
+    }
+    forceTask = false;
 
     // 쓰기 호출이 있으면 그 라운드의 쓰기를 **전부** 제안으로(실행 X). 같은 라운드의 읽기는 버린다.
     const writes = calls.filter((c) => WRITE_TOOLS.has(c?.function?.name) || isAlias(c?.function?.name));
@@ -505,7 +600,10 @@ async function converse({ p, messages, callLLM, llmOpts = {}, onEvent = null, is
         if (!task) otherSeen += 1;
         let args = {};
         try { args = JSON.parse(w.function.arguments || '{}'); } catch { args = {}; }
-        const pr = await proposeOne(p, w.function.name, args);
+        const pr = await proposeOne(p, w.function.name, args, {
+          lastText: userTexts[userTexts.length - 1] || '', userText: userTexts.join('\n'),
+          taskCount: writes.filter(isTask).length,
+        });
         if (pr.proposal) {
           const key = proposalKey(pr.proposal);
           if (!seen.has(key)) { seen.add(key); accepted.push(pr.proposal); }
@@ -607,6 +705,7 @@ module.exports = {
   // 테스트/디버그
   proposeOne,
   normalizeCall,
+  settleTaskAssignee,
   resolveAssigneeName,
   buildCard,
   isAlias,

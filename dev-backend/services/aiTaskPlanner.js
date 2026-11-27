@@ -397,20 +397,19 @@ function clampPriority(p) {
 //   김지원으로 확정되는 오배정을 막는다 (그 배정은 알림 발송까지 이어진다).
 function matchMemberByName(name, members, opts = {}) {
   if (!name || !members || members.length === 0) return null;
-  const n = String(name).toLowerCase().trim();
-  if (n.length < 2) return null;
-  const nameOf = (m) => [m.name, m.account_name, m.name_localized].filter(Boolean).map(s => String(s).toLowerCase());
-  // 1) 정확 일치
-  let hit = members.filter(m => nameOf(m).some(x => x === n));
-  if (hit.length === 1) return hit[0].user_id;
-  if (hit.length > 1) return null;
-  if (opts.exactOnly) return null;
-  // 2) 포함 일치 (이름이 멤버명에 포함되거나 그 반대 — "루아에게" 같은 조사 흡수)
-  hit = members.filter(m => nameOf(m).some(x => x.length >= 2 && (n.includes(x) || x.includes(n))));
-  if (hit.length === 1) return hit[0].user_id;
+  // 2026-11-27 — 담당자 이름 해석은 services/memberMention 한 벌(Cue 대화창·말로 추가와 같은 규칙:
+  //   호칭·조사·직함 뗀 이름 → 성 뺀 이름·표시명 앞부분 → 한 글자 오차 → 직함, 단계마다 한 명일 때만).
+  //   «지원팀» → 김지원 같은 포함 일치는 하지 않는다. exactOnly 는 ① 단계만.
+  const mm = require('./memberMention');
+  const pool = members.filter((m) => m && m.user_id).map((m) => ({
+    user_id: m.user_id, role: m.role || null, display_name: m.name || m.account_name || null,
+    names: [...new Set([m.name, m.account_name, ...(m.name_localized && typeof m.name_localized === 'object' ? Object.values(m.name_localized) : [])].filter((x) => x && String(x).trim()).map(String))],
+    job_title: m.job_title || null, expertise: m.expertise || null,
+  }));
+  const r = mm.resolveSaid(name, pool, {});
+  if (r.status === 'matched' && (!opts.exactOnly || r.tier === 'exact')) return r.userId;
   return null;
 }
-
 // 멤버 fuzzy 매칭 — assignee_hint → BusinessMember
 // 일치 1명이면 user_id 반환, 다수/0명이면 null
 function matchMemberByHint(hint, members) {
@@ -681,7 +680,9 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   const buildCandidates = (rawArr) => (Array.isArray(rawArr) ? rawArr : [])
     .filter((t) => t && typeof t === 'object' && String(t.title || '').trim())
     .map((t, idx, arr) => {
-    const title = String(t.title || '').trim().slice(0, 200);
+    // 사람을 지목한 업무(assignee_name)는 받는 사람이 할 일이 제목이다 — 끝 «요청/부탁» 을 뗀다(Cue 대화창·말로 추가와 같은 규칙, memberMention)
+    const titleRaw = String(t.title || '').trim().slice(0, 200);
+    const title = t.assignee_name ? require('./memberMention').cleanRequestTitle(titleRaw) : titleRaw;
     const description = String(t.description || '').trim().slice(0, 1000);
     const estimated_hours = clampInt(t.estimated_hours, 1, 80, 4);
     const duration_days = clampInt(t.duration_days, 1, 90, 1);
@@ -723,8 +724,10 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
     const pipeline_refs = isRoutine && Array.isArray(t.pipeline_refs)
       ? [...new Set(t.pipeline_refs.filter((n) => Number.isInteger(n) && n >= 0 && n !== idx && n < arr.length))].slice(0, 5)
       : [];
-    // #90 — 이름 지정 우선, 없으면 역할 힌트
-    const assignee_user_id = matchMemberByName(assignee_name, members) ?? matchMemberByHint(assignee_hint, members);
+    // #90 — 이름 지정 우선. 역할 힌트로 동료에게 배정하는 것은 **프로젝트 전체 일정 짜기(planCtx)** 에서만 —
+    //   2026-11-27 Irene «큐에게 업무를 요청하면 기본적으로는 요청한 사람에게». 사람을 말하지 않은 Cue 바·업무 추가에서
+    //   직함 맞는 동료에게 가던 것을 끊는다(힌트는 후보에 남아 화면이 참고로 쓸 수 있다).
+    const assignee_user_id = matchMemberByName(assignee_name, members) ?? (planCtx ? matchMemberByHint(assignee_hint, members) : null);
     // 사용자가 목록으로 적은 항목은 «적은 말 그대로» 가 규칙이다 — 그 말을 모호하다고 노랗게 칠하지 않는다
     //   (15개 목록이 전부 ⚠ 로 덮였다, 2026-10-22).
     const vague = enumerated >= 2 ? false : detectVague(title, language);
@@ -998,15 +1001,29 @@ async function planTasksFromPrompt({ prompt, businessId, projectContext, members
   // #90 후속 — 담당자 안전망 (URL net 과 같은 원리): LLM 이 assignee_name 을 놓쳐도
   //   프롬프트에 워크스페이스 멤버 이름이 직접 언급돼 있으면 배정 복구.
   //   정확히 1명으로 특정될 때만 적용 — 여러 이름이면 모호하므로 건드리지 않는다.
+  //   2026-11-27 — «이름이 나왔다» 가 아니라 «지목했다»(OO에게 요청·시켜·맡겨 / 담당은 OO)일 때만(memberMention.findTargets).
+  //   «박개발이 보내준 자료 정리» 가 박개발 업무가 되던 것(dev 실측). 나열한 줄 수 = 후보 수면 줄마다 그 줄의 지목을 쓴다.
   const unassigned = candidates.filter((c) => !c.assignee_user_id);
   if (unassigned.length && members.length) {
     const promptText = String(prompt);
     const mentioned = new Map();
-    for (const m of members) {
-      const names = [m.name, m.account_name].filter((n) => n && String(n).trim().length >= 2);
-      if (names.some((n) => promptText.includes(String(n).trim()))) mentioned.set(m.user_id, m);
+    const lines = promptText.split(/\r?\n/).map((l) => l.trim()).filter((l) => LIST_LINE.test(l));
+    if (enumerated >= 2 && lines.length === candidates.length) {
+      candidates.forEach((c, i) => {
+        if (c.assignee_user_id) return;
+        const said = require('./memberMention').findTargets(lines[i])[0];
+        const id = said ? matchMemberByName(said, members) : null;
+        if (id) {
+          const m = members.find((x) => x.user_id === id);
+          c.assignee_user_id = id; c.assignee_name = c.assignee_name || m?.name || null; c.assignee_display_name = m?.name || m?.account_name || null;
+        } else if (said && !c.assignee_name) c.assignee_name = said;
+      });
     }
-    if (mentioned.size === 1) {
+    for (const said of require('./memberMention').findTargets(promptText)) {
+      const id = matchMemberByName(said, members);
+      if (id) mentioned.set(id, members.find((x) => x.user_id === id));
+    }
+    if (mentioned.size === 1 && !(enumerated >= 2 && lines.length === candidates.length)) {
       const m = [...mentioned.values()][0];
       for (const c of unassigned) {
         c.assignee_user_id = m.user_id;
