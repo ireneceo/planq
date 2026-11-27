@@ -182,6 +182,8 @@ import {
   LearnBar, LearnText, LearnLink, LearnClose,
 } from './MailPage.styles';
 import { pickableMembers } from '../../utils/pickableMembers';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { BP } from '../../theme/breakpoints';
 
 
 
@@ -552,6 +554,9 @@ const MailPage: React.FC = () => {
   ));
   // addressActions 는 [businessId] 로만 메모된다 — 거기서 폭을 읽으려면 ref 로(낡은 값을 보지 않게).
   const viewportNarrowRef = useRef(viewportNarrow);
+  // 2026-11-27 Irene «상단에 버튼들이 너무 많아서 보기가 어려운데» — 폰(≤640) 밴드2 는 한 줄: [업무 추출] 만 남기고
+  //   팔로우는 ⋯ 맨 위로, 상담으로 보내기는 ⋯ 에 이미 있는 문만 쓴다(Fable 설계 — 같은 폭에서 같은 문을 두 곳에 두지 않는다).
+  const isPhone = useMediaQuery(`(max-width: ${BP.phone}px)`);
   viewportNarrowRef.current = viewportNarrow;
   useEffect(() => {
     const mql = window.matchMedia('(max-width: 1024px)');
@@ -1395,6 +1400,16 @@ const MailPage: React.FC = () => {
     if (!detail) return [];
     const cur = String(detail.follow_up_days ?? 'default');
     const items: OverflowItem[] = [
+      // 폰에서는 밴드2 의 [팔로우] 가 여기로 온다(밴드에서는 빠진다)
+      ...(isPhone ? [{
+        key: 'follow',
+        label: (detail.my_following
+          ? t('actions.following', { defaultValue: '팔로우 중' })
+          : t('actions.follow', { defaultValue: '팔로우' })) as string,
+        checked: !!detail.my_following,
+        onClick: () => { void toggleFollow(); },
+        testId: 'mail-detail-follow-menu',
+      }] : []),
       ...(detail.can_mark_unread ? [{
         key: 'mark-unread',
         label: t('actions.markUnread', { defaultValue: '안 읽음으로 표시' }) as string,
@@ -1444,7 +1459,7 @@ const MailPage: React.FC = () => {
     // onMarkSpam 은 매 렌더 새로 만들어지는 평범한 함수라 deps 에 넣으면 메모가 무의미해진다.
     //   detail.id·status·follow_up_days 가 바뀔 때만 다시 만들면 충분하다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail?.id, detail?.status, detail?.client, detail?.follow_up_days, detail?.last_message_direction, detail?.can_mark_unread, t, setFollowUpDays, promoteThread, markUnread]);
+  }, [detail?.id, detail?.status, detail?.client, detail?.follow_up_days, detail?.last_message_direction, detail?.can_mark_unread, detail?.my_following, isPhone, toggleFollow, t, setFollowUpDays, promoteThread, markUnread]);
 
   // ── 실시간 silent 갱신 (socket / visibility) — 스피너 없이 list+counts+열린 detail 갱신
   const lastSilentAt = useRef(0);
@@ -3148,7 +3163,7 @@ const MailPage: React.FC = () => {
                 </DetailHeaderRight>
               </PanelHeader>
               {/* 밴드2 — 좌: 이 스레드의 **상태**(메시지 수·고객·담당·라벨) / 우: 자주 쓰는 액션 3개. */}
-              <DetailMetaBar data-testid="detail-meta-bar" data-pq-writing-hide="">
+              <DetailMetaBar $phoneOneLine data-testid="detail-meta-bar" data-pq-writing-hide="">
                 <DetailMetaLeft>
                   {/* ★ 2026-09-07 — 좁은 폰에서는 감춘다. 밴드2 를 한 줄로 만들려면 여기서 자리를
                       내줘야 하는데(실측 390px: 좌 243 + 우 145 = 388 > 쓸 수 있는 362), 이 칩이
@@ -3210,11 +3225,13 @@ const MailPage: React.FC = () => {
                   ))}
                 </DetailMetaLeft>
                 <DetailMetaRight>
-                  <CtrlBtn type="button" $on={!!detail.my_following} onClick={toggleFollow}>
+                  {!isPhone && (
+                  <CtrlBtn type="button" data-testid="mail-detail-follow" $on={!!detail.my_following} onClick={toggleFollow}>
                     {detail.my_following
                       ? t('actions.following', { defaultValue: '팔로우 중' }) as string
                       : t('actions.follow', { defaultValue: '팔로우' }) as string}
                   </CtrlBtn>
+                  )}
                   {/* #263 — 업무추출 진입점. 여태 우측 맥락 패널 안에만 있어서, 패널을 접었거나
                       폰·태블릿에서 오버레이를 안 열면 진입점이 0개였다 (Irene: "업무추출이 제대로
                       버튼이 안뜨는 곳이 많아"). 상세 툴바에서 패널을 열고 추출까지 바로 건다. */}
@@ -3235,7 +3252,10 @@ const MailPage: React.FC = () => {
                   </CtrlBtn>
                   {/* 상담 승격 진입점 — 여태 ⋯ 메뉴·우클릭·채팅 툴바 셋뿐이라 메일 상세를 보고 있는
                       사람에게는 보이지 않았다 (Irene: "상담으로 저장이 업무추출 옆에 있거나 하면 좋겠는데").
-                      핸들러는 promoteThread 하나 — ⋯ 메뉴와 같은 문이다(베끼지 않는다). */}
+                      핸들러는 promoteThread 하나 — ⋯ 메뉴와 같은 문이다(베끼지 않는다).
+                      ★ 2026-11-27 — ⋯ 항목과 같은 술어(고객에 연결된 스레드엔 내지 않음). 폰에서는 ⋯ 에만 두고,
+                      보낸 결과(«상담으로 보냄»)만 밴드에 남긴다(Fable 설계). */}
+                  {!detail.client && (!isPhone || promoteDone === detail.id) && (
                   <CtrlBtn
                     type="button"
                     $on={promoteDone === detail.id}
@@ -3247,6 +3267,7 @@ const MailPage: React.FC = () => {
                       ? t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string
                       : t('actions.promoteToSale', { defaultValue: '상담으로 보내기' }) as string}
                   </CtrlBtn>
+                  )}
                   {promoteErr && promoteErr.id === detail.id && (
                     <PromoteErrTag data-testid="mail-detail-promote-error" role="status">
                       {tSale(`promoteError.${promoteErr.key}`) as string}

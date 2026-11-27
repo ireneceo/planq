@@ -69,6 +69,8 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 import { useEscapeStack } from '../../hooks/useEscapeStack';
 import AttachmentList from '../Common/AttachmentList';
 import { useBackToClose } from '../../hooks/useBackToClose';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { BP } from '../../theme/breakpoints';
 import SeriesScopeDialog, { type SeriesScope } from './SeriesScopeDialog';
 import { isSeriesTask, needsSeriesScope } from '../../utils/taskSeries';
 import { isEnterAction } from '../../utils/imeKey';
@@ -381,6 +383,10 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [statusOpen, setStatusOpen] = useState(false);
   // #290 — 팝아웃 여부는 창 단위 불변값(sessionStorage). 렌더마다 재계산할 이유가 없다.
   const [isPopout] = useState(() => isPopoutWindow());
+  // 2026-11-27 Irene «상단에 버튼들이 너무 많아서 보기가 어려운데» — 폰(≤640)도 팝아웃처럼 속성 칸을 요약 한 줄로 접는다
+  //   (Fable 설계: 같은 접기를 그대로 · 기본 접힘 · 펼침 기억은 META_OPEN_KEY 그대로). 조건부 렌더라 CSS 가 아니라 폭 훅으로 가른다.
+  const isPhone = useMediaQuery(`(max-width: ${BP.phone}px)`);
+  const metaCollapsible = isPopout || isPhone;
   // 팝아웃에서 관리 필드 접힘 상태. 펼치면 그 창에서는 유지된다(매번 다시 펼치는 마찰 제거).
   const [metaOpen, setMetaOpen] = useState(() => { try { return sessionStorage.getItem(META_OPEN_KEY) === '1'; } catch { return false; } });
   const [openHistory, setOpenHistory] = useState(false);
@@ -1902,7 +1908,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   2열로 쌓여 300px 를 먹는 바람에 정작 업무 내용이 화면 밖으로 밀렸다.
                   팝아웃에서만 기본 접힘 — 섹션 순서·구성은 메인과 동일하게 두고(두 화면이 갈리면
                   검증 표면이 두 배가 된다) 펼치면 편집 기능은 전부 그대로다. */}
-              {isPopout && (
+              {metaCollapsible && (
                 /* 2026-11-14 Irene «접힌건지 몰라서 모르는 사람이 많아» — 회색 글자 한 줄이라 제목처럼 읽혔다.
                    누를 수 있는 줄(테두리·배경)로 만들고, 접혀 있을 때는 안에 든 값 요약 + «펼치기» 를 붙여
                    «여기 더 있다» 가 보이게 한다. 펼친 상태는 이 창에서 기억한다(업무를 바꿔도 다시 접히지 않게). */
@@ -1913,15 +1919,17 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <MetaToggleTitle>{t('detail.meta.toggle', '상세 정보')}</MetaToggleTitle>
                   {!metaOpen && (() => {
                     const parts: string[] = [];
-                    if (selectedAssigneeOption) parts.push(selectedAssigneeOption.label);
+                    // 접힌 채로는 빈 담당자를 알 수 없다 — 없으면 «담당자 없음» 을 요약에 넣는다(Fable 설계 2026-11-27)
+                    parts.push(selectedAssigneeOption ? selectedAssigneeOption.label : t('detail.meta.toggleNoAssignee', '담당자 없음') as string);
                     if (detailTask.due_date) parts.push(t('detail.meta.toggleDue', { date: String(detailTask.due_date).slice(5, 10).replace('-', '/'), defaultValue: '마감 {{date}}' }) as string);
+                    if (recurEnabled || detailTask.recurrence_parent_id) parts.push(t('detail.meta.toggleRecur', '반복') as string);
                     if (reviewers.length) parts.push(t('detail.meta.toggleReviewers', { count: reviewers.length, defaultValue: '컨펌자 {{count}}' }) as string);
                     return parts.length ? <MetaToggleSummary>{parts.join(' · ')}</MetaToggleSummary> : null;
                   })()}
                   <MetaToggleAction>{metaOpen ? t('detail.meta.toggleClose', '접기') : t('detail.meta.toggleOpen', '펼치기')}</MetaToggleAction>
                 </MetaToggle>
               )}
-              <MetaGrid $hidden={isPopout && !metaOpen}>
+              <MetaGrid $hidden={metaCollapsible && !metaOpen}>
                 {/* 2026-10-12 Irene «공개범위·보안등급 추가하고 더 난장판» — 매일 보는 것(담당자·기간)을 맨 위로,
                     라벨은 왼쪽·값은 오른쪽(속성 줄), 셀렉트는 테두리 없는 inline 모양. 공개 범위·보안등급은
                     한 번 정하고 잘 안 바꾸는 것이라 아래 «설정» 묶음(반복하기와 함께)으로 내렸다.
@@ -2228,7 +2236,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </MetaGrid>
               {/* 시간 자동 누적 안내 — tooltip 만으론 모바일/터치 환경에서 발견 불가 → «실제» 옆 ⓘ 를 누르면 펼친다
                   (2026-10-12 — 상시 상자가 메타 영역 한 줄을 늘 먹었다). */}
-              {timeHintOpen && !(isPopout && !metaOpen) && <TimeAutoHint>
+              {timeHintOpen && !(metaCollapsible && !metaOpen) && <TimeAutoHint>
                 <TimeAutoHintIcon viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
                 </TimeAutoHintIcon>
@@ -2251,7 +2259,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
 
               {showSecurity && (
-              <MetaGrid $settings $hidden={isPopout && !metaOpen}>
+              <MetaGrid $settings $hidden={metaCollapsible && !metaOpen}>
                 {/* 공개 범위·보안등급(2026-10-12, docs/TASK_SECURITY_LEVEL_DESIGN.md) — 문서(Q docs)와 **같은 컴포넌트**.
                     공개: VisibilityChip → VisibilityChangeModal(나만·특정 프로젝트·특정 멤버·워크스페이스, 외부는 공유 창으로) ·
                     보안: 일반·내부·기밀(일반 밖이면 외부 공유가 막히고 나가 있던 링크가 끊긴다). 바꾸는 사람은 작성자·대표·관리자. */}
@@ -2292,6 +2300,9 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   ★ 여기서 **편집 UI 를 숨기지 않는다.** 숨겨 두었더니 사용자는 반복을 아예 바꿀 수 없었다
                     (Irene: "처음 업무에서만 수정되는 것 같은데"). 회차에서 바꾼 규칙은 시리즈 부모에
                     적용되고, 적용 범위는 저장 직전에 묻는다(SeriesScopeDialog, variant='recurrence'). */}
+              {/* 반복 설정도 «상세 정보» 묶음이다 — 접혀 있으면(팝아웃·폰) 같이 접고 요약에 «반복» 을 붙인다(2026-11-27).
+                  숨기는 것이 아니라 접는 것이다 — [펼치기] 한 번으로 아래 편집 UI 가 그대로 나온다. */}
+              {!(metaCollapsible && !metaOpen) && (<>
               {detailTask.recurrence_parent_id && (
                 <MetaRecurRow $disabled>
                   <MetaRecurToggle as="div">
@@ -2421,6 +2432,7 @@ const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 })()}
               </MetaRecurRow>
               )}
+              </>)}
             </Section>
 
             {/* 단계 되돌리기 — 하단 액션 영역 앞. 권한·이력은 backend 가 판정. (운영 피드백: 위 제목 옆 X → 액션 앞)

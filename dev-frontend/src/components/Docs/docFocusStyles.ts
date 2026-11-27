@@ -16,7 +16,7 @@ export const DocFocusBackdrop = styled.div`
 export const docFocusSurface = css`
   ${focusFloatingCss}
   z-index: ${FOCUS_Z + 1};
-  [data-testid='docs-meta-summary'], [data-testid='docs-meta-row'] { display: none; }
+  [data-testid='docs-meta-summary'], [data-testid='docs-meta-row'], [data-testid='docs-view-meta'] { display: none; }
 `;
 
 /** ★ 글 쓰는 중(화면 키보드 + 편집기 포커스, index.css «글 쓰는 중» · html[data-pq-compose]) — 편집 판을 저절로 화면 전체로 띄운다

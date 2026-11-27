@@ -31,7 +31,7 @@ import DocTaskLinkField, { linkTask } from './DocTaskLinkField';
 import ProjectRefsField from '../Common/ProjectRefsField';
 import { LinkedMini, applyRefFilter, type RefFilter } from './linkedDocs';
 import { fetchLinkedPosts } from '../../services/projectRefs';
-import OverflowMenu from '../Common/OverflowMenu';
+import OverflowMenu, { type OverflowItem } from '../Common/OverflowMenu';
 import AttachmentField from '../Common/AttachmentField';
 import CategoryCombobox from '../Common/CategoryCombobox';
 import EmptyState from '../Common/EmptyState';
@@ -88,6 +88,8 @@ import PostAiEditDrawer from './PostAiEditDrawer';
 import { isEnterAction } from '../../utils/imeKey';
 import { uploadErrorText } from '../../utils/uploadError';
 import { useDocFocusMode, DocFocusButton } from './docFocusMode';
+import { useMediaQuery } from '../../hooks/useMediaQuery';
+import { BP } from '../../theme/breakpoints';
 import { DocFocusBackdrop } from './docFocusStyles';
 import {
   PrintOnlyTitle, Layout, Sidebar, TitleGroup, HeaderBtnRow, NewBtn, NewBtnWrap, NewDropdown, NewItem, NewItemTitle, NewItemDesc, ModalBackdrop, ModalDialog, ModalHead, ModalTitle, ModalClose, ModalBody, ModalSub, TplGrid, TplCard, TplCardIcon, TplBadgeSys, TplSearchInput, PinDot, ParentLink, SaveTplField, SaveTplLabel, SaveTplError, ModalFooter, TplCardBody, TplCardName, TplCardDesc, Empty, SearchWrap, FilterSection, FilterGroupLabel, Chip, Count, ColorDot, AddCatBtn, NewCatInput, RowList, RowItem, RowPinBtn, RowTitle, RowPreview, CardPreview, CardAuthor, RowVisChip, SectionGap, AiRegenRow, KindToggle, KindBtn, ShareMini, RowMeta, Dim, Content, StickyBands, StickyPanelHeader, Body, EditBody, TitleInput, AutoSaveMark, WideOnly, PhoneOnly, AutoSaveText, DraftTag, SignTag, ViewMeta, MetaLeft, MetaRight, AiEditDoneBar, AiEditUndoBtn, AiEditCloseBtn, MetaActions, HeaderActions, PinTag, ProjectTag, CategoryTag, MetaField, MetaRow, MetaSummaryBtn, MetaSummaryLabel, MetaSummaryValue, MetaSummaryChevron, VisibilityChip, ShareTag, CategoryMini, AttachSection, AttachTitle, AttachScopeHint, AttachList, AttachRow, RemoveBtn, CatActions, CatIconBtn, ErrorBar, DescAddBtn, DescToggleHeader, DescBoxLabel, DescChevron, PrimaryBtn, EditBtn, IconActionBtn, SignBtn, LeaveBlockedNote, SecondaryBtn, TitleRow, MobileBackBtn, KnowledgeToast, SignedBody,
@@ -1742,7 +1744,22 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
   }, [rows, listSort, refFilter, hasLinked]);
 
   const isEditing = mode === 'new' || (mode === 'edit' && !!detail);
-  const focus = useDocFocusMode(isEditing, onEditingChange);
+  const focus = useDocFocusMode(isEditing, onEditingChange, detail?.id ?? null);
+  // 2026-11-27 Irene «상단에 버튼들이 너무 많아서 보기가 어려운데» · Fable 설계 — 폰(≤640) 보기 밴드2 는 한 줄:
+  //   글자 버튼 1개(처음 맞는 것: 설문 [보내기] → [편집] → [공유] → 고객은 없음) + «내용만 보기» 아이콘, 나머지는 ⋯ 맨 위.
+  //   같은 폭에서 같은 문을 두 곳에 두지 않는다 — 폰에서 밴드에 없는 것만 ⋯ 에 넣고, 태블릿·데스크탑은 종전 그대로.
+  const isPhone = useMediaQuery(`(max-width: ${BP.phone}px)`);
+  const phonePrimary: 'survey' | 'edit' | 'share' | null = !isPhone || !detail ? null
+    : (detail.kind === 'survey' && surveyMemberUp) ? 'survey'
+    : canEditNow ? 'edit'
+    : !isClientViewer ? 'share' : null;
+  const phoneMenuItems: OverflowItem[] = !isPhone || !detail ? [] : [
+    ...(detail.kind !== 'survey' && canEditNow ? [{ key: 'ai-edit', testId: 'post-ai-edit-menu', label: t('aiEdit.btn', 'AI 수정') as string, onClick: () => setAiEditOpen(true) }] : []),
+    ...(canEditNow && phonePrimary !== 'edit' ? [{ key: 'edit', testId: 'post-edit-menu', label: t('edit', '편집') as string, onClick: () => startEdit() }] : []),
+    ...(!isClientViewer && phonePrimary !== 'share' ? [{ key: 'share', testId: 'post-share-menu', label: t('share.button', '공유') as string, onClick: () => setShareOpen(true) }] : []),
+    ...(!isClientViewer ? [{ key: 'sign', testId: 'post-sign-menu', label: t('sign.button', '서명 받기') as string, onClick: () => setSignOpen(true) }] : []),
+    ...(!isClientViewer ? [{ key: 'duplicate', testId: 'post-duplicate-menu', label: t('duplicate.btn', { defaultValue: '복사' }) as string, disabled: dupBusy, onClick: () => { void duplicateCurrent(); } }] : []),
+  ];
   // 이 화면이 여는 곁패널·창(변경 기록 z 130 등)은 집중 편집 판(z 901) 뒤로 숨는다 — 열리면 집중 편집이 비킨다.
   const sideOpen = historyOpen || aiEditOpen || visModalOpen || shareOpen || signOpen || aiOpen || surveySendOpen || surveyPreviewOpen || tplModalOpen || saveTplOpen || trashOpen;
   const focusExit = focus.exit;
@@ -2580,7 +2597,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
             <StickyPanelHeader>
               <TitleRow>
                 {!pinned && (
-                <MobileBackBtn $always={isProject} type="button" onClick={() => setDetail(null)} aria-label={t('back', '뒤로') as string}>
+                <MobileBackBtn $always={isProject} type="button" onClick={() => { if (focus.on) focus.exit(); else setDetail(null); }} aria-label={t('back', '뒤로') as string}>
                   <BackChevron />
                 </MobileBackBtn>
                 )}
@@ -2602,8 +2619,9 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 label={t('actions.more', { defaultValue: '더보기' }) as string}
                 data-testid="post-more"
                 items={[
+                  ...phoneMenuItems,
                   {
-                    key: 'history', testId: 'post-history',
+                    key: 'history', testId: 'post-history', dividerBefore: phoneMenuItems.length > 0,
                     label: t('history.title', '변경 기록') as string,
                     icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>,
                     onClick: () => setHistoryOpen(true),
@@ -2676,15 +2694,16 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 밴드 높이는 좌측 검색줄과 같다(12 + 36 + 8) — 좌우 밑줄이 같은 y 에서 이어진다.
                 자주 쓰는 셋(편집·공유·서명 받기)만 남기고 나머지는 ⋯ 로 접는다. 접힌 쪽은
                 아이콘 전용이라 hover 해야 알 수 있었던 것들이라, 글자 라벨이 붙어 오히려 읽힌다. */}
-            <ViewMeta>
+            <ViewMeta $phoneOneLine data-testid="docs-view-meta">
               <MetaLeft>
               <span>{displayName(detail.author, i18n.language) || '—'}</span>
               <span>·</span>
               <span>{formatDate(detail.created_at)}</span>
-              {detail.editor && detail.editor.id !== detail.author?.id && (
+              {/* 폰 한 줄 밴드 — 누르지 않는 정보 둘(수정한 사람·상대 시각)만 뺀다(Fable 설계) */}
+              {!isPhone && detail.editor && detail.editor.id !== detail.author?.id && (
                 <><span>·</span><span>{t('editedBy', '수정: {{name}}', { name: detail.editor.name })}</span></>
               )}
-              {detail.updated_at && detail.updated_at !== detail.created_at && (
+              {!isPhone && detail.updated_at && detail.updated_at !== detail.created_at && (
                 <><span>·</span><span title={formatDate(detail.updated_at)}>{formatTimeAgo(detail.updated_at)}</span></>
               )}
               <PresenceChips users={presenceUsers} />
@@ -2745,19 +2764,21 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                   별도 액션 밴드(DetailActionBar)가 사라지고 상세는 **두 밴드**로 끝난다.
                   실측(1440px): ⋯ 만 헤더에 남기면 제목 몫이 304px → 872px 이 된다. */}
                 <MetaActions>
+                {/* «내용만 보기» — 폰은 글자 버튼 왼쪽, 넓은 폭은 복사 아이콘 옆(아이콘 묶음 · 글자 버튼 3개 계약 유지) */}
+                {isPhone && <DocFocusButton view on={focus.on} onToggle={focus.toggle} />}
                 {/* AI 수정 — «AI 작성» 과 같은 ★ 버튼(AiActionButton)을 같은 줄 맨 앞에 (Irene 2026-10-11:
                     "별표 넣고 똑같이 헤더에 버튼이 있어야 하는 거 아니야? AI로 작성할 때처럼 수정도.")
                     ⋯ 메뉴 안에 두니 찾을 수 없었다. 같은 일을 하는 문을 두 곳에 두지 않는다 — 메뉴에서는 뺐다. */}
                 {detail.kind === 'survey' ? (
                   // 설문 — AI 수정 자리에 [보내기](밴드2 액션 3개 계약). 보내기는 멤버 이상만
-                  surveyMemberUp && (
+                  surveyMemberUp && (!isPhone || phonePrimary === 'survey') && (
                     <EditBtn type="button" data-testid="post-survey-send" onClick={() => setSurveySendOpen(true)}
                       title={t('survey.sendHint', '고객에게 메일로 보내 응답을 받아요') as string} aria-label={t('survey.send', '보내기') as string}>
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                       {t('survey.send', '보내기')}
                     </EditBtn>
                   )
-                ) : canEditNow && (
+                ) : canEditNow && !isPhone && (
                 <AiActionButton size="filter" testId="post-ai-edit"
                   onClick={() => setAiEditOpen(true)}
                   label={t('aiEdit.btn', 'AI 수정') as string}
@@ -2766,7 +2787,7 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 {/* 고칠 수 없는 사람(고객 등)에게는 [편집] 을 내지 않는다 — 판정은 서버 can_edit(PUT 과 같은 술어).
                     서명 요청이 살아 있어 잠긴 문서도 같다 — 고치는 문은 서명 진행의 [고쳐서 다시 보내기] 하나다(2026-10-22, Irene:
                     "고쳐서 다시보내기를 눌러야 하면 위에 편집버튼이 없어야지"). 잠금은 서버 edit_locked(PUT 409 와 같은 함수) */}
-                {canEditNow && (
+                {canEditNow && (!isPhone || phonePrimary === 'edit') && (
                 <EditBtn type="button" data-testid="post-edit" onClick={startEdit}
                   title={t('edit', '편집') as string} aria-label={t('edit', '편집') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -2774,7 +2795,9 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                 </EditBtn>
                 )}
                 {/* 복사 — **아이콘만**(Irene). 밴드2 액션 3개 계약을 지키려고 글자를 빼고 title·aria 로 말한다. */}
+                {!isPhone && <DocFocusButton view on={focus.on} onToggle={focus.toggle} />}
                 {!isClientViewer && (<>
+                {!isPhone && (
                 <IconActionBtn
                   type="button"
                   data-testid="post-duplicate"
@@ -2788,14 +2811,19 @@ const PostsPage: React.FC<Props> = ({ scope, pinnedPostId, onEditingChange }) =>
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
                   </svg>
                 </IconActionBtn>
+                )}
+                {(!isPhone || phonePrimary === 'share') && (
                 <PrimaryBtn type="button" data-testid="post-share" onClick={() => setShareOpen(true)} title={t('share.headerHint', '외부 사람과 공유 — 링크 / 이메일 / 만료') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                   {t('share.button', '공유')}
                 </PrimaryBtn>
+                )}
+                {!isPhone && (
                 <SignBtn type="button" data-testid="post-sign" onClick={() => setSignOpen(true)} title={t('sign.headerHint', '서명자에게 이메일로 서명 요청') as string}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 4 }}><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
                   {t('sign.button', '서명 받기')}
                 </SignBtn>
+                )}
                 </>)}
                 </MetaActions>
             

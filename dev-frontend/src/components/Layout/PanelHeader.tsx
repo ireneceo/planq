@@ -276,7 +276,7 @@ export function PanelBackButton(
  * ★ 액션이 서너 개를 넘으면 헤더에 밀어넣지 말고 OverflowMenu(⋯) 로 접는다.
  *   아이콘 전용 버튼을 늘리는 것은 자리를 먹으면서 뜻은 안 알려주는 최악의 조합이다.
  */
-export const DetailMetaBar = styled.div`
+export const DetailMetaBar = styled.div<{ $phoneOneLine?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -303,6 +303,19 @@ export const DetailMetaBar = styled.div`
     padding: 10px 14px 8px;
     gap: 8px;
   }
+  /* ★ 2026-11-27 폰 한 줄 (Irene «상단에 버튼들이 너무 많아서 보기가 어려운데» · Fable 설계) — 액션을 글자 버튼 1개 +
+     «크게 보기» 아이콘까지로 줄인 화면만 켠다($phoneOneLine). 왼쪽 메타는 감지 않고 가로로 흘리고(누르는 칩은 숨기지 않는다),
+     오른쪽 액션은 줄지 않는다. 액션을 아직 안 줄인 화면은 종전대로 감긴다(켜면 버튼이 화면 밖으로 밀린다). */
+  ${(p) => p.$phoneOneLine ? `
+  @media (max-width: 640px) {
+    flex-wrap: nowrap;
+    > :first-child {
+      flex: 1 1 auto; min-width: 0; flex-wrap: nowrap;
+      overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+      &::-webkit-scrollbar { display: none; }
+    }
+    > :last-child { flex-wrap: nowrap; margin-left: 0; }
+  }` : ''}
 `;
 
 /** 밴드2 좌측 — 메타·상태 칩. 남는 폭만 차지하고, 넘치면 칩끼리 줄을 넘긴다(잘라 숨기지 않는다). */

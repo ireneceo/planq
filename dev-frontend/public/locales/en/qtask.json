@@ -567,6 +567,8 @@
       "cueCreatedOn": "Created by Cue",
       "aiRequestedOn": "Requested by AI",
       "toggleOpen": "Show",
+      "toggleNoAssignee": "No assignee",
+      "toggleRecur": "Repeats",
       "toggleClose": "Hide",
       "toggleDue": "Due {{date}}",
       "toggleReviewers": "{{count}} reviewer(s)"

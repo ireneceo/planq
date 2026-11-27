@@ -567,6 +567,8 @@
       "cueCreatedOn": "Cue 작성",
       "aiRequestedOn": "AI 요청",
       "toggleOpen": "펼치기",
+      "toggleNoAssignee": "담당자 없음",
+      "toggleRecur": "반복",
       "toggleClose": "접기",
       "toggleDue": "마감 {{date}}",
       "toggleReviewers": "컨펌자 {{count}}"

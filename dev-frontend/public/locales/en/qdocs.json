@@ -1510,6 +1510,8 @@
   },
   "focusMode": {
     "enter": "Write in full screen",
-    "exit": "Exit full screen"
+    "exit": "Exit full screen",
+    "viewEnter": "Content only",
+    "viewExit": "Exit content-only view"
   }
 }

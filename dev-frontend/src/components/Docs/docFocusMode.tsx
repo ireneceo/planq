@@ -13,10 +13,11 @@ import { useTranslation } from 'react-i18next';
 import { useFocusShellExit, FocusModeIcon } from '../Common/focusShell';
 import { IconActionBtn } from './PostsPage.styles';
 
-export function useDocFocusMode(isEditing: boolean, onEditingChange?: (editing: boolean) => void) {
+export function useDocFocusMode(isEditing: boolean, onEditingChange?: (editing: boolean) => void, docId?: number | null) {
   const [on, setOn] = useState(false);
-  // 편집을 끝내면(완료·되돌리기·다른 문서) 집중 편집도 끝난다.
-  useEffect(() => { if (!isEditing) setOn(false); }, [isEditing]);
+  // 보기↔편집이 바뀌거나 다른 문서로 가면 판을 내린다. 보기 모드에서도 켤 수 있다 — «내용만 보기»
+  //   (2026-11-27 Irene «내용만 보기 … 메일에 있지» · Fable 설계: 편집과 같은 판을 쓴다, 켠 상태는 기억하지 않는다).
+  useEffect(() => { setOn(false); }, [isEditing, docId]);
   // 프로젝트 상세가 편집 동안 자기 머리줄을 접는다 — 떠날 때(언마운트)는 «편집 아님» 으로 돌려놓는다.
   useEffect(() => { onEditingChange?.(isEditing); }, [isEditing, onEditingChange]);
   useEffect(() => () => { onEditingChange?.(false); }, [onEditingChange]);
@@ -26,13 +27,13 @@ export function useDocFocusMode(isEditing: boolean, onEditingChange?: (editing: 
   return { on, toggle, exit };
 }
 
-export function DocFocusButton({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+export function DocFocusButton({ on, onToggle, view }: { on: boolean; onToggle: () => void; view?: boolean }) {
   const { t } = useTranslation('qdocs');
-  const label = (on
-    ? t('focusMode.exit', { defaultValue: '전체 화면 끝내기' })
-    : t('focusMode.enter', { defaultValue: '전체 화면으로 쓰기' })) as string;
+  const label = (view
+    ? (on ? t('focusMode.viewExit', { defaultValue: '내용만 보기 끝내기' }) : t('focusMode.viewEnter', { defaultValue: '내용만 보기' }))
+    : (on ? t('focusMode.exit', { defaultValue: '전체 화면 끝내기' }) : t('focusMode.enter', { defaultValue: '전체 화면으로 쓰기' }))) as string;
   return (
-    <IconActionBtn type="button" data-testid="docs-focus-toggle" aria-pressed={on}
+    <IconActionBtn type="button" data-testid={view ? 'docs-view-focus-toggle' : 'docs-focus-toggle'} aria-pressed={on}
       onClick={onToggle} title={label} aria-label={label}>
       <FocusModeIcon on={on} />
     </IconActionBtn>
