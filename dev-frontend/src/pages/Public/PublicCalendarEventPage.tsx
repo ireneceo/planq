@@ -21,6 +21,9 @@ interface CalendarPreview {
   end_at: string;
   all_day: boolean;
   category: string;
+  /** 워크스페이스가 정한 분류 이름·색(2026-11-27) — 없으면 기본 분류 라벨·톤 */
+  category_name?: string | null;
+  category_color?: string | null;
   meeting_url: string | null;
   creator?: { id: number; name: string } | null;
   project?: { id: number; name: string } | null;
@@ -119,8 +122,10 @@ const PublicCalendarEventPage = () => {
     </PublicPageShell>
   );
 
-  const tone = CATEGORY_TONE[ev.category] || { bg: '#F1F5F9', fg: '#475569' };
-  const categoryLabel = t(`public.calendar.category.${ev.category}`, { defaultValue: CATEGORY_LABEL_DEFAULTS[ev.category] || ev.category }) as string;
+  const custom = ev.category_color && /^#[0-9A-Fa-f]{6}$/.test(ev.category_color) ? ev.category_color : null;
+  const tone = custom ? { bg: `${custom}1F`, fg: custom } : (CATEGORY_TONE[ev.category] || { bg: '#F1F5F9', fg: '#475569' });
+  const categoryLabel = ev.category_name
+    || (t(`public.calendar.category.${ev.category}`, { defaultValue: CATEGORY_LABEL_DEFAULTS[ev.category] || ev.category }) as string);
   const isAuthed = !!getAccessToken();
 
   return (

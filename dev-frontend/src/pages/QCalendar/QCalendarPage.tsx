@@ -262,11 +262,13 @@ const QCalendarPage: React.FC<{ scope?: { type: 'project'; businessId: number; p
     // 개인 캘린더는 사적 공간이라 business room 이 아니라 **본인 room** 으로만 온다
     //   (다중 기기 — 데스크탑에서 고치면 모바일도 따라온다).
     const offPersonal = onSocket('personal_calendar:changed', debouncedReload);
+    // 일정 분류 이름·색 바꾸기·삭제(«기타» 로 옮김) — 일정의 category_ref 가 바뀐다(2026-11-27)
+    const offCategory = onSocket('calendar_category:updated', debouncedReload);
     // 연동 상태 변경(`calendar:sync-changed`) 구독은 useCalendarSyncStatus 안에 있다 — 그 훅의 본업이다.
     return () => {
       if (pending) window.clearTimeout(pending);
       leaveRoom(`business:${bizId}`);
-      offCreated(); offUpdated(); offDeleted(); offPersonal();
+      offCreated(); offUpdated(); offDeleted(); offPersonal(); offCategory();
     };
   }, [bizId, fetchRange]);
 

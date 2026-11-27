@@ -107,6 +107,11 @@ async function getContext(p) {
       mail_drafts: scopes.includes('mail_drafts:write'),
     },
     mail_accounts_count: mailCount,
+    // 일정 분류 이름(2026-11-27) — create_event/update_event 의 category 에 넣을 수 있는 값. 일정 권한이 있는 연결만
+    ...(scopes.some((x) => x.startsWith('schedule:')) ? { event_categories: await (async () => {
+      const CC = require('../../calendarCategories');
+      return (await CC.list(p.businessId)).map((r) => CC.displayName(r));
+    })() } : {}),
     // 낡은 연결(2026-10-21) — 연결한 뒤 PlanQ 에 새 기능이 생겼는데 이 연결엔 빠져 있으면 무엇이 생기는지·어떻게 다시 연결하는지.
     //   말하는 빈도(대화당 한 번)는 note 와 MCP instructions 가 정한다 — 서버는 상태만 준다. 앱 안 Cue 는 연결이 아니라 해당 없음.
     ...(p.provider !== 'cue' ? { connection: (() => {

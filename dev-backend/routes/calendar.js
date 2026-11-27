@@ -59,7 +59,7 @@ const { Business } = require('../models');
 const { createEvent } = require('../services/actions/event_actions');
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
-const CATEGORY_SET = new Set(['personal', 'work', 'meeting', 'deadline', 'other']);
+const calCategories = require('../services/calendarCategories');   // 분류 해석·응답 category_ref 는 이 서비스 한 곳
 // google_meet = Google Calendar API 로 자동 발급
 // manual      = 사용자가 직접 회의실 URL 입력
 const PROVIDER_SET = new Set(['google_meet', 'manual']);
@@ -215,6 +215,7 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
     await applyEventDisplayNames(events, businessId);
     await stripClientMaterials(events, req.user.id, req.scope);
     await require('../services/eventTaskLink').attachTaskLinks(events, req.user.id, businessId, req.scope);
+    await calCategories.attachCategory(events);
     return successResponse(res, events);
   } catch (err) { next(err); }
 });
@@ -229,6 +230,7 @@ router.get('/by-business/:businessId', authenticateToken, attachWorkspaceScope()
 // 응답 한 건에 업무 연결을 싣는다(보는 사람 기준) — services/eventTaskLink 한 곳
 async function withTask(json, req) {
   await require('../services/eventTaskLink').attachTaskLinks([json], req.user.id, Number(req.params.businessId), req.scope);
+  await calCategories.attachCategory(json);
   return json;
 }
 
@@ -243,7 +245,7 @@ router.post('/by-business/:businessId', authenticateToken, checkBusinessAccess, 
         businessId,
         title: b.title, description: b.description, location: b.location,
         startAt: b.start_at, endAt: b.end_at, allDay: b.all_day,
-        category: b.category, color: b.color, rrule: b.rrule,
+        category: b.category, categoryId: b.category_id, color: b.color, rrule: b.rrule,
         meetingUrl: b.meeting_url, meetingProvider: b.meeting_provider,
         autoCreateMeeting: b.auto_create_meeting,
         visibility: b.visibility, projectId: b.project_id, taskId: b.task_id,
@@ -342,6 +344,7 @@ router.get('/by-business/:businessId/:id', authenticateToken, attachWorkspaceSco
         }
       } catch { /* 표시용 보조 정보 — 실패해도 상세는 연다 */ }
     }
+    await calCategories.attachCategory(evJson);
     return successResponse(res, evJson);
   } catch (err) { next(err); }
 });
@@ -423,7 +426,7 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
         start_at: newStart,
         end_at: newEnd,
         all_day: body.all_day !== undefined ? !!body.all_day : event.all_day,
-        category: body.category && CATEGORY_SET.has(body.category) ? body.category : event.category,
+        ...((await calCategories.resolveInput(event.business_id, body, { current: event }).catch(() => null)) || { category: event.category, category_id: event.category_id }),
         color: body.color && HEX_RE.test(body.color) ? body.color : event.color,
         rrule: null,  // child = single exception. rrule 없음
         meeting_url: event.meeting_url,
@@ -486,7 +489,7 @@ async function handleRecurrenceScopeUpdate({ req, res, event, scope, businessId 
       start_at: newStart,
       end_at: newEnd,
       all_day: body.all_day !== undefined ? !!body.all_day : event.all_day,
-      category: body.category && CATEGORY_SET.has(body.category) ? body.category : event.category,
+      ...((await calCategories.resolveInput(event.business_id, body, { current: event }).catch(() => null)) || { category: event.category, category_id: event.category_id }),
       color: body.color && HEX_RE.test(body.color) ? body.color : event.color,
       rrule: newMasterRule,
       meeting_url: event.meeting_url,
@@ -630,9 +633,11 @@ router.put('/by-business/:businessId/:id', authenticateToken, checkBusinessAcces
       updates.start_at = norm.start_at;
       updates.end_at = norm.end_at;
     }
-    if (category !== undefined) {
-      if (!CATEGORY_SET.has(category)) { await t.rollback(); return errorResponse(res, 'invalid category', 400); }
-      updates.category = category;
+    if (category !== undefined || req.body.category_id !== undefined) {
+      try { Object.assign(updates, (await calCategories.resolveInput(businessId, req.body, { current: event })) || {}); } catch (e) {
+        await t.rollback(); if (!(e instanceof calCategories.CalendarCategoryError)) throw e;
+        return errorResponse(res, e.code === 'category_inactive' ? e.code : 'invalid category', 400);
+      }
     }
     if (color !== undefined) updates.color = (color && HEX_RE.test(color)) ? color : null;
     if (rrule !== undefined) updates.rrule = rrule?.trim() || null;
@@ -1147,7 +1152,7 @@ router.post('/by-business/:businessId/:id/meeting', authenticateToken, checkBusi
     const r = await addMeeting({ kind: 'user', userId: req.user.id, platformRole: req.user.platform_role, req },
       { businessId: Number(req.params.businessId), eventId: req.params.id });
     if (!r.ok) return errorResponse(res, r.code, r.http || 400, r.code);
-    return successResponse(res, r.data.full.toJSON());
+    return successResponse(res, await calCategories.attachCategory(r.data.full.toJSON()));
   } catch (err) { next(err); }
 });
 
@@ -1220,7 +1225,7 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       //   (attributes 로 좁힌 컬럼은 undefined 로 온다 — 오류 없이 전부 404).
       //   판정 함수가 보는 필드는 반드시 실어야 한다. memory feedback_column_reference_must_exist
       attributes: ['id', 'title', 'description', 'location', 'start_at', 'end_at',
-        'all_day', 'category', 'meeting_url', 'shared_at', 'share_expires_at', 'share_token',
+        'all_day', 'category', 'category_id', 'meeting_url', 'shared_at', 'share_expires_at', 'share_token',
         'share_password_hash', 'business_id', 'project_id', 'vlevel', 'visibility'],
     });
     if (!ev) return errorResponse(res, 'not_found', 404);
@@ -1247,7 +1252,8 @@ router.get('/public/by-token/:token', async (req, res, next) => {
       start_at: ev.start_at,
       end_at: ev.end_at,
       all_day: ev.all_day,
-      category: ev.category,
+      // 분류는 code·표시명·색 세 칸만 — id·목록은 공개 링크로 내보내지 않는다(설계 §6)
+      ...(await calCategories.readRef(ev.business_id, ev).then((c) => ({ category: ev.category, category_name: c?.name || null, category_color: c?.color || null }))),
       meeting_url: ev.meeting_url,
       creator: creator ? { id: creator.id, name: creator.name } : null,
       project: ev.Project ? { id: ev.Project.id, name: ev.Project.name } : null,

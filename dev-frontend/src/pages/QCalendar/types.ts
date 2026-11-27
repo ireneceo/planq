@@ -39,7 +39,11 @@ export interface CalendarEvent {
   start_at: string; // ISO
   end_at: string;   // ISO
   all_day: boolean;
+  /** 거울 — 시스템 분류면 그 code, 커스텀이면 'other'. 정본은 category_id/category_ref (2026-11-27) */
   category: EventCategory;
+  category_id?: number | null;
+  /** 서버가 붙이는 분류(이름·색) — 라벨은 calendarCategories.categoryLabel */
+  category_ref?: { id: number; code: string | null; name: string | null; color: string | null; is_active: boolean } | null;
   color: string | null;
   rrule: string | null;
   meeting_url: string | null;

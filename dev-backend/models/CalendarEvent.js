@@ -19,6 +19,10 @@ CalendarEvent.init({
     allowNull: false,
     defaultValue: 'work',
   },
+  // 일정 분류(2026-11-27, docs/CALENDAR_CATEGORIES_DESIGN.md) — 정본. NULL 이면 같은 business 의 code = category 행으로 읽는다.
+  //   위 category 는 거울(시스템 = 그 code, 커스텀 = 'other'). 쓰기는 services/calendarCategories.resolveInput 을 거친다.
+  //   운영 스키마: scripts/migrate-calendar-categories.js (코드 배포 전).
+  category_id: { type: DataTypes.INTEGER, allowNull: true, references: { model: 'calendar_categories', key: 'id' } },
   // hex #RRGGBB — null 이면 프로젝트 색 상속 또는 카테고리 팔레트
   color: { type: DataTypes.STRING(20), allowNull: true },
   // RFC5545 RRULE (Phase C)
@@ -123,6 +127,7 @@ CalendarEvent.init({
     { fields: ['business_id', 'vlevel'], name: 'calendar_events_biz_vlevel' },
     { fields: ['business_id', 'booking_status'], name: 'calendar_events_biz_booking' },
     { fields: ['business_id', 'task_id'], name: 'calendar_events_biz_task' },
+    { fields: ['business_id', 'category_id'], name: 'calendar_events_biz_category' },
   ],
 });
 

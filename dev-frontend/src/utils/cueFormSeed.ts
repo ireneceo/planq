@@ -76,7 +76,9 @@ export function eventParamsToSeed(params: P, tz: string, linkedTaskTitle?: strin
   const allDay = params.all_day === true;
   const start = cueWhenToWall(str(params.start_at), tz);
   const end = cueWhenToWall(str(params.end_at), tz);
-  const cat = str(params.category) as EventCategory | undefined;
+  // 분류는 워크스페이스가 정한 이름일 수 있다(2026-11-27) — 시스템 code 면 code, 아니면 이름으로 넘겨 폼이 찾는다
+  const catRaw = str(params.category);
+  const cat = catRaw as EventCategory | undefined;
   const taskId = num(params.task_id);
   const rem = num(params.reminder_minutes);
   return {
@@ -92,6 +94,7 @@ export function eventParamsToSeed(params: P, tz: string, linkedTaskTitle?: strin
       attendeeClientIds: nums(params.attendee_client_ids),
       // Cue 는 칸을 비우면 «업무»(work)로 만든다 — 폼 기본(meeting)으로 바뀌면 카드와 다른 일정이 된다
       category: cat && CATEGORIES.includes(cat) ? cat : 'work',
+      ...(catRaw && !CATEGORIES.includes(cat as EventCategory) ? { categoryName: catRaw } : {}),
       team: params.visibility === 'team',
       reminderMinutes: rem == null ? undefined : rem,
       createMeeting: params.create_meeting === true,

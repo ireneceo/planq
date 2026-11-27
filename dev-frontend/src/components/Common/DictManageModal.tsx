@@ -5,7 +5,7 @@
 //   (CLAUDE.md «껍데기는 빼서 같이 쓴다»). 무엇을 부르고 무엇이라 적는지는 호출측 어댑터가 정한다.
 //
 //   ★ 삭제는 결과를 숫자로 알린 뒤 한다(호출측 deleteConfirm 문구). window.confirm 금지 · 모달 위 모달 금지 → 인라인 행.
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import StandardModal from './StandardModal';
@@ -50,11 +50,19 @@ interface Props<E extends DictEntry> {
   /** 순서 저장(보일 순서의 id 목록) — 있을 때만 행에 위/아래 버튼이 생긴다(업무 태그 · 2026-11-06). 역할 사전은 넘기지 않는다. */
   reorder?: (ids: number[]) => Promise<DictResult>;
   reorderFailed?: string;
+  /** 선택(2026-11-27 일정 분류) — 이 항목을 지울 수 있나(기본 canManage). 시스템 항목처럼 지울 수 없으면 삭제 버튼이 없다 */
+  canRemove?: (entry: E) => boolean;
+  /** 선택 — 이름 앞(색 점 등)·이름 뒤(켜기/끄기 등)·행 아래(색 고르기 등)에 호출측이 그린다 */
+  renderLead?: (entry: E) => React.ReactNode;
+  renderExtra?: (entry: E) => React.ReactNode;
+  renderBelow?: (entry: E) => React.ReactNode;
+  /** 선택 — 빈 이름 저장 허용(기본 이름으로 돌아가는 항목). 기본은 빈 이름 = 취소 */
+  allowEmptyRename?: (entry: E) => boolean;
 }
 
 function DictManageModal<E extends DictEntry>({
   open, onClose, dict, adapter, texts, canCreate = true, canManage = true, maxLength = 30, onChanged, testId,
-  reorder, reorderFailed,
+  reorder, reorderFailed, canRemove, renderLead, renderExtra, renderBelow, allowEmptyRename,
 }: Props<E>) {
   const { t } = useTranslation('common');
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -96,7 +104,7 @@ function DictManageModal<E extends DictEntry>({
 
   const rename = async (entry: E) => {
     const name = draft.trim();
-    if (!name || name === entry.name) { setEditingId(null); return; }
+    if ((!name && !allowEmptyRename?.(entry)) || name === entry.name) { setEditingId(null); return; }
     setBusyId(entry.id); setErr(null);
     try {
       const r = await adapter.rename(entry, name);
@@ -175,20 +183,25 @@ function DictManageModal<E extends DictEntry>({
                           data-testid={testId ? `${testId}-down` : undefined}>▼</MoveBtn>
                       </MoveCol>
                     )}
+                    {renderLead?.(entry)}
                     <NameText>{entry.name}</NameText>
                     <Usage>{texts.usage(entry)}</Usage>
                     {canManage && (
                       <>
+                        {renderExtra?.(entry)}
                         <SmallBtn type="button" onClick={() => { setEditingId(entry.id); setDraft(entry.name); setConfirmId(null); setErr(null); }}>
                           {t('dict.rename', '이름 변경')}
                         </SmallBtn>
-                        <SmallBtn type="button" $tone="danger" onClick={() => { setConfirmId(entry.id); setEditingId(null); setErr(null); }}>
-                          {t('dict.delete', '삭제')}
-                        </SmallBtn>
+                        {(canRemove ? canRemove(entry) : true) && (
+                          <SmallBtn type="button" $tone="danger" onClick={() => { setConfirmId(entry.id); setEditingId(null); setErr(null); }}>
+                            {t('dict.delete', '삭제')}
+                          </SmallBtn>
+                        )}
                       </>
                     )}
                   </Row>
                 )}
+                {renderBelow?.(entry)}
               </Item>
             ))}
           </List>
@@ -205,9 +218,14 @@ const List = styled.div`display: flex; flex-direction: column; gap: 6px;`;
 const Item = styled.div`
   padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 8px; background: #fff;
 `;
-const Row = styled.div`display: flex; align-items: center; gap: 8px; min-width: 0;`;
+// 폰에서 버튼이 많으면(일정 분류: 순서·색·사용·이름 변경·삭제) 줄이 창 밖으로 나갔다 — 넘칠 때만 다음 줄로 감긴다(2026-11-27)
+const Row = styled.div`
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  @media (max-width: 640px) { flex-wrap: wrap; row-gap: 6px; }
+`;
 const NameText = styled.span`
-  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1; min-width: 0;
+  @media (max-width: 640px) { min-width: 72px; } overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: 0.8125rem; font-weight: 700; color: #0F172A;
 `;
 const MoveCol = styled.span`flex-shrink: 0; display: inline-flex; gap: 2px;`;

@@ -22,12 +22,13 @@ const hexToPastel = (hex: string): { bg: string; fg: string; border: string } =>
   };
 };
 
-// 우선순위: event.color(커스텀) > project.color > category 팔레트
+// 우선순위: event.color(커스텀) > project.color > 분류 색(워크스페이스가 정한 색) > 기본 분류 팔레트
+//   분류 목록은 서버가 정본이다(calendarCategories.ts) — 화면에 분류 목록을 적지 않는다(2026-11-27).
 export const getEventColors = (event: CalendarEvent) => {
   if (event.color && /^#[0-9A-Fa-f]{6}$/.test(event.color)) return hexToPastel(event.color);
   if (event.Project?.color && /^#[0-9A-Fa-f]{6}$/.test(event.Project.color)) return hexToPastel(event.Project.color);
-  return CATEGORY_PALETTE[event.category] || CATEGORY_PALETTE.other;
+  const ref = event.category_ref;
+  if (ref?.color && /^#[0-9A-Fa-f]{6}$/.test(ref.color)) return hexToPastel(ref.color);
+  const code = (ref?.code || event.category) as EventCategory;
+  return CATEGORY_PALETTE[code] || CATEGORY_PALETTE.other;
 };
-
-// 카테고리 버튼 팔레트 (form 분류 선택)
-export const CATEGORY_OPTIONS: EventCategory[] = ['meeting', 'work', 'deadline', 'personal', 'other'];

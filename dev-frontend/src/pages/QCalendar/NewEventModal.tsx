@@ -3,7 +3,7 @@ import { wallStringsToIso } from './calTz';
 import { allDayIsoRange } from '../../utils/allDayDate';
 import TzLines from './TzLines';
 import TaskLinkPicker from '../../components/Common/TaskLinkPicker';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useDraftKey, useDraftText } from '../../hooks/useDraftText';
 import DraftRestoredNote, { combineDrafts } from '../../components/Common/DraftRestoredNote';
 // 연결 입력 문구는 한 곳에서 온다 (화면마다 적으면 갈라진다)
@@ -13,7 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { clientOptionLabel } from '../../utils/clientLabel';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
 import type { CalendarEvent, EventCategory, EventVisibility } from './types';
-import { CATEGORY_OPTIONS } from './categoryColors';
+import CategoryPicker from './CategoryPicker';
 import { toDateKey } from './dateUtils';
 import { reminderOptions, REMINDER_NONE } from './reminderOptions';
 import PlanQSelect from '../../components/Common/PlanQSelect';
@@ -60,6 +60,8 @@ export interface EventFormSeed {
   attendeeUserIds?: number[];
   attendeeClientIds?: number[];
   category?: EventCategory;
+  /** Cue 가 고른 워크스페이스 분류 이름(시스템 code 가 아닐 때) — 폼이 이름으로 찾는다 */
+  categoryName?: string;
   /** Cue create_event 의 visibility — private = 나만(L1) · team = 워크스페이스(L3) */
   team?: boolean;
   reminderMinutes?: number;
@@ -123,6 +125,11 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
 
   const [allDay, setAllDay] = useState(initialAllDay === true);
   const [category, setCategory] = useState<EventCategory>(seed?.category || 'meeting');
+  // 분류 정본 = id(워크스페이스가 정한 분류). 처음엔 code(시드)로 CategoryPicker 가 찾아 채운다
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const pickCategory = useCallback((c: { id: number; code: string | null }) => {
+    setCategoryId(c.id); setCategory((c.code || 'other') as EventCategory);
+  }, []);
   // ★ 알림 기본값 **1일 전**. 여태 만들면서 정할 수가 없어(이 모달에 항목 자체가 없었다)
   //   운영 일정 20건 중 3건만 켜져 있었고 **알림이 한 번도 안 나갔다**(Fable 실측 2026-09-05).
   //   종일 일정은 분 단위가 의미 없어 옵션 세트를 바꾼다(크론이 종일은 09:00 을 기준으로 잡는다).
@@ -382,6 +389,7 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
       end_at: eISO,
       all_day: allDay,
       category,
+      ...(categoryId ? { category_id: categoryId } : {}),
       reminder_minutes: reminderMinutes === REMINDER_NONE ? null : reminderMinutes,
       visibility,  // backend hook 가 vlevel 우선 처리하므로 backward-compat
       project_id: finalProjectId,
@@ -464,13 +472,8 @@ const NewEventModal: React.FC<Props> = ({ initialStart, initialTitle, initialDes
 
           <Field>
             <Label>{t('form.category')}</Label>
-            <CategoryRow>
-              {CATEGORY_OPTIONS.map((c) => (
-                <CategoryBtn key={c} type="button" $active={category === c} onClick={() => setCategory(c)}>
-                  {t(`category.${c}`)}
-                </CategoryBtn>
-              ))}
-            </CategoryRow>
+            <CategoryPicker businessId={businessId} value={categoryId} fallbackCode={category}
+              fallbackName={seed?.categoryName} autoResolve onChange={pickCategory} />
           </Field>
 
           <Field>
@@ -718,15 +721,6 @@ const Dash = styled.span` color: #94A3B8; font-size: 0.8125rem; `;
 
 const Grid2 = styled.div` display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; `;
 const Row = styled.div` display: flex; gap: 16px; `;
-const CategoryRow = styled.div` display: flex; flex-wrap: wrap; gap: 6px; `;
-const CategoryBtn = styled.button<{ $active: boolean }>`
-  padding: 6px 12px; border-radius: 999px;
-  font-size: 0.75rem; font-weight: 500;
-  background: ${({ $active }) => $active ? '#14B8A6' : '#F1F5F9'};
-  color: ${({ $active }) => $active ? '#fff' : '#475569'};
-  border: none; cursor: pointer;
-  &:hover { background: ${({ $active }) => $active ? '#0D9488' : '#E2E8F0'}; }
-`;
 const Textarea = styled.textarea`
   padding: 9px 11px; border: 1px solid #CBD5E1; border-radius: 8px;
   font-size: 0.8125rem; color: #0F172A; outline: none; resize: vertical;

@@ -274,14 +274,18 @@ async function exportConversations(ctx) {
 }
 
 async function exportCalendar(ctx) {
-  const t = ctx.table('calendar/events', ['id', 'title', 'start_at', 'end_at', 'all_day', 'location', 'category', 'project_id', 'meeting_url',
+  const t = ctx.table('calendar/events', ['id', 'title', 'start_at', 'end_at', 'all_day', 'location', 'category', 'category_name', 'project_id', 'meeting_url',
     'visibility', 'booking_status', 'rrule', 'description', 'created_by', 'created_at']);
+  // 분류 표시명(2026-11-27) — 워크스페이스가 정한 이름 · 시스템은 기본 라벨. category 칸(code)은 그대로
+  const CC = require('./calendarCategories');
+  const cats = await CC.list(ctx.businessId, { includeInactive: true });
+  const catName = (r) => CC.displayName(cats.find((c) => c.id === r.category_id) || cats.find((c) => c.code === r.category));
   for await (const rows of chunks(m.CalendarEvent, { business_id: ctx.businessId, ...notPrivate },
-    ['id', 'title', 'start_at', 'end_at', 'all_day', 'location', 'category', 'project_id', 'meeting_url', 'vlevel', 'booking_status', 'rrule',
+    ['id', 'title', 'start_at', 'end_at', 'all_day', 'location', 'category', 'category_id', 'project_id', 'meeting_url', 'vlevel', 'booking_status', 'rrule',
       'description', 'created_by', 'createdAt'])) {
     for (const r of rows) {
       await t.write({ id: r.id, title: r.title, start_at: r.start_at, end_at: r.end_at, all_day: r.all_day, location: r.location, category: r.category,
-        project_id: r.project_id, meeting_url: r.meeting_url, visibility: r.vlevel, booking_status: r.booking_status, rrule: r.rrule,
+        category_name: catName(r), project_id: r.project_id, meeting_url: r.meeting_url, visibility: r.vlevel, booking_status: r.booking_status, rrule: r.rrule,
         description: ctx.text(r.description), created_by: ctx.who(r.created_by), created_at: ts(r, 'created_at') });
     }
   }

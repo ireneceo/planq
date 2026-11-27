@@ -413,5 +413,40 @@
     "sourceGoogle": "Google · {{name}}",
     "googleAccounts": "{{count}} accounts",
     "googleGroup": "Google calendars"
+  },
+  "categories": {
+    "add": "Category",
+    "manage": "Manage categories",
+    "manageShort": "Manage",
+    "manageTitle": "Event categories",
+    "newPh": "New category name",
+    "create": "Create",
+    "creating": "Creating…",
+    "cancel": "Cancel",
+    "color": "Color",
+    "colorReset": "Default color",
+    "on": "On",
+    "off": "Off",
+    "system": "Default",
+    "usage": "{{count}} events",
+    "empty": "No categories",
+    "otherLocked": "“Other” can't be turned off — events from deleted categories move there",
+    "deleteConfirm": "Delete “{{name}}”? {{count}} events in this category will move to “Other”. This can't be undone.",
+    "deleteConfirmEmpty": "Delete “{{name}}”? This can't be undone.",
+    "err": {
+      "generic": "Couldn't save. Please try again.",
+      "name_taken": "A category with this name already exists",
+      "name_required": "Enter a name",
+      "name_too_long": "Names can be up to 30 characters",
+      "limit_reached": "You can create up to 30 categories",
+      "other_locked": "“Other” can't be turned off",
+      "system_category": "Default categories can't be deleted — you can turn them off",
+      "invalid_color": "Pick a color again",
+      "not_found": "Category not found — someone may have deleted it",
+      "forbidden": "You don't have permission",
+      "Admin permission required": "Only the owner or admins can change this",
+      "reorder": "Couldn't change the order",
+      "delete": "Couldn't delete"
+    }
   }
 }

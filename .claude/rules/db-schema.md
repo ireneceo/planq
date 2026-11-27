@@ -112,3 +112,6 @@ paths:
 > `businesses.public_page_status` ENUM(off,pending,public,blocked) NOT NULL DEFAULT 'off' · `public_category`·`public_region` VARCHAR(32) · `public_published_at` · `public_block_reason` + 색인 · `platform_settings.public_pages_enabled`(전체 끄기, 기본 1) · `contact_inquiries.kind` 끝에 'report'(운영 `migrate-public-page.js`). 둘 다 배포 슬롯 등록(코드보다 먼저). 설계 docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md.
 
 > **2026-11-26 — 접수 양식 → 사건** — `intake_cases` 표(설문 응답 1줄 → 프로젝트·업무 · `q_record_row_id` UNIQUE = 멱등 키 · status running/done/error · step claimed/project_done/tasks_done · client_choice linked/created/recipient/none · 응답 행이 지워져도 남음(외래키 없음)). 운영 `dev-backend/scripts/migrate-intake-cases.js`(배포 슬롯, PM2 reload 전). 설계 `docs/INTAKE_AUTO_CASE_DESIGN.md` §6 · 판정 `services/intakeCase` 한 곳.
+
+> **2026-11-27 — 일정 분류 커스텀** — `calendar_categories` 표(워크스페이스 공용 · code 시스템 5개 meeting/work/deadline/personal/other만, 커스텀 NULL · name 30자(시스템 NULL = i18n 라벨) · color #RRGGBB(시스템 NULL = 기존 팔레트) · is_active · sort_order · UNIQUE(business_id, code)) ·
+> `calendar_events.category_id` INT NULL FK RESTRICT + 색인(business_id, category_id) — 정본. 옛 `category` ENUM 은 거울(시스템 = code · 커스텀 = 'other')로 남긴다. 운영 `dev-backend/scripts/migrate-calendar-categories.js`(표·칸·씨앗·백필, 멱등, 배포 슬롯 PM2 reload 전). 설계 `docs/CALENDAR_CATEGORIES_DESIGN.md` · 문 `services/calendarCategories` 한 곳.

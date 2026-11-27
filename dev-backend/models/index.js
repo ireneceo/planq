@@ -75,6 +75,7 @@ const ProjectLink = require('./ProjectLink');
 const ProjectProcessColumn = require('./ProjectProcessColumn');
 const ProjectProcessPart = require('./ProjectProcessPart');
 const CalendarEvent = require('./CalendarEvent');
+const CalendarCategory = require('./CalendarCategory');
 const CalendarEventAttendee = require('./CalendarEventAttendee');
 const CalendarEventAttachment = require('./CalendarEventAttachment');
 const InvoiceAttachment = require('./InvoiceAttachment');
@@ -779,6 +780,7 @@ module.exports = {
   ProjectProcessColumn,
   ProjectProcessPart,
   CalendarEvent,
+  CalendarCategory,
   CalendarEventAttendee,
   CalendarEventAttachment,
   InvoiceAttachment,
@@ -935,6 +937,7 @@ Business.hasMany(SignatureRequest, { as: 'signatureRequests', foreignKey: 'busin
 
 // CalendarEvent
 CalendarEvent.belongsTo(Business, { foreignKey: 'business_id' });
+CalendarCategory.belongsTo(Business, { foreignKey: 'business_id' });
 CalendarEvent.belongsTo(Project, { foreignKey: 'project_id' });
 CalendarEvent.belongsTo(User, { as: 'creator', foreignKey: 'created_by' });
 Business.hasMany(CalendarEvent, { as: 'calendarEvents', foreignKey: 'business_id' });

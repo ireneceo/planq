@@ -28,12 +28,30 @@ const eventItem = (e, withDesc = false, tz = null) => ({
   // 종일은 날짜로도 준다 — start_at(UTC 자정)을 모델이 사용자 시간대로 바꾸면 «전날» 이라고 말한다(utils/allDayDate)
   ...(e.all_day ? (() => { const d = allDayDates(e); return { date: d.date, end_date: d.last_date }; })() : {}),
   location: e.location || null,
+  ...(e._category_name !== undefined ? { category: e._category_name } : {}),
   project: e.Project ? { project_id: e.Project.id, name: e.Project.name } : null,
   meeting_url: e.meeting_url || null,
   recurring: !!e.rrule,
   ...(withDesc ? { description: e.description ? String(e.description).slice(0, DESC_MAX) : null, truncated_fields: e.description && String(e.description).length > DESC_MAX ? ['description'] : [] } : {}),
   url: `${cfg.APP_URL}/calendar?event=${e.id}`,
 });
+
+// 분류(2026-11-27, docs/CALENDAR_CATEGORIES_DESIGN.md §7) — 시스템 code · 정한 이름 · 기본 ko/en 라벨(대소문자 무시)만 받는다.
+//   모르는 이름·꺼진 분류는 거절 + 쓸 수 있는 이름. 조용히 «기타» 로 넣지 않는다. 분류를 만들거나 지우는 도구는 없다.
+async function agentCategory(p, text) {
+  const CC = require('../../calendarCategories');
+  const row = await CC.resolveByName(p.businessId, text);
+  if (row) return row;
+  const names = (await CC.list(p.businessId)).map((r) => CC.displayName(r));
+  throw err('VALIDATION_ERROR', 'unknown_category', { available_categories: names, hint: 'Use one of available_categories.' });
+}
+/** 응답·미리보기의 분류 = 표시명(이름 바꾸기가 반영된다) */
+async function categoryNames(p, rows) {
+  const CC = require('../../calendarCategories');
+  await CC.attachCategory(rows);
+  for (const r of rows) r._category_name = r.category_ref ? CC.displayName(r.category_ref) : (r.category || null);
+  return rows;
+}
 
 // ── list_events ────────────────────────────────────────────
 async function listEvents(p, a) {
@@ -88,6 +106,7 @@ async function listEvents(p, a) {
   const isMine = (e) => e.created_by === p.userId || attending.has(e._parent_event_id || e.id) || attending.has(e.id);
   if (a.only_mine) rows = rows.filter(isMine);
   rows.sort((x, y) => new Date(x.start_at) - new Date(y.start_at) || x.id - y.id);
+  await categoryNames(p, rows.slice(0, 100));
   // 날짜 범위가 곧 페이지다(62일 상한) — has_more 는 범위 안에서 100건을 넘을 때만. 다음은 범위를 좁혀 다시 부른다.
   const items = rows.slice(0, 100).map((e) => ({
     ...eventItem(e, !!a.include_description, tz),   // toJSON 한 행 — Project 는 include 그대로 실려 있다
@@ -146,7 +165,7 @@ async function createEvent(p, a, actor) {
     // 기본은 나만 보기 — AI 가 만든 일정을 팀 전체에 바로 뿌리지 않는다. 팀 공개는 사용자가 말했을 때만.
     visibility: a.visibility === 'team' ? 'business' : 'personal',
     vlevel: a.visibility === 'team' ? 'L3' : 'L1',
-    category: a.category || 'work',
+    ...(a.category ? { categoryId: (await agentCategory(p, a.category)).id } : {}),   // 없으면 행동 계층이 워크스페이스 기본
     // 0 = 알림 없음(null), 생략 = 화면과 같은 기본(하루 전) — event_actions 가 undefined/null 을 구분한다
     ...(a.reminder_minutes !== undefined ? { reminderMinutes: a.reminder_minutes > 0 ? a.reminder_minutes : null } : {}),
     ...(a.task_id ? { taskId: a.task_id } : {}),
@@ -165,7 +184,8 @@ async function createEvent(p, a, actor) {
   const full = await CalendarEvent.findOne({ where: { id: ev.id, business_id: p.businessId }, include: [{ model: Project, attributes: ['id', 'name'], required: false }] });
   // Meet 이 실패해도 일정은 만들어졌다 — 이유를 돌려준다(카드·모델이 «링크는 못 만들었다» 를 말한다)
   // 사용자 시간대 벽시계도 같이(Fable 2026-11-05 — 로컬로 만들고 UTC 만 받으면 모델이 «06:00 으로 만들어졌다» 고 말한다)
-  return { event: eventItem(full, false, await userTz(p)), created: true, ...(r.data?.meetWarning ? { meet_warning: r.data.meetWarning } : {}) };
+  const fullJson = (await categoryNames(p, [full.toJSON()]))[0];
+  return { event: eventItem(fullJson, false, await userTz(p)), created: true, ...(r.data?.meetWarning ? { meet_warning: r.data.meetWarning } : {}) };
 }
 
 // ─────────────────────────────────────────────
@@ -243,7 +263,8 @@ async function previewCreateEvent(p, a) {
   }
   const notifyMembers = who.members.filter((m) => m.user_id !== p.userId);
   return {
-    event: { title: a.title, start_at: a.start_at, end_at: a.end_at, all_day: !!a.all_day, visibility: team ? 'team' : 'private', location: a.location || null },
+    event: { title: a.title, start_at: a.start_at, end_at: a.end_at, all_day: !!a.all_day, visibility: team ? 'team' : 'private', location: a.location || null,
+      ...(a.category ? { category: require('../../calendarCategories').displayName(await agentCategory(p, a.category)) } : {}) },
     attendees: [...who.members.map((m) => m.name), ...who.clients.map((c) => c.name)],
     notified_count: notifyMembers.length + who.clients.filter((c) => c.has_account).length,
     meeting: meet ? { create: true, source: meet.source } : null,
@@ -257,7 +278,7 @@ function eventPatch(a) {
     ...(a.title !== undefined ? { title: a.title } : {}),
     ...(a.description !== undefined ? { description: a.description } : {}),
     ...(a.location !== undefined ? { location: a.location } : {}),
-    ...(a.category !== undefined ? { category: a.category } : {}),
+    ...(a._category_id !== undefined ? { categoryId: a._category_id } : {}),
     ...(a.reminder_minutes !== undefined ? { reminderMinutes: a.reminder_minutes } : {}),
     ...(a.start_at !== undefined ? { startAt: a.start_at } : {}),
     ...(a.end_at !== undefined ? { endAt: a.end_at } : {}),
@@ -276,7 +297,9 @@ async function localizeTimes(p, a, e) {
 async function previewUpdateEvent(p, a0) {
   await assertMenu(p, 'qcalendar', 'write');
   const e = await loadVisibleEvent(p, a0.event_id);
-  const a = await localizeTimes(p, a0, e);
+  const a = { ...(await localizeTimes(p, a0, e)) };
+  let newCat = null;
+  if (a.category !== undefined) { newCat = await agentCategory(p, a.category); a._category_id = newCat.id; }
   const patch = eventPatch(a);
   if (!Object.keys(patch).length) throw err('VALIDATION_ERROR', 'no_fields');
   const timeChange = a.start_at !== undefined || a.end_at !== undefined;
@@ -284,7 +307,8 @@ async function previewUpdateEvent(p, a0) {
   if (why) throw err(why === 'only_creator_or_owner' ? 'PERMISSION_DENIED' : 'CONFLICT', why);
   const eventNotify = require('../../eventNotify');
   const ids = await eventNotify.recipientIdSet(e, p.userId);
-  const cur = { title: e.title, description: e.description || null, location: e.location || null, category: e.category || null,
+  const CC = require('../../calendarCategories');
+  const cur = { title: e.title, description: e.description || null, location: e.location || null, category: CC.displayName(await CC.readRef(p.businessId, e)) || null,
     reminder_minutes: e.reminder_minutes ?? null, start_at: iso(e.start_at), end_at: iso(e.end_at), meeting_url: e.meeting_url || null };
   const keys = Object.keys(a).filter((k) => k in cur);
   const timeOrPlace = keys.some((k) => ['start_at', 'end_at', 'location'].includes(k));
@@ -308,18 +332,20 @@ async function previewUpdateEvent(p, a0) {
   return {
     event: eventItem(e),
     before: { ...Object.fromEntries(keys.map((k) => [k, cur[k]])), ...(link.before || {}) },
-    after: { ...Object.fromEntries(keys.map((k) => [k, a[k]])), ...(link.after || {}) },
+    after: { ...Object.fromEntries(keys.map((k) => [k, k === 'category' && newCat ? CC.displayName(newCat) : a[k]])), ...(link.after || {}) },
     ...(timeOrPlace ? { notified_count: ids.size } : {}),
   };
 }
 async function updateEventTool(p, a0, actor) {
   await assertMenu(p, 'qcalendar', 'write');
   const e = await loadVisibleEvent(p, a0.event_id);
-  const a = await localizeTimes(p, a0, e);
+  const a = { ...(await localizeTimes(p, a0, e)) };
+  if (a.category !== undefined) a._category_id = (await agentCategory(p, a.category)).id;
   const eventActions = require('../../actions/event_actions');
   const r = await eventActions.updateEvent(actor, { businessId: p.businessId, eventId: e.id, ...eventPatch(a), via: p.provider === 'cue' ? 'cue' : 'agent' });
   if (!r.ok) throw fromActionFailure(r);
-  return { event: eventItem(r.data.full || r.data.event, false, await userTz(p)), updated: true, attendees_notified: r.data.notified || 0 };
+  const upd = r.data.full || r.data.event;
+  return { event: eventItem((await categoryNames(p, [upd.toJSON ? upd.toJSON() : upd]))[0], false, await userTz(p)), updated: true, attendees_notified: r.data.notified || 0 };
 }
 
 // ── add_meeting_to_event (MEDIUM) ──────────────────────────

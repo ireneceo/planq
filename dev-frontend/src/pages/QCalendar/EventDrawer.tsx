@@ -13,9 +13,11 @@ import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import LocationWithCopy from './LocationWithCopy';
 import { useAuth, apiFetch } from '../../contexts/AuthContext';
-import type { CalendarEvent, EventCategory } from './types';
+import type { CalendarEvent } from './types';
 import VisibilityField, { serializeVisibility, parseVisibility, type VisibilityValue } from '../../components/Common/VisibilityField';
-import { CATEGORY_OPTIONS, getEventColors } from './categoryColors';
+import { getEventColors } from './categoryColors';
+import CategoryPicker from './CategoryPicker';
+import { categoryLabel } from './calendarCategories';
 import { toDateKey, formatTime } from './dateUtils';
 import DetailDrawer from '../../components/Common/DetailDrawer';
 import ShareModal from '../../components/Common/ShareModal';
@@ -366,7 +368,7 @@ const EventDrawer: React.FC<Props> = ({
             )}
             <MetaRow>
               <CategoryPill $bg={c.bg} $fg={c.fg}>
-                {t(`category.${event.category}`)}
+                {categoryLabel(event.category_ref, t, event.category)}
               </CategoryPill>
               {event.Project && (
                 <ProjectChip>
@@ -508,19 +510,10 @@ const EventDrawer: React.FC<Props> = ({
               </Grid2>
             )}
             <MutedSmall>{t('form.category')}</MutedSmall>
-            <CategoryRow>
-              {CATEGORY_OPTIONS.map((cat: EventCategory) => (
-                <CategoryBtn
-                  key={cat}
-                  type="button"
-                  $active={event.category === cat}
-                  disabled={!canEdit}
-                  onClick={() => { if (canEdit && event.category !== cat) updateMaybeScoped({ category: cat }); }}
-                >
-                  {t(`category.${cat}`)}
-                </CategoryBtn>
-              ))}
-            </CategoryRow>
+            <CategoryPicker businessId={event.business_id} size="sm" disabled={!canEdit}
+              value={event.category_ref?.id ?? event.category_id ?? null} fallbackCode={event.category} currentRef={event.category_ref}
+              onChange={(c) => updateMaybeScoped({ category_id: c.id, category: (c.code || 'other') as CalendarEvent['category'],
+                category_ref: { id: c.id, code: c.code, name: c.name, color: c.color, is_active: c.is_active } })} />
           </SectionBody>
         </Section>
 
@@ -1356,15 +1349,6 @@ const Field = styled.div` display: flex; flex-direction: column; gap: 4px; min-w
 const FieldLabel = styled.label`
   font-size: 0.65625rem; font-weight: 500; color: #94A3B8;
   text-transform: uppercase; letter-spacing: 0.3px;
-`;
-const CategoryRow = styled.div` display: flex; flex-wrap: wrap; gap: 5px; `;
-const CategoryBtn = styled.button<{ $active: boolean }>`
-  padding: 5px 10px; border-radius: 999px; font-size: 0.71875rem; font-weight: 500;
-  background: ${({ $active }) => $active ? '#14B8A6' : '#F1F5F9'};
-  color: ${({ $active }) => $active ? '#fff' : '#475569'};
-  border: none; cursor: pointer;
-  &:hover:not(:disabled) { background: ${({ $active }) => $active ? '#0D9488' : '#E2E8F0'}; }
-  &:disabled { cursor: default; opacity: 0.6; }
 `;
 
 // input/textarea

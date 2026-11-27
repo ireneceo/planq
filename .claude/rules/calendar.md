@@ -38,3 +38,11 @@ paths:
 > include 가 늘면(9/17 File·Post JOIN) 같은 이름 컬럼이 생겨 `ambiguous` 500 이 된다. owner/admin 은 다른 분기라
 > 멀쩡해 보여서 멤버 전원이 4일간 캘린더를 못 열었다.
 >
+
+**일정 분류는 워크스페이스가 만든다 (2026-11-27, Irene «일정 등록할 때 분류를 커스텀 … 직접 넣고 삭제 바꾸고 다 되게» · Fable 설계 `docs/CALENDAR_CATEGORIES_DESIGN.md`)** —
+정본 `calendar_events.category_id` → `calendar_categories`. 옛 `category` ENUM 은 거울(시스템 code / 커스텀 'other') — 롤백·옛 번들 호환이라 지우지 않는다.
+- **분류를 해석·검사하는 문은 `services/calendarCategories` 하나** — 화면 POST/PUT·반복 분리·행동 계층(`event_actions`)·예약(`resolveByCode('meeting')`)·AI 도구·내보내기·공개 공유가 같은 함수. `CATEGORY_SET` 같은 고정 목록을 다시 두지 않는다.
+- 응답 일정에는 `category_ref {id,code,name,color,is_active}` 를 `attachCategory` 가 붙인다(business 당 1회 조회, JOIN 안 함). 라벨은 화면 `calendarCategories.categoryLabel`(이름 → 없으면 기본 번역), 색은 `getEventColors`(일정 색 > 프로젝트 색 > 분류 색 > 기본 팔레트).
+- 권한: 추가 = 멤버 누구나 · 이름·색·켜고 끄기·순서·삭제 = 대표/관리자(`canManage`) · 고객 403. 기본 5개는 삭제 불가(끄기만) · «기타» 는 끌 수도 없다. 커스텀 삭제 = 그 일정들을 «기타» 로 옮기고 지운다(한 트랜잭션).
+- 꺼진 분류는 새로 고를 수 없다(400 `category_inactive`) — 지금 값 유지는 통과. AI 도구 `category` = 이름 또는 code(모르는 이름·꺼진 분류는 거절 + `available_categories`), 분류를 만들거나 지우는 도구는 없다.
+- 화면: `QCalendar/CategoryPicker`(새 일정 창·상세 같이 · «＋ 분류» · 대표에게 «관리») + `CategoryManager`(공용 `DictManageModal`). 실시간 `calendar_category:updated`(신호만).

@@ -580,7 +580,8 @@ async function requestForActor(actor, { start, purpose, memo }) {
       start_at: startDate,
       end_at: new Date(startDate.getTime() + cfg.duration * 60000),
       all_day: false,
-      category: 'meeting',
+      // 분류 = 그 워크스페이스의 «미팅» 행 — 꺼져 있어도 미팅(설계 §4)
+      category: 'meeting', category_id: (await require('./calendarCategories').resolveByCode(biz.id, 'meeting'))?.id || null,
       vlevel: 'L1',                 // 참석자만(담당 멤버 + 고객) — 파일 머리말
       created_by: memberId,
       created_via: 'booking',

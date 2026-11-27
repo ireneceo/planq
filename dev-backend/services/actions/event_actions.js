@@ -24,7 +24,7 @@ const gcal = require('../google_calendar');
 const calendarSync = require('../calendarSync');
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
-const CATEGORY_SET = new Set(['personal', 'work', 'meeting', 'deadline', 'other']);
+const calCategories = require('../calendarCategories');   // 일정 분류 해석은 이 서비스 한 곳(2026-11-27)
 const PROVIDER_SET = new Set(['google_meet', 'manual']);
 const VISIBILITY_SET = new Set(['personal', 'business']);
 
@@ -167,6 +167,16 @@ async function createEvent(actor, params = {}) {
     ? await filterWorkspaceMemberIds(businessId, params.targetMemberIds)
     : null;
 
+  // 분류 — category_id(우선) 또는 시스템 code. 둘 다 없으면 워크스페이스 기본(work → 첫 활성)
+  let cat;
+  try {
+    cat = await calCategories.resolveInput(businessId, { category_id: params.categoryId, category: params.category });
+  } catch (e) {
+    if (e instanceof calCategories.CalendarCategoryError) return fail(e.code === 'category_inactive' ? 'category_inactive' : 'invalid category');
+    throw e;
+  }
+  if (!cat) { const d = await calCategories.defaultCategory(businessId); cat = { category_id: d.id, category: d.code || 'other' }; }
+
   const t = await sequelize.transaction();
   let event;
   try {
@@ -180,7 +190,7 @@ async function createEvent(actor, params = {}) {
       start_at: sd,
       end_at: ed,
       all_day: !!params.allDay,
-      category: CATEGORY_SET.has(params.category) ? params.category : 'work',
+      category: cat.category, category_id: cat.category_id,
       color: (params.color && HEX_RE.test(params.color)) ? params.color : null,
       rrule: params.rrule?.trim() || null,
       meeting_url: finalMeetingUrl,
@@ -373,9 +383,15 @@ async function updateEvent(actor, params = {}) {
   }
   if (params.description !== undefined) updates.description = params.description ? String(params.description).trim() || null : null;
   if (params.location !== undefined) updates.location = params.location ? String(params.location).trim() || null : null;
-  if (params.category !== undefined) {
-    if (!CATEGORY_SET.has(params.category)) return fail('invalid category');
-    updates.category = params.category;
+  if (params.category !== undefined || params.categoryId !== undefined) {
+    try {
+      const cat = await calCategories.resolveInput(businessId, { category_id: params.categoryId, category: params.category }, { current: event });
+      if (!cat) return fail('invalid category');
+      Object.assign(updates, cat);
+    } catch (e) {
+      if (e instanceof calCategories.CalendarCategoryError) return fail(e.code === 'category_inactive' ? 'category_inactive' : 'invalid category');
+      throw e;
+    }
   }
   if (params.meetingUrl !== undefined) {
     updates.meeting_url = params.meetingUrl ? String(params.meetingUrl).trim() : null;

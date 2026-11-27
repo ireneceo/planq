@@ -237,7 +237,8 @@ const TOOLS = [
       project_id: z.number().int().positive().optional(),
       visibility: z.enum(['private', 'team']).optional().describe('Default private. "team" only when the user asked to share it with the team (or create_meeting is needed).'),
       // 2026-10-07 (Fable B 판정 3 — LOW, 알림 없는 칸만): 화면 «새 일정» 과 같은 칸을 연다
-      category: z.enum(['meeting', 'work', 'deadline', 'personal', 'other']).optional().describe('Event type (default work)'),
+      // 2026-11-27 — 분류는 워크스페이스가 직접 만든다(docs/CALENDAR_CATEGORIES_DESIGN.md §7): 이름 또는 시스템 code, 모르는 이름은 거절 + available_categories
+      category: z.string().trim().min(1).max(50).optional().describe('Event category name as shown in PlanQ (get_context.event_categories), or meeting/work/deadline/personal/other. Default: the workspace default (Work).'),
       reminder_minutes: z.number().int().min(0).max(10080).optional().describe('Remind this many minutes before start (0 = no reminder). Default: 1 day before, same as the app.'),
       task_id: z.number().int().positive().optional().describe('Link an existing task the user can open (find it with search_tasks)'),
       meeting_url: z.string().url().max(500).refine((u) => u.startsWith('https://'), 'https only').optional().describe('An existing video meeting link (https) to attach. This tool does not create meetings.'),
@@ -261,7 +262,7 @@ const TOOLS = [
       title: z.string().trim().min(1).max(300).optional(),
       description: z.string().max(5000).optional(),
       location: z.string().max(300).optional(),
-      category: z.enum(['meeting', 'work', 'deadline', 'personal', 'other']).optional(),
+      category: z.string().trim().min(1).max(50).optional().describe('Event category name (get_context.event_categories)'),
       reminder_minutes: z.number().int().min(0).max(10080).optional(),
       start_at: z.string().max(40).optional().describe('ISO datetime (for all-day events: YYYY-MM-DD)'),
       end_at: z.string().max(40).optional().describe('ISO datetime (for all-day events: the LAST day YYYY-MM-DD)'),

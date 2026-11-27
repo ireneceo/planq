@@ -422,6 +422,18 @@
       "public_block_reason",
       "attendance_fix_approval"
     ],
+    "calendar_categories": [
+      "id",
+      "business_id",
+      "code",
+      "name",
+      "color",
+      "is_active",
+      "sort_order",
+      "created_by",
+      "created_at",
+      "updated_at"
+    ],
     "calendar_event_attachments": [
       "id",
       "business_id",
@@ -467,6 +479,7 @@
       "end_at",
       "all_day",
       "category",
+      "category_id",
       "color",
       "rrule",
       "meeting_url",
