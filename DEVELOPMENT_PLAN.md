@@ -1,5 +1,7 @@
 # PlanQ - 개발 진행 현황
 
+> **최종 업데이트:** 2026-11-27 ([Opus] Opus 5.5, 방 61d217c5 · 정기 점검 11/28 00:15 개발완료) — 11/27 작업 기록(파일 공개 범위 ≠ 프로젝트 소속 145d2189 Fable 2차 PASS · Q sale 고객 중심 B·C·D 34dac49d·200f760d Fable 설계+완료 PASS · 일정 분류 커스텀 95afb779 Fable 설계+완료 PASS · 서명 완료 문서 파일로 저장 4fcacd7c Fable 2차 PASS · 메일 «고객으로 등록» 523f75fd · Q talk 내 글 오른쪽 c8e97766 · 업무 추가 중요도 bccbd400 · 고객 링크 대화 실시간 a3ec6138 · Q note 참여자 67bbb279 · 폰 상세 위쪽 줄이기 8a28eadd · Cue 업무 담당자 6836453f · AI 문서 링크 6a2ef4cf) · Q위키 3곳 갱신(일정 분류 · 서명본 파일로 저장 · 메일 주소 고객 등록) · 운영 반영: 다음 배포 때
+> ── 이전 ──
 > **최종 업데이트:** 2026-11-26 ([Opus] Opus 5.5, 방 55f436ef · 정기 점검 11/27 00:15 개발완료) — 11/26 작업 기록(접수 양식 → [사건 만들기] f6853543 Fable 설계 CHANGE + 완료 2차 PASS · 워크스페이스 전환 = 그 워크스페이스 마지막 화면 1024980e · 서비스 주소 utils/appUrl 한 곳 16fd944d · 데스크탑 윈도우 서명 단계 eb7c3575 · Q mail 받는 사람·참조 주소 메뉴 a6994ffb · 회사별 맞춤·설치형 검토 d10fed4e) · 밤 검사 prepay 카나리를 체험 여부에 맞춤 · Q위키 «설문 응답으로 사건 만들기» · 운영 반영: 다음 배포 때
 > ── 이전 ──
 > **최종 업데이트:** 2026-11-26 ([Opus] Opus 5.5, 방 6d10982b · 정기 점검 11/26 00:15 개발완료) — 11/25 작업 기록(제한 자료 «잠금 + 열람 요청» 7a2a1ced Fable 3차 PASS · 파일 검색 메일 첨부 분리 27b310c7 Fable PASS · 채팅 고객·멤버 정보 카드 63336613 Fable 2차 PASS · Cue 고객방 «답할지» 판정 54e0178a·7dcd33e3 Fable PASS · 청구서 첨부 5e1c2bf8 Fable 2차 PASS · 데스크탑 앱에서 링크 열기 8c558ed4 Fable PASS · Q talk «+» 업무·일정 797215cd · Drive 이름 28433cba · 파일 «연결된 곳» 9d0f32f8 · 공개 페이지 바로 공개 b70bc371 · 무료 플랜 + 30일 팀 체험 4244e53f) · 밤 검사 하니스 c1c25793·5f558b6f · 운영 반영: 다음 배포 때
@@ -118,6 +120,29 @@
 > 오전([Opus] Opus 5.5, 1M): **운영 배포 6회(v1.61.0 ~ v1.63.5).**
 > 게스트 진입(P0·A·B) · 이미지 보안 2a·2b(0~2단계) · 감사 1~3순위(328→98) · PDF 이미지 · **남의 워크스페이스에 쓰던 권한 결함 3건**.
 > ★ v1.63.3 의 PDF 수정이 이미지 많은 문서를 500 으로 만든 회귀를 **배포 후 운영 실측**으로 잡아 v1.63.4 로 되돌렸다.
+
+---
+
+## ✅ 완료: 2026-11-27 [Opus](+[Fable]) — 파일 공개 범위·프로젝트 소속 · Q sale 고객 중심 B·C·D · 일정 분류 커스텀 · 서명 완료 문서 파일로 저장 외 (기록 61d217c5 · 정기 점검 11/28)
+
+### 완료된 작업
+
+| 작업 | 설명 | 상태 |
+|------|------|:----:|
+| 파일 공개 범위 ≠ 프로젝트 소속 (145d2189) | «특정 멤버»↔«특정 프로젝트» 를 오가도 프로젝트 소속 유지 · 고른 멤버 명단을 서버에 저장(옛: 멤버 전체 공개로 저장) · 라디오만 눌러선 저장 안 함 · Fable 1차 FAIL → 2차 PASS | ✅ 완료 |
+| Q sale 고객 중심 B·C (34dac49d) | 고객 등록·주소 변경 때 그 주소 지난 메일 연결(mailLink.linkPastThreadsForClient) · 등록 고객 새 메일 = 상담 목록 «대응 필요»(services/clientMailState) · 선행 결함 5건 · Fable 설계+완료 PASS | ✅ 완료 |
+| Q sale 고객 중심 D (200f760d) | AI 도구 create_client_inquiry(scope clients:write) · 등록 본체 services/actions/client_actions 한 벌 · Cue 에도 | ✅ 완료 |
+| 일정 분류 커스텀 (95afb779) | calendar_categories 표 + calendar_events.category_id · 추가·이름·색·끄기·순서·삭제 · 운영 migrate-calendar-categories.js(배포 슬롯) · Fable 설계+완료 PASS | ✅ 완료 |
+| 서명 완료 문서 파일로 저장 (4fcacd7c) | 문서 ⋯ «파일로 저장» → 프로젝트 파일(문서 등급 · 일반이면 Drive 백업 · 증명서 장 없음 · files.source_key) · 문서 PDF 내려받기 읽기 권한 구멍 닫음 · Fable 2차 PASS | ✅ 완료 |
+| 메일 «고객으로 등록» (523f75fd) | 미연결 메일 주 버튼 · 등록 고객 배지·목록 태그 | ✅ 완료 |
+| 작은 일 묶음 | Q talk 내 글 오른쪽(c8e97766) · 업무 추가 중요도(bccbd400) · 고객 링크 대화 실시간(a3ec6138) · Q note 참여자 고르기(67bbb279) · 폰 상세 위쪽 줄이기(8a28eadd) · Cue 업무 담당자(6836453f) · AI 문서 링크 보기 화면 url(6a2ef4cf) | ✅ 완료 |
+| Q위키 (정기 점검) | qcalendar create-event «분류» · qdocs signed-copy-pdf «파일로 저장» · qsale «메일 주소를 고객으로 먼저 등록» | ✅ 완료 |
+
+### 수정된 파일
+- `dev-backend/middleware/access_scope.js`·`routes/files.js`·`routes/project_files.js`·`services/gdriveMirror.js`·`dev-frontend/src/pages/QProject/DocsTab.tsx` 외 (145d2189)
+- `dev-backend/services/clientMailState.js`·`services/clientTimeline.js`·`services/emailImapCron.js`·`routes/sale.js`·`routes/clients.js` 외 (34dac49d) · `services/actions/client_actions.js`·`services/agent/registry.js`·`routes/sale_save.js` (200f760d)
+- `dev-backend/models/CalendarCategory.js`·`routes/business_calendar_categories.js`·`services/actions/event_actions.js` 외 (95afb779) · `services/signedPdfSave.js`·`services/postPdf.js`·`models/File.js`·`routes/posts.js` 외 (4fcacd7c)
+- `dev-backend/seed-wiki-content.js` (정기 점검)
 
 ---
 
