@@ -106,3 +106,7 @@ paths:
 >   브라우저는 옛 `.json.gz` 를 받아 **아무 변화가 없다.** 둘을 같이 바꾼다(이것 때문에 "검사기가
 >   빨간불을 못 켠다" 로 잘못 결론 낼 뻔했다 — 적용이 안 됐던 것이다).
 
+> ⑪ **메일 ↔ 고객 연결 판정 (2026-11-27 · Fable 설계 P3·P4)** — 주소 주인은 `mailLink.claimantsOfAddress` 단계(대표·청구 → 담당자 → 별칭, 앞 단계에서 끝)로 모으고
+>   `matchClientByAddresses` 가 **주인이 하나일 때만** 고른다(여럿이면 안 붙임 · 다음 주소로 넘어가지 않음). 중복 판정(`findExistingByContact`)만 `{ambiguous:'first'}`(가장 오래된 고객).
+>   **우리 메일함 주소·별칭은 매칭에서 뺀다**(`ownAddressSet`, 60초 캐시) — 고객 주소가 우리 주소와 같으면 그 메일함 메일이 전부 붙었다.
+>   판정과 쓰기는 갈렸다 — `resolveLink`(쓰기 없음) / `linkThread`(인스턴스에만 쓴다). 미리보기·시험 판정은 `resolveLink`.

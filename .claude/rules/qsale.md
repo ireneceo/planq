@@ -103,3 +103,18 @@ paths:
 **공개 페이지·창구 문의 폼 → «신규 문의» (2026-11-20 · docs/WORKSPACE_PUBLIC_PAGE_DESIGN.md §5 · Irene 결정 ③)** — 원장 `workspace_inquiries`(대화방·고객 행을 자동으로 만들지 않는다).
 접수는 `services/workspaceInquiry.submit` 한 함수(두 문: `/api/guest/:token/inquiries` · `/api/public/workspaces/:slug/inquiries` — IP 리미터 인스턴스 공유). 스팸 기준(§5.2)은 계약 — 바꾸려면 Fable.
 팀 화면은 상담 탭 맨 위 «신규 문의»(`components/QSale/InquirySection`·`InquiryDrawer`, API `routes/sale_inquiries.js`) · 고객 등록 = `save-as-client {from:'inquiry'}`(같은 중복 판정·문의 한도·setStage, 문의 내용이 타임라인 첫 줄) · 확인필요 ⑥ `sale_new_inquiry`(오너·관리자, Q sale 배지 안 — badges 부분집합 그대로) · 실시간 `inquiry:updated` 신호만.
+
+## 고객이 접점이다 — 지난 메일 연결 · 등록 고객의 새 메일 (2026-11-27 · Fable 설계 · docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md)
+
+> Irene: *"고객이 먼저 등록이 되고 고객이 가진 정보에서 온 이메일이나 문의는 상담문의 내용으로 자동으로 가져오게 … 이 이메일로 오는 모든 문의는 이제 고객의 이메일이 되는거지."*
+
+- **고객이 생기거나 주소가 바뀌면 그 주소의 지난 메일을 붙인다** — `mailLink.afterClientAddressesChanged`(→ `linkPastThreadsForClient`) 한 문.
+  부르는 곳: save-as-client(`services/actions/client_actions.saveInquiryClient`) · /invite · /managed · Q sale PATCH · clients PUT · 담당자 추가·변경·청구 담당·명함 · `prospect.afterProspectCreated` · 프로젝트 고객 초대.
+  **새로 고객을 만들거나 주소를 쓰는 문을 더하면 이 한 줄을 같이 단다.** 범위 = 워크스페이스 전체 · from/to/cc · 주소 주인이 이 고객 하나일 때만 · 스팸 제외 · `client_id IS NULL` 만(sticky) ·
+  우리 메일함·멤버·자동 발송 주소 제외 · **붙인 수는 응답에 싣지 않는다**(감사 `client.link_past_mail` 에 thread_ids).
+- **등록 고객의 메일 상태는 `services/clientMailState` 한 벌**(보는 사람 메일함 · 비스팸 · pending = Q mail «답변 필요» 술어 `folderOf`) — 상담 목록 고객 행(대응 필요·제목·미리보기·시각)과 확인필요 ① 이 같이 쓴다.
+  `client_interactions` 로 복사하지 않는다.
+- **단계는 자동으로 바꾸지 않는다** — 단계가 none·won·lost 라도 답할 메일이 있는 동안만 상담 목록에 행(`meta.via_mail`)으로 보인다(단계 필터면 제외). 끄려면 `saleInbox.listConsults` 의 `viaMailIds` 가지 하나.
+- **Q sale 배지에 메일을 더하지 않는다**(Q mail 이 센다) — 확인필요 ① «답 안 한 문의» 는 메일로 답했거나 답할 메일이 있으면 빠진다(좁히기만).
+- 등록 고객의 새 메일은 **공용 메일함일 때만** `last_touch_at` 을 당긴다(개인 메일함 시각이 워크스페이스 전원에게 새지 않게).
+- 운영 옛 데이터: `scripts/backfill-mail-links.js`(미리보기 기본 · `--business=` · 스팸 제외) — `--apply` 는 Irene 지시 뒤 수동(배포 슬롯 아님).

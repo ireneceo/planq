@@ -68,3 +68,7 @@ paths:
 - **날짜·시각 입력은 `services/agent/datetime.parseAgentTime` 한 벌**(2026-11-05, Fable 2차 PASS) — 오프셋 없는 값 = 사용자 시간대(users.timezone → 워크스페이스),
   날짜만 온 끝 값 = 그날 끝까지, 그 밖의 모양(«2026-11-5»·«11/05/2026»·13월)은 거절+예시. `new Date(String(s))` 로 도구 입력을 읽지 않는다(서버 UTC 로 풀려 «오늘 일정» 아침 회의가 빠졌다).
   반복 일정 회차는 화면과 같은 `services/calendarExpand.expandRecurring`. 목록 도구의 `order` 줄 끝에 `//` 주석을 달지 않는다 — 같은 줄의 limit·offset 이 주석에 먹혀 수백 건이 나갔다(Fable 1차 FAIL).
+
+- **Q sale 문의 고객 추가 `create_client_inquiry`(2026-11-27, Irene «Q sales 에 AI로 고객이나 문의 추가» · Fable 설계 D)** — 문의 고객(prospect + inquiry)만 · scope **`clients:write` 신설 → 재연결 필요** ·
+  이메일·메일 출처가 있으면 MEDIUM 확인 2단계(그 주소의 지난 메일이 고객에 붙는다 — 되돌리기 어렵다) · 같은 연락처면 새로 안 만들고 그 고객(`linked_existing`) · 한도 `QUOTA_EXCEEDED` · 자동 발송 주소 거절 · 붙인 메일 수 없음.
+  실행은 화면 save-as-client 와 같은 **`services/actions/client_actions.saveInquiryClient`**. 결과의 상담 기록 키는 `record`(execute 감사 대상 판정이 `data.interaction` 에 먼저 걸린다). 직접 관리·초대·수정·단계 변경 도구는 두지 않는다. 앱 안 Cue 허용목록에 있다.
