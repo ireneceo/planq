@@ -89,6 +89,15 @@ async function createGuestMessage({ guest, content, guestName, files = [], app }
   await require('./convCare').onCustomerMessage(conversation, { io, isClient: true });
 
   // 멤버에게 알림 — 게스트가 글을 썼는데 아무도 모르면 이 기능은 무용지물이다.
+  //   ★ 기다리지 않는다(2026-11-27 «고객 대화 실시간이 안 되고 이상해») — 푸시·메일 준비까지 끝나야 응답이 가서
+  //     고객 화면은 그동안 «보내는 중» 에 멈춰 있었다. 저장·소켓은 위에서 끝났고, 알림 실패는 원래도 삼켰다.
+  void notifyMembers({ guest, content, guestName, files, app });
+
+  return { msg, attachments };
+}
+
+async function notifyMembers({ guest, content, guestName, files, app }) {
+  const { link, conversation, guestUser } = guest;
   try {
     const { notifyMany } = require('../routes/notifications');
     const parts = await ConversationParticipant.findAll({
@@ -116,8 +125,6 @@ async function createGuestMessage({ guest, content, guestName, files = [], app }
       });
     }
   } catch (e) { console.warn('[guest] notify 실패:', e.message); }
-
-  return { msg, attachments };
 }
 
 module.exports = { createGuestMessage, cleanGuestContent, cleanGuestName };

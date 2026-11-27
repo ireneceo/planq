@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { READ_W } from './guestShell';
+import { usePublicRevalidate } from '../../hooks/usePublicRevalidate';
 
 // 탭 본문(GuestTabPane)과 같은 기둥 규칙 — 폰 여백까지 같아야 글의 왼쪽 x 가 탭마다 같다.
 const columnCss = `
@@ -50,6 +51,9 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
   const [msgs, setMsgs] = useState<GuestMsg[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // 보내는 중인 내 글 — 서버 응답을 기다리지 않고 바로 보인다(멤버 채팅의 «보내는 중» 사본과 같은 뜻).
+  //   서버 목록이 그 id 를 실어 오면 빠진다. 실패하면 빼고 입력칸에 되돌린다.
+  const [pending, setPending] = useState<Array<{ key: number; content: string; id?: number }>>([]);
   const [err, setErr] = useState<string | null>(null);
   // 이름 — **고객이 직접 정한다.** 저장은 이 브라우저에만. 서버는 매 전송에 실려 온 값을
   //   그 메시지에 박제할 뿐이라, 나중에 이름을 바꿔도 과거 글은 안 바뀐다.
@@ -100,18 +104,23 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
       if (m.status === 404) { onGone(); return; }
       if (!m.ok) return;                        // 폴링 실패는 조용히 — 다음 주기에 회복된다
       const mj = await m.json();
-      if (mj.success) setMsgs(mj.data || []);
+      if (mj.success) {
+        const list: GuestMsg[] = mj.data || [];
+        setMsgs(list);
+        const got = new Set(list.map((x) => x.id));
+        setPending((cur) => (cur.some((p) => p.id && got.has(p.id)) ? cur.filter((p) => !(p.id && got.has(p.id))) : cur));
+      }
     } catch { /* 위와 같다 */ }
   }, [token, onGone]);
 
-  // 보일 때 1회 + 5초 폴링(보이는 동안만). 소켓은 2단계다(게스트 소켓은 파생 비밀·룸 설계가 따로 필요).
-  useEffect(() => {
-    if (!active) return;
-    void load();
-    const id = setInterval(() => { void load(); }, 5000);
-    return () => clearInterval(id);
-  }, [active, load]);
-  useEffect(() => { if (active) bottomRef.current?.scrollIntoView({ block: 'end' }); }, [msgs.length, active]);
+  // 보일 때 1회 + 3초 폴링 — **창이 보이는 동안만**, 돌아오면(탭 복귀·앱 복귀·창 focus) 즉시 1회.
+  //   ★ 2026-11-27 Irene «고객 대화에서 모두 실시간이 안되고 이상해»: 옛 5초 setInterval 은 숨은 탭에서도 돌았고
+  //     (브라우저가 숨은 탭 타이머를 1분까지 늦춘다) 돌아와도 바로 안 읽어, 다른 창에서 답하고 돌아오면 한참 옛 화면이었다.
+  //     공개 화면 한 벌(usePublicRevalidate)로 — 숨으면 멈추니 같은 링크 한도(토큰당 분 120회)도 덜 먹는다.
+  //   소켓은 2단계다(게스트 소켓은 파생 비밀·룸 설계가 따로 필요).
+  useEffect(() => { if (active) void load(); }, [active, load]);
+  usePublicRevalidate(load, { enabled: active, intervalMs: 3000 });
+  useEffect(() => { if (active) bottomRef.current?.scrollIntoView({ block: 'end' }); }, [msgs.length, pending.length, active]);
 
   const cardKindLabel = (k: string | null) => {
     switch (k) {
@@ -147,6 +156,10 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
     const files = picked;
     if ((!body && !files.length) || sending || !token) return;
     setSending(true); setErr(null);
+    // 글만 보낼 때는 바로 말풍선을 띄우고 칸을 비운다(첨부는 올리기가 끝나야 모양이 정해져 종전대로).
+    const pKey = files.length ? 0 : Date.now();
+    if (pKey) { setPending((cur) => [...cur, { key: pKey, content: body }]); setDraft(''); }
+    const dropPending = () => { if (pKey) { setPending((cur) => cur.filter((p) => p.key !== pKey)); setDraft((d) => d || body); } };
     try {
       let r: Response;
       if (files.length) {
@@ -162,8 +175,9 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
           body: JSON.stringify({ content: body, guest_name: effectiveName || undefined }),
         });
       }
-      if (r.status === 404) { onGone(); return; }
+      if (r.status === 404) { dropPending(); onGone(); return; }
       if (!r.ok) {
+        dropPending();
         const j = await r.json().catch(() => ({} as { message?: string }));
         if ((j as { message?: string })?.message === 'name_reserved') {
           // 우리 쪽 사람으로 보이는 이름은 서버가 거절한다. 그 사실을 숨기지 않는다.
@@ -174,10 +188,15 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
         setErr((files.length ? uploadErr((j as { message?: string })?.message) : t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' })) as string);
         return;
       }
-      setDraft('');
+      if (pKey) {
+        const ok = await r.json().catch(() => null) as { data?: { id?: number } } | null;
+        const id = ok?.data?.id;
+        setPending((cur) => cur.map((p) => (p.key === pKey ? { ...p, id } : p)));
+      } else setDraft('');
       setPicked([]);
       await load();
     } catch {
+      dropPending();
       setErr(t('sendFailed', { defaultValue: '보내지 못했습니다. 잠시 후 다시 시도해 주세요.' }) as string);
     } finally { setSending(false); }
   };
@@ -202,7 +221,7 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
   return (
     <>
       <Body $column={column}>
-        {msgs.length === 0 && <Empty>{t('empty', { defaultValue: '아직 주고받은 메시지가 없습니다.' })}</Empty>}
+        {msgs.length === 0 && pending.length === 0 && <Empty>{t('empty', { defaultValue: '아직 주고받은 메시지가 없습니다.' })}</Empty>}
         {msgs.map((m) => (
           <Row key={m.id} $mine={m.is_mine}>
             <Bubble $mine={m.is_mine}>
@@ -234,6 +253,11 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
                 <MessageAttachments token={token} items={m.attachments} mine={m.is_mine} onNeedLogin={onNeedLogin} />
               )}
             </Bubble>
+          </Row>
+        ))}
+        {pending.map((p) => (
+          <Row key={`p${p.key}`} $mine data-testid="guest-msg-pending">
+            <Bubble $mine $pending><Text>{p.content}</Text></Bubble>
           </Row>
         ))}
         <div ref={bottomRef} />
@@ -290,7 +314,8 @@ export default function GuestChatPanel({ token, canWrite, active = true, onGone,
                 }
               }}
               placeholder={t('placeholder', { defaultValue: '메시지를 입력하세요' }) as string}
-              rows={1} disabled={sending} />
+              // 글만 보낼 때는 말풍선이 먼저 떠 있으니 다음 글을 바로 쓸 수 있게 둔다 — 파일 올리는 동안만 잠근다.
+              rows={1} disabled={sending && picked.length > 0} />
             <SendBtn data-testid="guest-send" type="button" onClick={send} disabled={sending || (!draft.trim() && !picked.length)}>
               {sending && picked.length ? t('att.sending', { defaultValue: '보내는 중…' }) : t('send', { defaultValue: '보내기' })}
             </SendBtn>
@@ -310,8 +335,9 @@ const Body = styled.div<{ $column: boolean }>`
   ${p => (p.$column ? columnCss : '')}
 `;
 const Row = styled.div<{ $mine: boolean }>`display:flex;justify-content:${p => (p.$mine ? 'flex-end' : 'flex-start')};`;
-const Bubble = styled.div<{ $mine: boolean }>`
+const Bubble = styled.div<{ $mine: boolean; $pending?: boolean }>`
   max-width:min(560px,80%);padding:9px 12px;border-radius:14px;
+  opacity:${p => (p.$pending ? 0.6 : 1)};
   background:${p => (p.$mine ? '#14b8a6' : '#fff')};color:${p => (p.$mine ? '#fff' : '#0f172a')};
   border:1px solid ${p => (p.$mine ? '#14b8a6' : '#e2e8f0')};
 `;
