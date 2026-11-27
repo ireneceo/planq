@@ -347,6 +347,8 @@ const SUITES = {
   // 메시지 반응 — 3폭에서 «가만히 있으면 안 보임·겹침 없음·고르는 줄이 글자를 밀지도 덮지도 않음» (2026-09-28)
   chatreaction: () => require('./canary-chat-reaction'),
   chatreply: () => require('./canary-chat-reply'),
+  // 내가 보낸 글은 오른쪽(카톡식) — 4폭 좌표 + 대조군 (2026-11-27)
+  chatmine: () => require('./canary-chat-mine-right'),
   guestupload: () => require('./canary-guest-upload'),
   // Q talk 고객 문의 «응대 상태 · 담당자» — 밴드2 칩·팝오버·«답할 문의» 세그먼트 3폭 (2026-11-12 · docs/QTALK_CARE_DESIGN.md)
   talkcare: () => require('./canary-talk-care'),

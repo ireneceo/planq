@@ -1831,6 +1831,9 @@ const ChatPanel: React.FC<Props> = ({
             && readMarkOf(nextMsg) !== null && readMarkOf(nextMsg) === readMarkOf(m);
           // 사이클 N+16-E — 메시지 액션 권한 + 상태
           const isSender = user && Number(m.sender_id) === Number(user.id);
+          // 내가 보낸 글은 오른쪽(카톡·왓츠앱처럼 — 2026-11-27 Irene «내가 보낸 건 우측으로 … 헷갈리지 않게»).
+          //   게스트 화면(GuestChatPanel is_mine)·로딩 뼈대(SkelMsgBubble $mine)와 같은 규칙. Cue 글은 늘 왼쪽.
+          const isMine = !!isSender && m.sender_role !== 'cue';
           const isDeleted = !!m.is_deleted;
           const isEditing = editingMsgId === m.id;
           const isPinned = !!m.pinned_at;
@@ -1850,6 +1853,8 @@ const ChatPanel: React.FC<Props> = ({
             $selected={selectionMode && isSelected}
             $flashing={isFlash}
             $pinned={isPinned}
+            $mine={isMine}
+            data-mine={isMine ? '1' : '0'}
             onClick={
               selectionMode && !isDeleted
                 ? () => toggleSelected(m.id)
@@ -1869,7 +1874,7 @@ const ChatPanel: React.FC<Props> = ({
                 )}
               </MsgCheckbox>
             )}
-            {continuation ? (
+            {isMine ? null : continuation ? (
               <AvatarSpacer aria-hidden="true" />
             ) : m.sender_role === 'cue' ? (
               // Cue 는 AI — 프로필 popover 없음
@@ -1885,10 +1890,10 @@ const ChatPanel: React.FC<Props> = ({
                 <LetterAvatar name={m.sender_name} size={36} variant="neutral" />
               </AvatarBtn>
             )}
-            <MessageBody>
+            <MessageBody $mine={isMine}>
               {!continuation && (
                 <MessageHeader>
-                  {m.sender_role === 'cue' || m.sender_role === 'guest' ? (
+                  {isMine ? null : m.sender_role === 'cue' || m.sender_role === 'guest' ? (
                     // Cue 는 AI — 정보 popover 없음
                     <SenderName as="span" style={{ cursor: 'default' }}>{m.sender_name}</SenderName>
                   ) : (
@@ -1900,7 +1905,7 @@ const ChatPanel: React.FC<Props> = ({
                       {m.sender_name}
                     </SenderName>
                   )}
-                  {(m.sender_role === 'owner' || m.sender_role === 'member') && (() => {
+                  {!isMine && (m.sender_role === 'owner' || m.sender_role === 'member') && (() => {
                     const st = presence.map.get(Number(m.sender_id))?.state;
                     // 미출근은 점을 찍지 않는다 — 근태를 안 쓰는 워크스페이스에선 모두가 회색 점이 되어 소음이다
                     if (!st || st === 'none' || st === 'untracked') return null;   // «출퇴근 안 함» 도 점 없음
@@ -2177,7 +2182,7 @@ const ChatPanel: React.FC<Props> = ({
                   return (
                     <>
                       {m.announcement && <AnnouncementHead title={m.announcement.title} />}
-                      <MessageText $question={!isClient && !!m.is_question}>{renderTextWithLinks(m.body)}</MessageText>
+                      <MessageText $question={!isClient && !!m.is_question} $mine={isMine} data-testid="chat-msg-bubble">{renderTextWithLinks(m.body)}</MessageText>
                       {translated && <TranslatedText>{renderTextWithLinks(translated)}</TranslatedText>}
                     </>
                   );
@@ -2396,6 +2401,16 @@ const ChatPanel: React.FC<Props> = ({
                   </DraftActions>
                 </CueDraftCard>
               )}
+              {/* #138 — 이모지 리액션 (삭제된 메시지 제외) — 말풍선 바로 아래(내 글이면 오른쪽 끝).
+                  옛 자리(본문 옆 형제)는 말풍선이 좁아지면 글과 떨어져 줄 끝에 홀로 섰다. */}
+              {!isDeleted && user && (
+                <MessageReactions
+                  businessId={Number(businessId)}
+                  messageId={m.id}
+                  reactions={m.reactions}
+                  myUserId={Number(user.id)}
+                />
+              )}
               {/* 사이클 N+15-C — 읽음 표시. 내가 보낸 메시지만, 시스템 메시지/Cue 제외.
                   1:1 (other_count <= 1): «읽음» / «안 읽음».
                   그룹 (other_count >= 2): «N명 읽음» (모두면 «모두 읽음», 분모는 title). «전송됨» 은 읽음 0명인지 모호해서 뺐다.
@@ -2416,19 +2431,10 @@ const ChatPanel: React.FC<Props> = ({
                 </PromoteErrLine>
               )}
             </MessageBody>
-            {/* #138 — 이모지 리액션 (삭제된 메시지 제외) */}
-            {!isDeleted && user && (
-              <MessageReactions
-                businessId={Number(businessId)}
-                messageId={m.id}
-                reactions={m.reactions}
-                myUserId={Number(user.id)}
-              />
-            )}
             {/* 사이클 N+16-E — hover toolbar (Slack 패턴). 데스크탑 hover / 모바일 long-press 패턴은 추후 추가.
                 선택 모드 / 편집 모드 / 삭제된 메시지 / Cue 메시지는 toolbar 숨김. */}
             {!selectionMode && !isEditing && !isDeleted && m.sender_role !== 'cue' && (
-              <MessageToolbar $touchActive={activeToolbarMsgId === m.id || reactionPicker?.msgId === m.id} $pinnedOpen={reactionPicker?.msgId === m.id}>
+              <MessageToolbar $mine={isMine} $touchActive={activeToolbarMsgId === m.id || reactionPicker?.msgId === m.id} $pinnedOpen={reactionPicker?.msgId === m.id}>
                 {user && (
                   <ToolBarBtn type="button"
                     data-testid={`chat-reaction-open-${m.id}`}
@@ -3386,9 +3392,14 @@ const SkelMsgBubble = styled.div<{ $width: string; $mine?: boolean }>`
 
 // Hangouts/Slack 패턴 — 그룹 첫 메시지는 윗 마진 (그룹 간격), 연속(같은 발신자 + 5분 이내) 은
 // 거의 붙어서 나오게 (Irene 명시: 줄간격 좁게). 그룹 시작 12px / 연속 0px.
-const MessageItem = styled.div<{ $continuation?: boolean; $selected?: boolean; $flashing?: boolean; $pinned?: boolean; $clickable?: boolean }>`
+const MessageItem = styled.div<{ $continuation?: boolean; $selected?: boolean; $flashing?: boolean; $pinned?: boolean; $clickable?: boolean; $mine?: boolean }>`
   position: relative;
   display: flex;
+  /* 내 글은 오른쪽 — 선택 체크박스만 왼쪽에 남긴다(order) */
+  ${(p) => p.$mine && `
+    flex-direction: row-reverse;
+    & > .pq-msg-check { order: 99; }
+  `}
   gap: 12px;
   align-items: flex-start;
   /* #209 — 같은 발신자 연속 메시지(이름·시간 헤더 없음)는 한 덩어리로 붙인다.
@@ -3403,12 +3414,12 @@ const MessageItem = styled.div<{ $continuation?: boolean; $selected?: boolean; $
   &:first-child { margin-top: 0; }
   /* 핀 메시지 좌측 액센트 — 미세한 노란 막대 */
   ${(p) => p.$pinned && `
-    box-shadow: inset 3px 0 0 #F59E0B;
+    box-shadow: inset ${p.$mine ? '-3px' : '3px'} 0 0 #F59E0B;
   `}
   /* 선택된 상태 */
   ${(p) => p.$selected && `
     background: rgba(20, 184, 166, 0.08);
-    box-shadow: inset 3px 0 0 #14B8A6;
+    box-shadow: inset ${p.$mine ? '-3px' : '3px'} 0 0 #14B8A6;
   `}
   /* PinnedBar 클릭 시 잠시 강조 */
   ${(p) => p.$flashing && `
@@ -3455,13 +3466,20 @@ const AvatarBtn = styled.button`
   &:focus-visible { outline: 2px solid #14B8A6; outline-offset: 2px; }
 `;
 
-const MessageBody = styled.div`
+const MessageBody = styled.div<{ $mine?: boolean }>`
   flex: 1;
   min-width: 0;
+  /* 내 글 — 머리줄(시간)·답장 인용·말풍선·카드·첨부·반응·읽음이 모두 오른쪽 끝에 선다 */
+  ${(p) => p.$mine && `
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    & > * { max-width: 100%; }
+  `}
 `;
 
 // 사이클 N+16-E — 묶음 선택 체크박스
-const MsgCheckbox = styled.div<{ $checked: boolean; $disabled?: boolean }>`
+const MsgCheckbox = styled.div.attrs({ className: 'pq-msg-check' })<{ $checked: boolean; $disabled?: boolean }>`
   width: 20px;
   height: 20px;
   border-radius: 6px;
@@ -3500,6 +3518,7 @@ const DeletedPlaceholder = styled.div`
 
 // 인라인 편집 폼
 const EditFormWrap = styled.div`
+  align-self: stretch;   /* 내 글(오른쪽 정렬 열)에서도 편집칸은 폭을 다 쓴다 */
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -3549,10 +3568,11 @@ const EditHint = styled.span`
 
 // hover toolbar (Slack 패턴). MessageItem 우측 상단 absolute, hover 시 등장.
 // 터치(hover:none)는 tap-to-reveal — $touchActive(탭된 메시지)일 때만 노출.
-const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })<{ $touchActive?: boolean; $pinnedOpen?: boolean }>`
+const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })<{ $touchActive?: boolean; $pinnedOpen?: boolean; $mine?: boolean }>`
   position: absolute;
   top: 0;
-  right: 8px;
+  /* 내 글은 말풍선이 오른쪽이라 도구줄을 왼쪽에 둔다(글 위를 덮지 않게) */
+  ${(p) => (p.$mine ? 'left: 8px; right: auto;' : 'right: 8px;')}
   transform: translateY(-50%);
   display: flex;
   align-items: center;
@@ -3575,7 +3595,7 @@ const MessageToolbar = styled.div.attrs({ className: 'pq-msg-toolbar' })<{ $touc
     position: absolute;
     top: auto;
     bottom: 2px;
-    right: 4px;
+    ${(p) => (p.$mine ? 'left: 4px; right: auto;' : 'right: 4px;')}
     transform: none;
     margin-top: 0;
     opacity: ${(p) => (p.$touchActive ? 1 : 0)};
@@ -3788,7 +3808,9 @@ const CueBadge = styled.span`
 // 메시지 본문 안 URL 자동링크 — Primary teal, hover 시 진하게. word-break 강제 (긴 URL 줄바꿈)
 // (MsgLink 는 utils/linkify 의 AutoLink 로 이관 — 링크 모양이 채팅·댓글에서 갈리지 않게)
 
-const MessageText = styled.div<{ $question: boolean }>`
+// 말풍선 — 내 글 옅은 민트(#E0F7F4) · 상대 글 옅은 회색(#F1F5F9). 로딩 뼈대(SkelMsgBubble)·게스트 화면과 같은 규칙.
+//   폭은 글 길이만큼(fit-content), 최대 75%(폰 85%) — 좌우가 한눈에 갈린다.
+const MessageText = styled.div<{ $question: boolean; $mine?: boolean }>`
   font-size: 0.875rem;
   color: #1E293B;
   line-height: 1.5;
@@ -3796,10 +3818,16 @@ const MessageText = styled.div<{ $question: boolean }>`
   word-break: break-word;
   /* 공백 없는 긴 문자열(URL 등)도 강제 줄바꿈 → 모바일 가로 스크롤 차단 */
   overflow-wrap: anywhere;
+  width: fit-content;
+  max-width: 75%;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: ${(p) => (p.$mine ? '#E0F7F4' : '#F1F5F9')};
+  @media (max-width: 640px) { max-width: 85%; }
   ${(p) => p.$question && `
     padding: 10px 12px;
     background: #FFF1F2;
-    border-left: 3px solid #F43F5E;
+    ${p.$mine ? 'border-right' : 'border-left'}: 3px solid #F43F5E;
     border-radius: 6px;
   `}
 `;
