@@ -2,6 +2,11 @@
 
 
 
+### 2026-11-27 방 222d8b00 — 파일 공개 범위 ≠ 프로젝트 소속(«특정 멤버»↔«특정 프로젝트» 왕복에 소속 끊김) — 설계 **DESIGN: READY** → 완료 검증 1차 **FAIL** → 2차 **PASS**
+- 설계 A 범위 바꿔도 소속 유지(명시 project_id 만·프로젝트 검증) · B 소속 유지 + «명단이 이긴다» · C 대상 정해졌을 때만 저장 · D 감사 로그 기준 복구(읽기만 기본, --apply 는 L1 만) · 커밋 145d2189b
+- 1차 FAIL: 무인증 프로젝트 게스트 링크(/api/guest/:token/files·preview)가 명단 파일 이름·미리보기를 냈다(소속이 남으면서 새로 열림) → fileNotMemberListedLiteral 한 벌을 게스트 목록·미리보기·고객 목록에 · 2차 독립 재현 대조군 뒤집힘 확인
+- 비차단: ① drag-url 이 권한 없는 사람에게 403 보다 400 먼저 ② 붙이는 쪽 id 경로(brief_service·files_attach·taskAttachmentLink·post_actions·mail 도구) 권한 끝까지 미추적(이번에 넓히지 않음) ③ historyOverrides file 분기 L1 만 구분 ④ 워크스페이스 내보내기에 명단 파일 포함(기존 동작)
+
 ### 2026-11-27 방 e039b01b — Q sale 고객 중심 B·C·D(지난 메일 연결 · 등록 고객 새 메일 · AI 문의 고객 추가) — 설계 **DESIGN-READY** → 완료 검증 1차 **PASS**
 - 설계 docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md · 커밋 34dac49d0 · 200f760da · Fable 실호출 74건(72 통과·2건 비차단)
 - 비차단: ① 전화번호만으로 기존 고객에 붙는 AI 호출(LOW)이 확인 없이 그 고객 주소의 지난 메일을 연결 — 에이전트 경로에서 확인 토큰 없이 온 호출은 지난 메일 연결을 건너뛰게(재현이 NULL 로 남는지로 검증) ② 확인필요 ① 이 빠지면 같은 고객이 ③ «다음 할 일 없음» 으로 내려와 합계는 그대로(종전 메일 문의와 같은 동작) ③ pending 은 보는 권한 축·Q mail 답변 필요는 귀속 축 ④ 수신 크론 resolveLink 는 멤버 계정 주소를 건너뛰지 않음(종전 동작 — 지난 메일 연결만 건너뜀) ⑤ 진짜 OAuth 토큰 경로는 못 잼(바뀐 것은 scope 표뿐)
