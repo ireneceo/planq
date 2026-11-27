@@ -222,6 +222,9 @@ router.put('/:businessId/:id', authenticateToken, checkBusinessAccess, requireMe
     //   그래서 다른 창의 고객 패널·목록이 사업자 정보 수정을 못 따라왔다. 바뀐 것이 없으면 조용히, 바뀌면 방송한다.
     if (Object.keys(patch).length === 0) return successResponse(res, stripClientSecrets(withRelation(client, client.toJSON())));
     await client.update(patch);
+    if ((patch.invite_email !== undefined && patch.invite_email) || (patch.billing_contact_email !== undefined && patch.billing_contact_email)) {
+      await require('../services/mailLink').afterClientAddressesChanged(Number(req.params.businessId), client.id, { actorUserId: req.user.id, req, reason: 'address_changed' });   // 지난 메일 붙이기(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md B)
+    }
     // 이름이 바뀌면 프로젝트 고객 행의 이름도 따라간다(#470 — Q sale PATCH 와 같은 함수)
     if (patch.display_name !== undefined || patch.company_name !== undefined) {
       await require('../services/clientAccess').syncProjectClientNames(client);

@@ -66,9 +66,7 @@ function sourceConflict(resolved, targetId) {
 
 /**
  * 만든(또는 승격한) 고객에 출처를 붙인다. 비어 있는 연결만 채운다(사람이 이미 건 연결을 덮지 않는다).
- *   같은 발신 주소의 미연결 스레드도 붙인다 — 워크스페이스 전체(들어오는 메일 자동 연결 mailLink 와 같은 범위).
- *   ★ 붙인 개수는 응답에 싣지 않는다(남의 개인 메일 계정에 몇 통 있는지가 샌다) — 감사 로그에만.
- * @param opts.email       같은 발신자 스레드를 찾을 주소(기본 = 출처의 첫 발신자)
+ *   같은 주소의 지난 메일은 부르는 문이 mailLink.afterClientAddressesChanged 로 붙인다(이 함수는 출처만).
  * @param opts.inquiryStage 단계가 비었거나 none 이면 inquiry 로(새 문 /managed·/invite). save-as-client 는 자기가 정한다.
  */
 async function attachSourceToClient({ businessId, actorUserId, client, resolved, req, email = null, inquiryStage = false }) {
@@ -90,22 +88,9 @@ async function attachSourceToClient({ businessId, actorUserId, client, resolved,
   } else if (resolved.kind === 'email_thread') {
     const { thread } = resolved;
     if (!thread.client_id) { await thread.update({ client_id: client.id }); threadsLinked += 1; }
-    const addr = email || resolved.senderEmail;
-    if (addr) {
-      const msgs = await EmailMessage.findAll({
-        where: { business_id: businessId, direction: 'inbound', from_email: addr },
-        attributes: ['thread_id'], group: ['thread_id'], limit: 500, raw: true,
-      });
-      const ids = msgs.map((m) => m.thread_id).filter((id) => id !== thread.id);
-      if (ids.length) {
-        const [n] = await EmailThread.update({ client_id: client.id },
-          { where: { id: { [Op.in]: ids }, business_id: businessId, client_id: null } });
-        threadsLinked += n || 0;
-      }
-    }
-    if (req) {
-      try { require('./mailBroadcast').broadcastMail(req, businessId, 'mail:updated', { thread_id: thread.id, client_id: client.id }); } catch { /* 신호일 뿐 */ }
-    }
+    // 같은 주소의 지난 메일은 여기서 붙이지 않는다 — 부르는 문이 mailLink.afterClientAddressesChanged 를 부른다
+    //   (2026-11-27 Fable 설계 B ⑩ · 옛 «같은 발신자 500건» 블록은 스팸을 안 보고 «이 고객 하나만» 검사도 없었다).
+    try { require('./mailLink').emitMailUpdated(req, businessId, { thread_id: thread.id, client_id: client.id }); } catch { /* 신호일 뿐 */ }
   }
 
   if (inquiryStage && (!client.sales_stage || client.sales_stage === 'none')) {

@@ -908,6 +908,23 @@ async function ingestMessage(ctx, { r, uid, box, role = 'inbox', isBackfill }) {
     // 연결은 부가 정보다 — 어떤 실패도 메일 저장을 막으면 안 된다(옛 matchClient 와 같은 원칙).
     console.warn('[emailImapCron] linkThread', e.message);
   }
+  // 등록 고객의 새 메일 → 고객 «마지막 접점» 을 당긴다(상담 목록 정렬 · docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md C-4).
+  //   ★ **공용 메일함만** — last_touch_at 은 워크스페이스 전원이 보는 값이라 개인 메일함 메일 시각이 샌다(주인에게는 상담 목록이 읽을 때 계산한다).
+  //   우리 사본·보낸 메일·스팸·과거분 백필은 건드리지 않는다.
+  if (clientId && !spammy && !isBackfill && !ownCopy && role !== 'sent' && account.owner_user_id == null) {
+    try {
+      const { Client } = require('../models');
+      const c = await Client.findOne({ where: { id: clientId, business_id: account.business_id } });
+      if (c) {
+        const at = parsed.date && new Date(parsed.date) < new Date() ? new Date(parsed.date) : new Date();
+        const beforeTouch = c.last_touch_at ? new Date(c.last_touch_at).getTime() : 0;
+        await require('./saleCommon').touchClient(c, at);
+        if ((c.last_touch_at ? new Date(c.last_touch_at).getTime() : 0) !== beforeTouch) {
+          require('./saleCommon').broadcast(null, account.business_id, 'client:updated', { id: c.id, business_id: account.business_id });
+        }
+      }
+    } catch (e) { console.warn('[emailImapCron] touchClient', e.message); }
+  }
 
   // 이 메일이 **우리 쪽 어느 주소**로 왔는지 스레드에 박아둔다(별칭별 보기의 기반).
   //   이미 값이 있으면 덮지 않는다 — 대화의 최초 착지 주소가 그 대화의 성격이다.

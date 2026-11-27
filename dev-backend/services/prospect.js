@@ -41,6 +41,8 @@ async function afterProspectCreated(client, { reason, sourceRef }) {
     await setStage(client, 'inquiry', { origin: 'auto', reason, sourceRef });
   } catch (e) { console.warn('[prospect] 단계 전이 실패:', e.message); }
   if (global.__planqIo) global.__planqIo.to(`business:${client.business_id}`).emit('client:new', { id: client.id, business_id: client.business_id });
+  // 예약·접수 양식으로 생긴 문의 고객도 그 주소의 지난 메일을 붙인다(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md B)
+  if (client.invite_email) await require('./mailLink').afterClientAddressesChanged(client.business_id, client.id, { reason: 'prospect' });
 }
 
 module.exports = { prospectAllowed, createProspectRow, afterProspectCreated };

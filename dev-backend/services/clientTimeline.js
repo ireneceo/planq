@@ -188,8 +188,11 @@ async function getClientTimeline(businessId, clientId, { userId, limit = 40, bef
     const [convIds, threadIds, projIds, taskIds] = await Promise.all([
       Conversation.findAll({ where: { business_id: businessId, client_id: clientId }, attributes: ['id'] })
         .then((r) => r.map((x) => x.id)),
-      EmailThread.findAll({ where: { business_id: businessId, client_id: clientId }, attributes: ['id'] })
-        .then((r) => r.map((x) => x.id)),
+      // ★ 2026-11-27 P5 — 메일 메모도 **볼 수 있는 메일함·비스팸** 스레드 것만(메일 칸과 같은 축). 남의 개인 메일 메모가 샜다.
+      accessibleAccountIds(businessId, userId).then((acct) => EmailThread.findAll({
+        where: { business_id: businessId, client_id: clientId, status: { [Op.ne]: 'spam' }, account_id: { [Op.in]: acct.length ? acct : [0] } },
+        attributes: ['id'],
+      })).then((r) => r.map((x) => x.id)),
       // ★ project_clients 에는 business_id 가 없다 — client_id 로만 조회하면 **다른 워크스페이스의
       //   프로젝트 메모가 딸려올 수 있다**(멀티테넌트 급소). Project 를 조인해 축을 강제한다.
       ProjectClient.findAll({

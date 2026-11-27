@@ -214,7 +214,7 @@ async function serializeClients(businessId, rows) {
 async function findExistingByContact(businessId, { email, phone }) {
   if (email) {
     const { matchClientByAddresses } = require('../services/mailLink');
-    const id = await matchClientByAddresses(businessId, [email]);
+    const id = await matchClientByAddresses(businessId, [email], { ambiguous: 'first' });   // 주인이 여럿이면 가장 오래된 고객 — null 이면 세 번째 중복이 생긴다
     if (id) return Client.findOne({ where: { id, business_id: businessId } });
     const byUser = await Client.findOne({
       where: { business_id: businessId },

@@ -181,7 +181,10 @@ router.get('/:businessId/clients/:clientId', ...readChain, async (req, res, next
 
     const [conversations, threads, guestLinks] = await Promise.all([
       Conversation.count({ where: { business_id: businessId, client_id: client.id } }),
-      EmailThread.count({ where: { business_id: businessId, client_id: client.id } }),
+      // ★ 2026-11-27 P5 — 볼 수 있는 메일함·비스팸만 센다(남의 개인 메일함 스레드 수가 샜다 · docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md)
+      require('../services/clientTimeline').accessibleAccountIds(businessId, req.user.id).then((acct) => EmailThread.count({
+        where: { business_id: businessId, client_id: client.id, status: { [Op.ne]: 'spam' }, account_id: { [Op.in]: acct.length ? acct : [0] } },
+      })),
       GuestLink.count({ where: { business_id: businessId, client_id: client.id, kind: 'shared', revoked_at: null } }),
     ]);
     out.channels = { conversations, email_threads: threads, guest_links: guestLinks };
@@ -326,6 +329,8 @@ router.patch('/:businessId/clients/:clientId', ...writeChain, async (req, res, n
     if (patch.display_name !== undefined || patch.company_name !== undefined) {
       await require('../services/clientAccess').syncProjectClientNames(client);
     }
+    // 주소가 생기거나 바뀌면 그 주소의 지난 메일을 붙인다(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md B)
+    if (patch.invite_email) await require('../services/mailLink').afterClientAddressesChanged(businessId, client.id, { actorUserId: req.user.id, req, reason: 'address_changed' });
     broadcast(req, businessId, 'client:updated', { id: client.id, business_id: businessId });
     const fresh = await loadClientWithIncludes(businessId, client.id);
     const [out] = await serializeClients(businessId, [fresh]);

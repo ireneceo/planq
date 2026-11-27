@@ -186,6 +186,7 @@ router.post('/:businessId/clients/:clientId/attach-card', ...writeChain, async (
         for (const k of Object.keys(patch)) before[k] = client[k];
         await client.update(patch);
         createAuditLog({ userId: req.user.id, businessId, action: 'client.updated', targetType: 'client', targetId: client.id, oldValue: before, newValue: { ...patch, via: 'name_card' } });
+        if (patch.invite_email || patch.billing_contact_email) await require('../services/mailLink').afterClientAddressesChanged(businessId, client.id, { actorUserId: req.user.id, req, reason: 'name_card' });
       }
       signal(req, businessId, client.id);
       return successResponse(res, { role, filled: Object.keys(patch) });
@@ -195,6 +196,7 @@ router.post('/:businessId/clients/:clientId/attach-card', ...writeChain, async (
       input: contacts.contactInputFromCard(got.values), source: got.source || 'name_card', sourceCardId: got.saved ? got.saved.source_card_id : null,
     });
     createAuditLog({ userId: req.user.id, businessId, action: 'client.contact_created', targetType: 'client', targetId: client.id, newValue: { contact_id: c.id, name: c.name, source: c.source } });
+    if (c.email) await require('../services/mailLink').afterClientAddressesChanged(businessId, client.id, { actorUserId: req.user.id, req, reason: 'contact_added' });
     signal(req, businessId, client.id);
     return successResponse(res, { role, contact: contacts.contactView(c) }, 'created', 201);
   } catch (err) { return fail(res, next, err); }
@@ -214,6 +216,7 @@ router.post('/:businessId/clients/:clientId/contacts', ...writeChain, async (req
     const { businessId, client } = ctx;
     const c = await contacts.createContact({ businessId, clientId: client.id, userId: req.user.id, input: req.body || {}, source: 'manual' });
     createAuditLog({ userId: req.user.id, businessId, action: 'client.contact_created', targetType: 'client', targetId: client.id, newValue: { contact_id: c.id, name: c.name } });
+    if (c.email) await require('../services/mailLink').afterClientAddressesChanged(businessId, client.id, { actorUserId: req.user.id, req, reason: 'contact_added' });
     signal(req, businessId, client.id);
     return successResponse(res, contacts.contactView(c), 'created', 201);
   } catch (err) { return fail(res, next, err); }
@@ -233,6 +236,7 @@ router.patch('/:businessId/clients/:clientId/contacts/:contactId', ...writeChain
         userId: req.user.id, businessId, action: 'client.contact_updated', targetType: 'client', targetId: client.id,
         oldValue: Object.fromEntries(changed.map((k) => [k, before[k]])), newValue: { contact_id: c.id, ...Object.fromEntries(changed.map((k) => [k, after[k]])) },
       });
+      if (changed.includes('email') && after.email) await require('../services/mailLink').afterClientAddressesChanged(businessId, client.id, { actorUserId: req.user.id, req, reason: 'contact_changed' });
       signal(req, businessId, client.id);
     }
     return successResponse(res, after);
@@ -266,6 +270,7 @@ router.post('/:businessId/clients/:clientId/contacts/:contactId/make-billing', .
     const before = { billing_contact_name: client.billing_contact_name, billing_contact_email: client.billing_contact_email, billing_contact_phone: client.billing_contact_phone };
     await client.update(patch);
     createAuditLog({ userId: req.user.id, businessId, action: 'client.updated', targetType: 'client', targetId: client.id, oldValue: before, newValue: { ...patch, via: 'contact', contact_id: c.id } });
+    if (patch.billing_contact_email) await require('../services/mailLink').afterClientAddressesChanged(businessId, client.id, { actorUserId: req.user.id, req, reason: 'billing_contact' });
     signal(req, businessId, client.id);
     return successResponse(res, patch);
   } catch (err) { return fail(res, next, err); }

@@ -109,6 +109,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
         oldValue: before, newValue: { status: 'invited', invite_email: email.trim() },
       });
       await linkSrc.attachSourceToClient({ businessId: Number(businessId), actorUserId: req.user.id, client: target, resolved, req, inquiryStage: true });
+      await require('../services/mailLink').afterClientAddressesChanged(Number(businessId), target.id, { actorUserId: req.user.id, req, reason: 'invite' });   // 지난 메일 붙이기(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md B)
       const inviteEmailSent = await sendClientInviteMail(req, { to: email.trim(), targetName: target.display_name || name.trim(), token, message: (req.body || {}).message });
       await notifyClientInvitee(req, { email: email.trim(), entityId: target.id, token });
       // 문의 → 정식 고객으로 한도 계수가 바뀐다. 사용량 캐시(30초)를 비워야 플랜 화면이 바로 맞는다
@@ -150,6 +151,7 @@ router.post('/:businessId/invite', authenticateToken, checkBusinessAccess, requi
       newValue: { email: email.trim(), name: name.trim(), company_name: company_name || null },
     });
     await linkSrc.attachSourceToClient({ businessId: Number(businessId), actorUserId: req.user.id, client: created, resolved, req, inquiryStage: true });
+    await require('../services/mailLink').afterClientAddressesChanged(Number(businessId), created.id, { actorUserId: req.user.id, req, reason: 'invite' });   // 지난 메일 붙이기(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md B)
 
     // 초대 이메일 발송 (실패해도 초대 레코드는 유지) — 실패를 **응답에 싣는다**(0-F F-1).
     const inviteEmailSent = await sendClientInviteMail(req, { to: email.trim(), targetName: name.trim(), token, message: (req.body || {}).message });
@@ -222,6 +224,7 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
         oldValue: { status: 'prospect' }, newValue: { status: 'managed', filled: Object.keys(fill) },
       });
       await linkSrc.attachSourceToClient({ businessId, actorUserId: req.user.id, client: upgrade, resolved, req, inquiryStage: true });
+      await require('../services/mailLink').afterClientAddressesChanged(businessId, upgrade.id, { actorUserId: req.user.id, req, reason: 'managed' });   // 지난 메일 붙이기(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md B)
       planEngine.invalidateBusinessCache(businessId);
       broadcastClient(req, upgrade, 'client:updated');
       return successResponse(res, { ...stripClientSecrets(upgrade.toJSON()), upgraded: true }, 'Client registered', 200);
@@ -246,6 +249,7 @@ router.post('/:businessId/managed', authenticateToken, checkBusinessAccess, requ
       newValue: { name: seed.display_name, company_name: seed.company_name, email: seed.email },
     });
     await linkSrc.attachSourceToClient({ businessId, actorUserId: req.user.id, client: created, resolved, req, inquiryStage: true });
+    await require('../services/mailLink').afterClientAddressesChanged(businessId, created.id, { actorUserId: req.user.id, req, reason: 'managed' });   // 지난 메일 붙이기(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md B)
     planEngine.invalidateBusinessCache(businessId);
     broadcastClient(req, created, 'client:new');
     return successResponse(res, stripClientSecrets(created.toJSON()), 'Client created', 201);

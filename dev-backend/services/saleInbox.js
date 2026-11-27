@@ -668,18 +668,28 @@ async function listConsults(businessId, opts = {}) {
   // 종료(won/lost)를 포함할지 — 체크를 풀면 끝난 상담까지 보인다
   const CLOSED = ['won', 'lost'];
   const stageSet = stage ? [stage] : (includeClosed ? [...IN_PROGRESS, ...CLOSED] : IN_PROGRESS);
-  const where = { business_id: businessId, sales_stage: { [Op.in]: stageSet }, ...ownerWhere };
+  // ★ 2026-11-27 (Fable 설계 C) — 진행 단계가 아니어도(none·won·lost) **메일로 답할 차례인 고객**은 그 동안만 행으로 넣는다.
+  //   단계는 바꾸지 않는다(자동 전이 없음 — 활성 고객 일상 메일마다 «문의» 가 되면 이력이 쌓이고 되돌릴 수 없다).
+  //   단계로 고른 목록(stage 필터)에는 넣지 않는다. 답하면 자연히 빠진다. 끄려면 이 가지(viaMailIds) 하나만 뺀다.
+  const { pendingMailClientIds, mailStateByClient } = require('./clientMailState');
+  const viaMailIds = stage ? [] : await pendingMailClientIds(businessId, { userId });
+  const stageOr = [{ sales_stage: { [Op.in]: stageSet } }];
+  if (viaMailIds.length) stageOr.push({ id: { [Op.in]: viaMailIds }, status: { [Op.ne]: 'archived' } });
+  // ★ 조건은 전부 Op.and 배열에 — ownerWhere(관리자)도 q 도 Op.or 를 쓰므로 최상위 키로 두면 뒤엣것이 앞엣것을 덮는다
+  //   (옛 코드: 관리자가 검색하면 담당 범위 조건이 사라졌다).
+  const and = [{ [Op.or]: stageOr }, ownerWhere];
+  const where = { business_id: businessId, [Op.and]: and };
   if (access) {
     const { accessWhere } = require('./clientAccess');
     const aw = accessWhere(access);
-    if (aw) where[Op.and] = [...(where[Op.and] || []), aw];
+    if (aw) and.push(aw);
   }
   if (assignee) {
-    where.assigned_member_id = assignee === 'none' ? null : Number(assignee);
+    and.push({ assigned_member_id: assignee === 'none' ? null : Number(assignee) });
   }
   if (q) {
     const like = { [Op.like]: `%${String(q).replace(/[\\%_]/g, (m) => `\\${m}`)}%` };
-    where[Op.or] = [{ display_name: like }, { company_name: like }, { phone: like }, { invite_email: like }];
+    and.push({ [Op.or]: [{ display_name: like }, { company_name: like }, { phone: like }, { invite_email: like }] });
   }
   const rows = await Client.findAll({
     where,
@@ -706,23 +716,40 @@ async function listConsults(businessId, opts = {}) {
     for (const it of its) touched.add(it.client_id);
   }
 
-  const clientItems = rows.map((c) => ({
-    source: 'client',
-    id: `client:${c.id}`,
-    ref: { kind: 'client', id: c.id },
-    client_id: c.id,
-    stage: c.sales_stage,
-    who: c.display_name || c.company_name || c.invite_email || `#${c.id}`,
-    email: c.invite_email || null,
-    phone: c.phone || null,
-    company: c.company_name ? { name: c.company_name, estimated: false } : companyFromEmail(c.invite_email),
-    title: null,
-    preview: null,
-    at: c.last_touch_at || c.created_at,
-    needs_reply: c.sales_stage === 'inquiry' && !touched.has(c.id),
-    meta: { status: c.status, sales_source: c.sales_source, assigned_member_id: c.assigned_member_id },
-    open_path: `/sale/${c.id}`,
-  }));
+  // 그 고객 메일 상태 — 보는 사람이 볼 수 있는 메일함 안에서만(services/clientMailState 한 벌 · 확인필요 영업 버킷과 같은 함수)
+  const mailState = await mailStateByClient(businessId, ids, { userId });
+  const laterOf = (a, b) => {
+    if (!a) return b || null;
+    if (!b) return a;
+    return new Date(b).getTime() > new Date(a).getTime() ? b : a;
+  };
+  const clientItems = rows.map((c) => {
+    const ms = mailState.get(Number(c.id)) || null;
+    const latest = ms && ms.latest;
+    const inProgress = stageSet.includes(c.sales_stage);
+    return {
+      source: 'client',
+      id: `client:${c.id}`,
+      ref: { kind: 'client', id: c.id },
+      client_id: c.id,
+      stage: c.sales_stage,
+      who: c.display_name || c.company_name || c.invite_email || `#${c.id}`,
+      email: c.invite_email || null,
+      phone: c.phone || null,
+      company: c.company_name ? { name: c.company_name, estimated: false } : companyFromEmail(c.invite_email),
+      title: latest ? (latest.subject || null) : null,
+      preview: latest ? (latest.preview || null) : null,
+      at: laterOf(c.last_touch_at || c.created_at, latest && latest.at),
+      // 답할 차례 = 그 고객 메일이 «답변 필요» 이거나, 들어온 문의에 아직 아무것도 안 했다(상담 기록도 메일 답장도 없음)
+      needs_reply: !!(ms && ms.pending) || (c.sales_stage === 'inquiry' && !touched.has(c.id) && !(ms && ms.replied)),
+      meta: {
+        status: c.status, sales_source: c.sales_source, assigned_member_id: c.assigned_member_id,
+        ...(latest ? { mail: { thread_id: latest.thread_id, direction: latest.direction, needs_reply: !!ms.pending, open_path: `/mail?thread=${latest.thread_id}` } } : {}),
+        ...(!inProgress ? { via_mail: true } : {}),
+      },
+      open_path: `/sale/${c.id}`,
+    };
+  });
 
   const filtered = needsReply ? clientItems.filter((x) => x.needs_reply) : clientItems;
   // ★ **등록된 상담이 먼저다.** 시각만으로 섞으면 메일 접점 수백 건 뒤로 밀려 목록에서 사라진다

@@ -79,6 +79,9 @@ async function collectSale(businessId, userId, userRole) {
     const { clientIdsWithBooking } = require('./bookingBucket');
     const pendingBooking = await clientIdsWithBooking(businessId, ids, ['requested']);
     const upcomingBooking = await clientIdsWithBooking(businessId, ids, ['requested', 'proposed', 'confirmed'], { upcomingOnly: true });
+    // 그 고객 메일 상태 — 상담 목록 고객 행과 같은 함수(services/clientMailState · 보는 사람의 메일함 안에서만).
+    //   메일로 이미 답했거나(replied) 답할 메일이 있으면(pending — Q mail 이 센다) ① 로 세지 않는다(좁히기만 · 한 항목 = 한 버킷).
+    const mailState = await require('../clientMailState').mailStateByClient(businessId, ids, { userId });
 
     for (const c of clients) {
       const name = c.display_name || c.company_name || `#${c.id}`;
@@ -86,7 +89,8 @@ async function collectSale(businessId, userId, userRole) {
       const days = Math.floor((now - since.getTime()) / DAY);
       // ① 답 안 한 문의 — 메일에서 온 문의는 Q mail 이 이미 센다(한 항목 = 한 버킷)
       const unanswered = c.sales_stage === 'inquiry' && c.sales_source !== 'email'
-        && !repliedTo.has(c.id) && !hasTask.has(c.id) && !pendingBooking.has(c.id) && days >= 1;
+        && !repliedTo.has(c.id) && !hasTask.has(c.id) && !pendingBooking.has(c.id) && days >= 1
+        && !(mailState.get(Number(c.id))?.replied) && !(mailState.get(Number(c.id))?.pending);
       if (unanswered) {
         out.push({
           id: `sale-${c.id}-first-reply`,

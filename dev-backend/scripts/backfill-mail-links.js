@@ -10,18 +10,25 @@
 //
 //   node scripts/backfill-mail-links.js            # 몇 건이 붙을지만 센다
 //   node scripts/backfill-mail-links.js --apply    # 실제 반영
+//   --business=<id>  한 워크스페이스만
+//
+// ★ 2026-11-27 (Fable 설계 P1·P2 · docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md)
+//   · 미리보기가 linkThread 를 불러 **메일 이슈의 프로젝트를 실제로 옮겼다**(쓰기 없는 판정 resolveLink 로 바꿈).
+//   · 스팸 스레드를 거르지 않아 스팸이 고객 이력에 붙을 수 있었다 → status <> 'spam'.
+//   운영 --apply 는 배포 슬롯에 넣지 않는다 — 미리보기 숫자를 Irene 에게 보이고 지시를 받아 수동.
 require('dotenv').config({ quiet: true });
 const { Op } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { EmailThread, EmailMessage } = require('../models');
-const { linkThread } = require('../services/mailLink');
+const { EmailThread } = require('../models');
+const { linkThread, resolveLink, threadAddresses } = require('../services/mailLink');
 
 const APPLY = process.argv.includes('--apply');
+const BUSINESS = Number((process.argv.find((a) => a.startsWith('--business=')) || '').split('=')[1]) || 0;
 const LIMIT = Number((process.argv.find((a) => a.startsWith('--limit=')) || '').split('=')[1]) || 0;
 
 (async () => {
   console.log(`▶ 메일 연결 백필 ${APPLY ? '(적용)' : '(미리보기 — --apply 로 반영)'}`);
-  const where = { [Op.or]: [{ client_id: null }, { project_id: null }] };
+  const where = { [Op.or]: [{ client_id: null }, { project_id: null }], status: { [Op.ne]: 'spam' }, ...(BUSINESS ? { business_id: BUSINESS } : {}) };
   const total = await EmailThread.count({ where });
   console.log(`  · 연결이 비어 있는 스레드: ${total}건`);
 
@@ -43,29 +50,16 @@ const LIMIT = Number((process.argv.find((a) => a.startsWith('--limit=')) || '').
     lastId = rows[rows.length - 1].id;
     for (const th of rows) {
       scanned++;
-      // 이 스레드에 등장한 주소 — from 이 가장 강한 신호라 앞에 둔다.
-      const msgs = await EmailMessage.findAll({
-        where: { thread_id: th.id },
-        attributes: ['from_email', 'to_emails', 'cc_emails', 'direction'],
-        order: [['sent_at', 'ASC']], limit: 20,
-      });
-      const addrs = [];
-      for (const m of msgs) {
-        // 받은 메일이면 보낸 사람이, 보낸 메일이면 받는 사람이 상대다.
-        if (m.direction === 'inbound' && m.from_email) addrs.push(m.from_email);
-        for (const t of (Array.isArray(m.to_emails) ? m.to_emails : [])) addrs.push(t && (t.email || t));
-        for (const c of (Array.isArray(m.cc_emails) ? m.cc_emails : [])) addrs.push(c && (c.email || c));
-        if (m.direction === 'outbound' && m.from_email) addrs.push(m.from_email);   // 우리 주소 — 매칭 안 되는 게 정상
-      }
+      // 이 스레드에 등장한 주소 — from 이 가장 강한 신호라 앞에 둔다(services/mailLink.threadAddresses 한 벌).
+      const addrs = await threadAddresses(th.business_id, th.id);
       if (!addrs.length) continue;
       if (APPLY) {
         const r = await linkThread(th, { addresses: addrs });
         if (r.changed) { changed++; if (r.via) via[r.via] = (via[r.via] || 0) + 1; }
       } else {
-        // 미리보기 — 쓰지 않고 판정만
-        const probe = { id: th.id, business_id: th.business_id, client_id: th.client_id, project_id: th.project_id };
-        const r = await linkThread(probe, { addresses: addrs });
-        if (r.changed) { changed++; if (r.via) via[r.via] = (via[r.via] || 0) + 1; }
+        // 미리보기 — **쓰지 않고 판정만**(resolveLink 는 쓰기가 없다 — P1)
+        const r = await resolveLink(Number(th.business_id), { client_id: th.client_id || null, project_id: th.project_id || null }, addrs);
+        if (Object.keys(r.patch).length) { changed++; if (r.via) via[r.via] = (via[r.via] || 0) + 1; }
       }
       if (LIMIT && scanned >= LIMIT) break;
     }

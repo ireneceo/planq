@@ -3618,6 +3618,10 @@ router.post('/:id/clients', authenticateToken, ...require('../middleware/costGua
       action: 'project.client_added', targetType: 'project_client', targetId: row.id,
       newValue: { project_id: project.id, project_name: project.name, client_id: clientRow ? clientRow.id : null, name: row.contact_name, email: row.contact_email },
     });
+    // 그 주소의 지난 메일을 이 고객(+ 초대 주소가 가리키는 프로젝트)에 붙인다(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md B)
+    if (clientRow && row.contact_email) {
+      await require('../services/mailLink').afterClientAddressesChanged(project.business_id, clientRow.id, { actorUserId: req.user.id, req, reason: 'project_client' });
+    }
 
     // 초대 이메일 발송 (실패해도 초대 자체는 성공 처리)
     if (row.contact_email && !quiet) {

@@ -11,7 +11,7 @@
 //   그 대화에 링크가 붙고, 서버는 그 링크로 등록할 수 있다(2026-09-12 Irene: "채팅할 때 고객이 이메일 넣으면?").
 //   링크가 없는 순수 대화방(`ref.kind === 'conversation'`)에만 버튼을 숨긴다.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { InboxWhyTag, IntakeNoteLine, LostAskModal, ThreadCountTag } from './SaleInboxBits';   // #449·#450 이유 칩 · 수동 모드 안내
+import { InboxWhyTag, IntakeNoteLine, LostAskModal, ThreadCountTag, previewDirection } from './SaleInboxBits';   // #449·#450 이유 칩 · 수동 모드 안내
 import styled from 'styled-components';
 import { useInboxItemActions } from './useInboxItemActions';
 import { useTranslation } from 'react-i18next';
@@ -167,7 +167,9 @@ const SaleInboxList: React.FC<Props> = ({
     if (!businessId) return undefined;
     // room 은 refCount 관리 — 서버가 connection 시 소속 워크스페이스를 자동 join 하므로 이중 보장(멱등).
     joinRoom(`business:${businessId}`);
-    const offs = ['message:new', 'mail:new', 'inbox:refresh'].map((ev) => onSocket(ev, silentReload));
+    const offs = ['message:new', 'mail:new', 'inbox:refresh', 'client:updated'].map((ev) => onSocket(ev, silentReload));
+    // 메일이 고객에 붙었을 때만(bulk·client_id) — 읽음 같은 잦은 메일 신호로는 다시 읽지 않는다
+    offs.push(onSocket<{ bulk?: boolean; client_id?: number }>('mail:updated', (o) => { if (o && (o.bulk || o.client_id !== undefined)) silentReload(); }));
     return () => {
       offs.forEach((off) => off());
       if (reloadTimer.current) window.clearTimeout(reloadTimer.current);
@@ -347,8 +349,8 @@ const SaleInboxList: React.FC<Props> = ({
                     {it.title && <Title><HighlightText text={it.title} query={q} /></Title>}
                     {/* 메일 미리보기는 스레드의 **마지막 메일**이다 — 우리가 답했으면 우리 답장. 누가 쓴 것인지 앞에 적는다(2026-10-23 Irene) */}
                     {it.preview
-                      ? <Preview $lead={!it.title}>{it.ref.kind === 'email_thread' && (it.meta?.direction === 'outbound' || it.meta?.direction === 'inbound') && (
-                        <DirMark $out={it.meta?.direction === 'outbound'}>{t(it.meta?.direction === 'outbound' ? 'inbox.dirOut' : 'inbox.dirIn') as string}</DirMark>
+                      ? <Preview $lead={!it.title}>{previewDirection(it) && (
+                        <DirMark $out={previewDirection(it) === 'outbound'}>{t(previewDirection(it) === 'outbound' ? 'inbox.dirOut' : 'inbox.dirIn') as string}</DirMark>
                       )}<HighlightText text={it.preview} query={q} /></Preview>
                       : !it.title && <Preview $muted>{t('inbox.noBody') as string}</Preview>}
                   </RowBody>

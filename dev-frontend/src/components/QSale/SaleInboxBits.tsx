@@ -40,6 +40,13 @@ const IntakeNoteX = styled.button`
 `;
 
 /** 행 칩 — 이 행이 **왜** 상담에 있는가(메일함 «내 차례» 축과 상담 «관계» 축의 차이를 말한다). */
+/** 미리보기 앞 «받음/보냄» — 메일 행은 meta.direction · 등록 고객 행은 그 고객 최신 메일(meta.mail.direction, 2026-11-27) */
+export function previewDirection(it: SaleInboxItem): 'inbound' | 'outbound' | null {
+  const dir = it.ref.kind === 'email_thread' ? it.meta?.direction
+    : it.ref.kind === 'client' ? (it.meta?.mail as { direction?: string } | undefined)?.direction : null;
+  return dir === 'inbound' || dir === 'outbound' ? dir : null;
+}
+
 export const InboxWhyTag: React.FC<{ it: SaleInboxItem }> = ({ it }) => {
   const { t } = useTranslation('qsale');
   const k = whyKey(it);
