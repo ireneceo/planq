@@ -75,7 +75,7 @@ export interface Thread {
   // 2026-09-15 — 검색은 폴더를 넘는다(서버 searchFolderWhere). 그래서 행이 **자기 자리**를 말한다.
   //   판정 정본은 서버 services/mailFolders.folderOf — 화면이 다시 계산하지 않는다.
   folder?: string | null;
-  client: { id: number; display_name?: string; company_name?: string } | null;
+  client: { id: number; display_name?: string; company_name?: string; sales_stage?: string | null } | null;
   project?: { id: number; name?: string; color?: string } | null;
   uncertain_reason?: string | null;
   triage?: string | null; // human / automated / marketing / spam / unknown (N+83)

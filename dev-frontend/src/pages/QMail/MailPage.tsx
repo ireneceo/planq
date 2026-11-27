@@ -156,7 +156,7 @@ import {
   SkelCard,
   MessagesScroll,
   DetailScroll,
-  MetaChip,
+  MetaChip, ClientBadge, ClientBadgeKind, ClientBadgeName, ClientBadgeStage,
   NewLabelInput,
   NoAcctBtn,
   NoAcctHint,
@@ -1396,10 +1396,25 @@ const MailPage: React.FC = () => {
     }
   }, [businessId, clearSelection, loadList, loadCounts, t]);
 
+  // «고객으로 등록» — 상대 주소·드로어(addressActions)는 아래에서 만들어지므로 ref 로 잇는다.
+  const registerClientRef = useRef<() => void>(() => {});
   const detailMenuItems = useMemo<OverflowItem[]>(() => {
     if (!detail) return [];
     const cur = String(detail.follow_up_days ?? 'default');
     const items: OverflowItem[] = [
+      // ★ 2026-11-27 (Irene: "상담으로 보내기가 아니라 이 이메일주소를 고객으로 등록하기가 중요") — 맨 위.
+      //   고객에 연결된 스레드는 등록할 것이 없으니 «고객 보기» 로 바꾼다.
+      detail.client ? {
+        key: 'client-view',
+        label: t('actions.viewClient', { defaultValue: '고객 보기' }) as string,
+        onClick: () => { if (detail.client) openClientTab(detail.client.id); },
+        testId: 'mail-detail-view-client',
+      } : {
+        key: 'client-register',
+        label: t('actions.registerClient', { defaultValue: '고객으로 등록' }) as string,
+        onClick: () => { registerClientRef.current(); },
+        testId: 'mail-detail-register-client',
+      },
       // 폰에서는 밴드2 의 [팔로우] 가 여기로 온다(밴드에서는 빠진다)
       ...(isPhone ? [{
         key: 'follow',
@@ -2112,6 +2127,13 @@ const MailPage: React.FC = () => {
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [businessId]);
+  // 상대 이름 — peerEmail 과 같은 사람의 메일 헤더 이름(드로어 이름 칸 기본값)
+  const peerName = useMemo(() => {
+    if (!detail || !peerEmail) return null;
+    const m = [...detail.messages].reverse().find(x => String(x.from_email || '').toLowerCase() === peerEmail && x.from_name);
+    return m?.from_name || null;
+  }, [detail, peerEmail]);
+  registerClientRef.current = () => { addressActions.onSaveClient(peerEmail || '', peerName); };
   const [cSubject, setCSubject] = useState('');
   const [cBody, setCBody] = useState('');
   // ★ 서명 언어 판정용 — 타이핑마다 서버를 부르지 않게 **debounce** 한 본문을 뱃지에 넘긴다.
@@ -3170,7 +3192,18 @@ const MailPage: React.FC = () => {
                       **가장 덜 필요한 정보**다 — 바로 아래 메시지들이 그 수만큼 실제로 나열된다.
                       액션(담당·태그·팔로우·업무추출)을 줄이는 것보다 이쪽이 낫다. */}
                   {detail.message_count > 1 && <MetaChip $hidePhone>{t('messageCount', { defaultValue: '{{n}}개 메시지', n: detail.message_count }) as string}</MetaChip>}
-                  {detail.client && <MetaChip>{detail.client.display_name || detail.client.company_name}</MetaChip>}
+                  {/* 등록된 고객의 메일 — 이름만 있던 회색 칩을 «고객» 배지로(누르면 고객 상세 새 탭). 등록 버튼 대신 이것이 보인다. */}
+                  {detail.client && (
+                    <ClientBadge type="button" data-testid="mail-detail-client-badge"
+                      onClick={() => { if (detail.client) openClientTab(detail.client.id); }}
+                      title={t('client.viewHint', { defaultValue: '고객 상세 열기' }) as string}>
+                      <ClientBadgeKind>{t('client.badge', { defaultValue: '고객' }) as string}</ClientBadgeKind>
+                      <ClientBadgeName>{detail.client.display_name || detail.client.company_name}</ClientBadgeName>
+                      {detail.client.sales_stage && detail.client.sales_stage !== 'none' && (
+                        <ClientBadgeStage>{tSale(`stage.${detail.client.sales_stage}`, { defaultValue: detail.client.sales_stage }) as string}</ClientBadgeStage>
+                      )}
+                    </ClientBadge>
+                  )}
                   {!detail.account?.owner_user_id && respName(detail.account?.responsible_user_id) && (
                     <MetaChip $hidePhone data-testid="mail-detail-responsible">{t('responsible.chip', { name: respName(detail.account?.responsible_user_id) }) as string}</MetaChip>
                   )}
@@ -3255,18 +3288,23 @@ const MailPage: React.FC = () => {
                       핸들러는 promoteThread 하나 — ⋯ 메뉴와 같은 문이다(베끼지 않는다).
                       ★ 2026-11-27 — ⋯ 항목과 같은 술어(고객에 연결된 스레드엔 내지 않음). 폰에서는 ⋯ 에만 두고,
                       보낸 결과(«상담으로 보냄»)만 밴드에 남긴다(Fable 설계). */}
-                  {!detail.client && (!isPhone || promoteDone === detail.id) && (
+                  {/* ★ 2026-11-27 (Irene: "이메일에서도 상담으로 보내기가 아니라 이 이메일주소를 고객으로 등록하기가 중요") —
+                      고객에 안 붙은 메일의 주 버튼은 «고객으로 등록»(주소 메뉴와 같은 드로어 · 이 메일과 같은 주소 메일이 그 고객에 붙는다).
+                      «상담으로 보내기» 문은 ⋯ 메뉴·목록 우클릭에 남는다. 폰은 ⋯ 맨 위(밴드2 한 줄 계약). */}
+                  {!detail.client && !isPhone && peerEmail && (
                   <CtrlBtn
                     type="button"
-                    $on={promoteDone === detail.id}
-                    data-testid="mail-detail-promote-sale-inline"
-                    onClick={() => { void promoteThread(detail.id); }}
-                    title={t('actions.promoteToSaleHint', { defaultValue: '이 메일을 Q sales 상담 목록으로 보냅니다' }) as string}
+                    $on={false}
+                    $primary
+                    data-testid="mail-detail-register-client-inline"
+                    onClick={() => { registerClientRef.current(); }}
+                    title={t('actions.registerClientHint', { defaultValue: '이 주소를 고객으로 등록합니다 — 이 주소로 오는 메일은 모두 그 고객의 메일이 됩니다' }) as string}
                   >
-                    {promoteDone === detail.id
-                      ? t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string
-                      : t('actions.promoteToSale', { defaultValue: '상담으로 보내기' }) as string}
+                    {t('actions.registerClient', { defaultValue: '고객으로 등록' }) as string}
                   </CtrlBtn>
+                  )}
+                  {!detail.client && promoteDone === detail.id && (
+                    <MetaChip data-testid="mail-detail-promoted-mark">{t('actions.promotedToSale', { defaultValue: '상담으로 보냄' }) as string}</MetaChip>
                   )}
                   {promoteErr && promoteErr.id === detail.id && (
                     <PromoteErrTag data-testid="mail-detail-promote-error" role="status">

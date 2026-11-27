@@ -428,7 +428,7 @@ router.get('/:businessId/email-threads/:id',
           //   개인메일 본문 이미지가 워크스페이스 등급으로 저장될 수 있다(#378 후속).
           //   값 자체는 노출돼도 안전하다 — 이 스레드는 이미 본인만 볼 수 있는 것이다(위 필터).
           { model: EmailAccount, attributes: ['id', 'email', 'display_name', 'owner_user_id', 'responsible_user_id'], required: false },
-          { model: Client, attributes: ['id', 'display_name', 'company_name', 'invite_email'], required: false },
+          { model: Client, attributes: ['id', 'display_name', 'company_name', 'invite_email', 'sales_stage'], required: false },
           { model: Project, attributes: ['id', 'name', 'color'], required: false },
         ],
       });

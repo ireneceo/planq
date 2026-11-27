@@ -245,7 +245,8 @@
     "attachments_one": "{{count}} attachment",
     "attachments_other": "{{count}} attachments",
     "holding": "Holding reply",
-    "holdingHint": "A holding reply was sent; the real answer is still pending"
+    "holdingHint": "A holding reply was sent; the real answer is still pending",
+    "clientTag": "Client"
   },
   "translate": {
     "langLabel": "Translation language",
@@ -309,7 +310,10 @@
     "markReview": "Move to Worth a look",
     "markReviewHint": "Moves this mail to Worth a look. Do it twice for the same sender and PlanQ will put that sender there automatically.",
     "markUnread": "Mark as unread",
-    "markUnreadFailed": "Couldn't mark as unread. Please try again."
+    "markUnreadFailed": "Couldn't mark as unread. Please try again.",
+    "registerClient": "Add as client",
+    "registerClientHint": "Register this address as a client — every email from it becomes that client's email",
+    "viewClient": "View client"
   },
   "selectWorkspace": "Select a workspace.",
   "selectThread": "Select a thread",
@@ -1128,5 +1132,9 @@
       "all": "Read and unread mail",
       "unread": "Unread mail only"
     }
+  },
+  "client": {
+    "badge": "Client",
+    "viewHint": "Open client details"
   }
 }

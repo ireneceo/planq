@@ -621,15 +621,15 @@ export const CtxResizeHandle = styled.div`
   @media (max-width: 1024px) { display: none; }
 `;
 // 밴드2 우측의 자주 쓰는 액션 (별표·팔로우·업무추출) — 알약 버튼.
-export const CtrlBtn = styled.button<{ $on: boolean }>`
+export const CtrlBtn = styled.button<{ $on: boolean; $primary?: boolean }>`
   height: 28px; padding: 0 12px;
   border-radius: 999px;
   font-size: 0.75rem; font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  border: 1px solid ${p => p.$on ? '#5EEAD4' : '#E2E8F0'};
-  background: ${p => p.$on ? '#F0FDFA' : '#FFFFFF'};
-  color: ${p => p.$on ? '#0F766E' : '#64748B'};
+  border: 1px solid ${p => p.$primary ? '#14B8A6' : p.$on ? '#5EEAD4' : '#E2E8F0'};
+  background: ${p => p.$primary ? '#14B8A6' : p.$on ? '#F0FDFA' : '#FFFFFF'};
+  color: ${p => p.$primary ? '#FFFFFF' : p.$on ? '#0F766E' : '#64748B'};
   transition: background 0.12s, border-color 0.12s;
   &:hover { border-color: #5EEAD4; }
   &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
@@ -646,6 +646,32 @@ export const MetaChip = styled.span<{ $hidePhone?: boolean }>`
   border-radius: 999px;
   /* 좁은 폰에서 밴드2 를 한 줄로 지키기 위해 자리를 내주는 칩. 정보는 아래 메시지 목록이 대신한다. */
   ${p => p.$hidePhone ? '@media (max-width: 420px) { display: none; }' : ''}
+`;
+// 2026-11-27 — 등록된 고객의 메일 표시(밴드2). 누르면 고객 상세. «고객» 글자 + 이름 + 영업 단계.
+export const ClientBadge = styled.button`
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; max-width: 260px;
+  padding: 2px 9px 2px 3px; border-radius: 999px;
+  border: 1px solid #99F6E4; background: #F0FDFA; color: #0F766E;
+  font-size: 0.6875rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  &:hover { border-color: #14B8A6; }
+  &:focus-visible { outline: 2px solid #5EEAD4; outline-offset: 2px; }
+`;
+export const ClientBadgeKind = styled.span`
+  padding: 1px 7px; border-radius: 999px; background: #14B8A6; color: #FFFFFF; font-weight: 700;
+`;
+export const ClientBadgeName = styled.span`
+  min-width: 0; overflow: hidden; text-overflow: ellipsis;
+`;
+export const ClientBadgeStage = styled.span`
+  color: #0D9488; font-weight: 500;
+  &::before { content: '·'; margin-right: 6px; color: #5EEAD4; }
+`;
+// 목록 행 — 고객에 연결된 메일 표시(제목 앞). SentTag 와 같은 규격, 채운 색으로 가른다.
+export const ClientTag = styled.span`
+  display: inline-flex; align-items: center; flex-shrink: 0;
+  margin-right: 5px; padding: 1px 6px; border-radius: 4px;
+  background: #14B8A6; color: #FFFFFF;
+  font-size: 0.625rem; font-weight: 700; vertical-align: middle;
 `;
 export const AddLabelChip = styled.button<{ $color: string }>`
   padding: 2px 10px; border-radius: 999px;

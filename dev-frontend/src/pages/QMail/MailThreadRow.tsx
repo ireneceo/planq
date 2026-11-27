@@ -6,7 +6,7 @@ import MatchReason from '../../components/Common/MatchReason';
 import { waitingDays, type Folder, type Thread } from './mailTypes';
 import {
   ThreadItem, ThreadRow1, ThreadSender, ThreadRow1Right, ListClip, ClipIcon, ThreadTime,
-  ThreadSubject, UnreadDot, SentTag, PromoteErrTag, ThreadPreview, FollowUpChip,
+  ThreadSubject, UnreadDot, SentTag, ClientTag, PromoteErrTag, ThreadPreview, FollowUpChip,
   ImpersonationBadge, SpamReasonBadge, UncertainBadge, UncertainInline, ReplyNeededBadge,
   InquiryBadge, HoldingBadge, RuleBadge, ReplyRow, HandledBadge, OverdueChip, RowBtn, SendArrow,
   RowLabels, FolderChip, LabelChip, ResponsibleChip,
@@ -95,6 +95,12 @@ export default function MailThreadRow({
             (Irene: "왜 [보낸]이란 표시가 있고 없고 달라?"). 전부 보낸 메일인 폴더라 정보량도 0. */}
         {/* #438 — 답을 기다리는 스레드는 고객 메일을 미리보기로 보여주므로 「보낸」 태그를 달지 않는다
             (태그와 미리보기가 서로 다른 메일을 가리키게 된다). */}
+        {/* 2026-11-27 — 등록된 고객의 메일은 목록에서도 바로 알아보게(Irene: "고객으로 등록된게 들어온 거면 확실히 알게") */}
+        {mt.client && (
+          <ClientTag data-testid="mail-thread-client-tag" title={(mt.client.display_name || mt.client.company_name || '') as string}>
+            {t('thread.clientTag', { defaultValue: '고객' }) as string}
+          </ClientTag>
+        )}
         {folder !== 'sent' && mt.last_message_direction === 'outbound' && !mt.reply_preview && (
           <SentTag>{t('thread.sent', { defaultValue: '보낸' }) as string}</SentTag>
         )}
