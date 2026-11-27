@@ -36,7 +36,7 @@ const CUE_WRITE = [
   'create_event', 'update_event', 'add_meeting_to_event', 'reschedule_events',
   'create_document', 'append_to_document', 'update_document', 'link_documents', 'move_document_to_project',
   'create_project', 'create_memo', 'add_project_note', 'add_client_interaction', 'create_knowledge_item',
-  'create_mail_reply_draft',
+  'create_mail_reply_draft', 'create_client_inquiry',
 ];
 const CUE_READ = [
   'search_all', 'search_tasks', 'get_task', 'get_task_notes', 'search_members', 'search_clients', 'get_client',

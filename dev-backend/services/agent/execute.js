@@ -208,6 +208,7 @@ async function runTool(p0, name, rawArgs, opts = {}) {
       //   걸리면 대상이 «task_comment / 워크스페이스 id» 로 남았다(Fable 행 5 D1, 2026-10-07 실측).
       : (data?.note && typeof data.note === 'object') ? { target_type: 'task_comment', target_id: data.note.note_id }
         : data?.interaction ? { target_type: 'client_interaction', target_id: data.interaction.interaction_id }
+        : (data?.client?.client_id && data?.linked_existing !== undefined) ? { target_type: 'client', target_id: data.client.client_id }
           : data?.project_note ? { target_type: 'project_note', target_id: data.project_note.note_id }
             : data?.file ? { target_type: 'file', target_id: data.file.file_id }
               : data?.document ? { target_type: 'post', target_id: data.document.post_id }

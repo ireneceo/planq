@@ -7,10 +7,9 @@ const { Op } = require('sequelize');
 const { Client, User, GuestLink, Conversation, EmailThread, EmailMessage, Message, WorkspaceInquiry } = require('../models');
 const { successResponse, errorResponse } = require('../middleware/errorHandler');
 const { perUserDaily } = require('../middleware/costGuard');
-// 첫 상담 기록은 **상담 원장과 같은 문**으로 만든다(감사·실시간·last_touch 가 한 곳)
-const { createInteraction } = require('../services/saleInteraction');
+// 첫 상담 기록·단계·한도·감사는 services/actions/client_actions.saveInquiryClient 한 곳(2026-11-27)
 const { extractInquiry } = require('../services/saleExtract');
-const { createAuditLog, writeAudit } = require('../services/auditService');
+const { writeAudit } = require('../services/auditService');
 // ★ 2026-09-17 (Fable 게이트 FAIL) — 상담 칸의 **상태가 곧 이 원장**이다.
 //   `classifyMailThreads` 가 `origin`(promote/restore/dismiss/purge)을 읽어 어느 칸에 놓을지 정한다.
 //   그런데 `createAuditLog` 는 `setImmediate` fire-and-forget 이라 **200 을 돌려준 시점에 상태가 없다.**
@@ -19,11 +18,9 @@ const { createAuditLog, writeAudit } = require('../services/auditService');
 //   그래서 이 다섯 곳만 `writeAudit`(await + 실패는 던진다)로 쓴다 —
 //   기록이 안 남으면 **아무 일도 안 일어난 것**이므로 200 을 주면 거짓말이다.
 //   순수 기록(client.save_from_guest)은 종전대로 fire-and-forget 이다.
-const { setStage } = require('../services/salesStage');
-const planEngine = require('../services/plan');
 const {
   writeChain, broadcast, trimOrNull, normEmail, normPhoneDigits, EMAIL_RE, SOURCES,
-  CLIENT_INCLUDE, loadClientWithIncludes, touchClient, serializeClients, findExistingByContact,
+  CLIENT_INCLUDE, loadClientWithIncludes, serializeClients,
 } = require('../services/saleCommon');
 
 /** 게스트 표시명의 원천은 messages.meta.guest.name 박제다 — 서버가 새로 짓지 않는다. */
@@ -285,6 +282,7 @@ router.post('/:businessId/inbox/promote', ...writeChain, async (req, res, next) 
   } catch (err) { next(err); }
 });
 
+// audit-exempt: 감사(client.save_from_guest / link_from_sale)는 services/actions/client_actions.saveInquiryClient 가 남긴다
 router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next) => {
   try {
     const businessId = Number(req.params.businessId);
@@ -385,80 +383,13 @@ router.post('/:businessId/save-as-client', ...writeChain, async (req, res, next)
       return errorResponse(res, 'invalid_from', 400);
     }
 
-    let client = await findExistingByContact(businessId, seed);
-    let linkedExisting = !!client;
-    if (!client) {
-      const planCan = await planEngine.can(businessId, 'add_prospect');
-      if (!planCan.ok) return res.status(422).json(planEngine.buildQuotaError(planCan, businessId));
-      client = await Client.create({
-        business_id: businessId,
-        display_name: seed.display_name,
-        company_name: seed.company_name,
-        phone: seed.phone,
-        invite_email: seed.email,
-        kind: 'customer',
-        status: 'prospect',
-        sales_source: seed.sales_source,
-        // 저장한 사람이 첫 담당이다 — 누구의 것도 아닌 문의는 조용히 쌓인다
-        assigned_member_id: req.user.id,
-        last_touch_at: seed.touchAt || null,
-      });
-      // ★ 2026-09-13 (Irene: "단계 / 영업 외 → 문의 · saved_from:email_thread … 이해 안가게 표시하는 건
-      //   전혀 없게 할 수 있어?") — `reason` 은 **화면에 나가는 값**이다. 개발자용 표식을 넣으면
-      //   사용자가 그대로 읽는다. 어디서 왔는지는 사람 말로 남긴다.
-      //   (뜻은 잃지 않는다 — 출처 구분이 필요하면 origin/sourceRef 로 남기지 reason 에 코드를 쓰지 않는다.)
-      // ★ 2026-10-08 0-I — reason 은 **코드**로 남기고 화면이 번역한다(qsale `stageReason.<code>`).
-      //   옛: 한국어 문장을 박제해 영어 사용자 타임라인에 한국어가 그대로 나갔다. (과거 행의 한국어는 화면이 그대로 그린다.)
-      const FROM_REASON = { email_thread: 'mail_inquiry', guest_link: 'guest_inquiry', manual: 'manual_add', inquiry: 'web_inquiry' };
-      await setStage(client, 'inquiry', {
-        origin: 'manual', by: req.user.id,
-        reason: FROM_REASON[from] || 'client_added',
-      });
-      // 한도 숫자는 30초 캐시라 방금 만든 문의가 화면에 안 늘어 보인다 — 만든 쪽이 비운다(files.js 와 같은 처방)
-      planEngine.invalidateBusinessCache(businessId);
-      linkedExisting = false;
-    }
-
-    // 부수효과 — 비어 있는 연결만 채운다(사람이 이미 건 연결을 덮지 않는다).
-    //   2026-10-23 연결 코드는 services/clientLinkSource 한 벌 — /managed·/invite 도 같은 함수를 쓴다(docs/CLIENT_ADD_INVITE_DESIGN.md §3).
-    const resolvedSource = link ? { kind: 'guest_link', link }
-      : thread ? { kind: 'email_thread', thread, senderEmail: null }
-        : null;
-    await require('../services/clientLinkSource').attachSourceToClient({
-      businessId, actorUserId: req.user.id, client, resolved: resolvedSource, req, email: seed.email,
+    // 등록 본체는 행동 계층 한 곳 — 외부 AI(create_client_inquiry)도 같은 함수(docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md D)
+    const saved = await require('../services/actions/client_actions').saveInquiryClient({
+      businessId, userId: req.user.id, from, seed, link, thread, inquiry, req,
+      interaction: body.interaction || null,
     });
-    if (seed.touchAt) await touchClient(client, seed.touchAt);
-
-    // 첫 상담 기록 — 전화·방문 내용은 문의를 **등록하는 그 순간**에만 손에 있다.
-    //   여기서 안 받으면 사용자는 저장 후 상세로 들어가 한 번 더 쓴다(그리고 대개 안 쓴다).
-    //   ★ 실패를 삼키지 않는다 — 응답에 담아 화면이 말하게 한다(기록만 실패하고 고객은 생긴 상태).
-    let interactionError = null;
-    // 문의 폼에서 왔으면 그 내용이 고객 타임라인 첫 줄이다(같은 기록 문 — createInteraction) · 문의 행은 처리함으로
-    if (inquiry) {
-      if (!inquiry.client_id) {
-        const made = await createInteraction({
-          businessId, client, userId: req.user.id, req,
-          body: { kind: 'memo', title: inquiry.service_name || null, body: inquiry.message, occurred_at: inquiry.created_at },
-        });
-        if (made.error) interactionError = made.error;
-      }
-      await inquiry.update({ client_id: client.id, status: 'handled', handled_by: req.user.id, handled_at: new Date() });
-      require('../services/workspaceInquiry').emitSignal(req.app, businessId, inquiry.id);
-    }
-    if (body.interaction && (body.interaction.body || body.interaction.title)) {
-      const made = await createInteraction({
-        businessId, client, body: body.interaction, userId: req.user.id, req,
-      });
-      if (made.error) interactionError = made.error;
-    }
-
-    createAuditLog({
-      userId: req.user.id, businessId,
-      action: linkedExisting ? 'client.link_from_sale' : 'client.save_from_guest',
-      targetType: 'client', targetId: client.id,
-      newValue: { from, guest_link_id: link?.id || null, email_thread_id: thread?.id || null, inquiry_id: inquiry?.id || null, linked_existing: linkedExisting },
-    });
-    broadcast(req, businessId, linkedExisting ? 'client:updated' : 'client:new', { id: client.id, business_id: businessId });
+    if (!saved.ok) return res.status(422).json(saved.quota);
+    const { client, linkedExisting, interactionError } = saved;
 
     const fresh = await Client.findOne({ where: { id: client.id, business_id: businessId }, include: CLIENT_INCLUDE });
     const [out] = await serializeClients(businessId, [fresh]);

@@ -17,6 +17,7 @@ const filesa = require('./tools/files_attach');
 const proj = require('./tools/projects');
 const kbw = require('./tools/knowledge_write');
 const tw = require('./tools/task_watchers');
+const cw = require('./tools/clients_write');
 const { pageInput, LIST_SUFFIX } = require('./page');
 
 const dateOnly = t.dateOnly;
@@ -166,6 +167,29 @@ const TOOLS = [
       idempotency_key: idem,
     },
     handler: (p, a, actor) => notes.addClientInteraction(p, a, actor),
+  },
+  // 2026-11-27 (Fable 설계 D · docs/QSALE_CLIENT_TOUCHPOINT_DESIGN.md) — Q sale 에 «문의 고객» 추가. 직접 관리·초대·수정 도구는 없다.
+  //   이메일이 있으면 그 주소의 지난 메일이 이 고객에 붙는다(되돌리기 어렵다) → MEDIUM 확인 2단계.
+  {
+    name: 'create_client_inquiry', risk: 'LOW', write: true, dedupe: 'args', scopes: ['clients:write'],
+    description: 'Add a new inquiry client (a person or company who asked about our services) to Q sale in PlanQ — e.g. "add this person who called today as a new inquiry". Give display_name or company_name; email and phone are optional. If a client with the same email or phone already exists, nothing new is created and that client is returned (linked_existing). Optionally saves the first consultation record (content). Past mail to and from the email address is linked to the client. Creates inquiry clients only — it does not invite anyone, send email, or change existing clients. With an email or a source mail it requires confirmation: the first call only returns a preview.',
+    input: {
+      display_name: z.string().trim().max(100).optional().describe('The person\'s name'),
+      company_name: z.string().trim().max(200).optional(),
+      email: z.string().trim().max(200).optional(),
+      phone: z.string().trim().max(40).optional(),
+      sales_source: z.enum(['phone', 'referral', 'web', 'event', 'email', 'manual', 'other']).optional().describe('How the inquiry came in. Default "manual".'),
+      content: z.string().trim().max(20000).optional().describe('What they asked or what was discussed — saved as the first consultation record'),
+      content_title: z.string().trim().max(200).optional(),
+      kind: z.enum(['call', 'meeting', 'visit', 'memo', 'other']).optional().describe('Kind of the first record. Default "memo".'),
+      direction: z.enum(['inbound', 'outbound']).optional(),
+      occurred_at: z.string().max(40).optional().describe('When it happened (ISO 8601). Default now. Cannot be in the future.'),
+      source: mailSource.optional().describe(`${SOURCE_DESC} Use this when the inquiry came by mail (thread from search_mail).`),
+      confirmation_token: confirm, idempotency_key: idem,
+    },
+    riskOf: (a) => (a.email || a.source ? 'MEDIUM' : 'LOW'),
+    preview: (p, a) => cw.previewCreateClientInquiry(p, a),
+    handler: (p, a, actor) => cw.createClientInquiry(p, a, actor),
   },
   {
     name: 'add_project_note', risk: 'LOW', write: true, dedupe: 'args', scopes: ['notes:write'],
