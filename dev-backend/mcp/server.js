@@ -231,7 +231,7 @@ const AGENT_INSTRUCTIONS = [
   'and naturally, tell the user what they would gain and how to reconnect (connection.new_abilities, connection.how_to_reconnect) —',
   'a recommendation, never a reason to delay what they asked.',
   'Files with tasks or documents: files already in PlanQ go in with file_ids (create_task, create_document) or attach_files_to_task / attach_files_to_document;',
-  'a file the user attached in this ChatGPT conversation goes in with upload_file (attach_to). If you cannot pass a file, give the user the upload_url from the result.',
+  'a file the user attached in this ChatGPT conversation goes in with upload_file (attach_to). If you cannot pass a file, give the user the upload_url from the result — only for adding that file (it opens the editor); the link to the task or document itself is always url.',
   'Never say a file was attached unless the result lists it in attached_files.',
 ].join(' ');
 

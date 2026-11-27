@@ -237,7 +237,7 @@ async function uploadFile(p, a, actor) {
     auditValue: { source: 'agent', provider: p.provider, grant_id: p.grantId, file_id: f.file_id },
   });
 }
-const UPLOAD_HINT = 'Only files the user attached in this ChatGPT conversation can be uploaded. Files you made in the chat (docx/xlsx/pdf/images) cannot be passed through this connection: use create_document for formatted text, create_text_file for plain text, otherwise give the user the upload_url from create_task/create_document (or the task/document link) to add it in PlanQ. Files already in PlanQ: attach_files_to_task / attach_files_to_document.';
+const UPLOAD_HINT = 'Only files the user attached in this ChatGPT conversation can be uploaded. Files you made in the chat (docx/xlsx/pdf/images) cannot be passed through this connection: use create_document for formatted text, create_text_file for plain text, otherwise give the user the upload_url from create_task/create_document (or the task/document link) to add it in PlanQ. upload_url opens the editor — never give it as the link to view the task/document (that is url). Files already in PlanQ: attach_files_to_task / attach_files_to_document.';
 
 // ── create_text_file ───────────────────────────────────────
 async function createTextFile(p, a, actor) {

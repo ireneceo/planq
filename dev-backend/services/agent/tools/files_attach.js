@@ -23,7 +23,7 @@ const docUrl = (id) => `${cfg.APP_URL}/docs?post=${id}`;
 /** 사람이 PlanQ 에서 파일을 올리는 곳 — 열면 첨부 고르기가 바로 열린다(attach=1 은 화면이 한 번 쓰고 지운다). */
 const uploadUrl = (kind, id) => (kind === 'task' ? `${taskUrl(id)}&attach=1` : `${docUrl(id)}&attach=1`);
 
-const FILES_HINT = 'Files the user attached in this ChatGPT conversation: call upload_file with attach_to {kind, id}. Files already in PlanQ (list_files, mail attachments): attach_files_to_task / attach_files_to_document with their file_id. If you cannot pass the file (e.g. in Claude, or a file you generated), give the user upload_url to add it in PlanQ. Never say a file is attached unless it is listed in attached_files.';
+const FILES_HINT = 'Files the user attached in this ChatGPT conversation: call upload_file with attach_to {kind, id}. Files already in PlanQ (list_files, mail attachments): attach_files_to_task / attach_files_to_document with their file_id. If you cannot pass the file (e.g. in Claude, or a file you generated), give the user upload_url to add it in PlanQ. upload_url opens the editor, so give it only for adding a file and label it as such; to show the user the task/document, always link url (view mode), never upload_url. Never say a file is attached unless it is listed in attached_files.';
 
 function vlevelOf(f) {
   const v = f.vlevel || ({ personal: 'L1', private: 'L1', project: 'L2', workspace: 'L3', public: 'L4' }[f.visibility]) || 'L3';
