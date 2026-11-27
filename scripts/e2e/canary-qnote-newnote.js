@@ -118,7 +118,7 @@ async function run() {
       await page.click('[data-testid="qnote-card-people"] button[aria-expanded]');
       await sleep(250);
       await page.evaluate(() => {
-        const inp = document.querySelector('[data-testid="qnote-card-people"] input');
+        const inp = document.querySelector('[data-testid="qnote-start-participant-name"]'); // 2026-11-27 고르기 칸이 위에 생겨 첫 input 이 아니다
         if (inp) { inp.focus(); }
       });
       await page.keyboard.type('김확인');

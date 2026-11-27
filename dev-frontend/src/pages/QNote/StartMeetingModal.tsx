@@ -34,6 +34,8 @@ import FilePicker, { type FilePickerResult } from '../../components/Common/FileP
 import { fetchWorkspaceFiles } from '../../services/files';
 import { mapApiError } from '../../utils/apiError';
 import { isEnterAction } from '../../utils/imeKey';
+import { pickableMembers, type RawMemberRow } from '../../utils/pickableMembers';
+import { listWorkspaceClients, type WorkspaceClientRow } from '../../services/qtalk';
 
 interface Props {
   open: boolean;
@@ -406,6 +408,48 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
     setPriorityCsvResult(null);
     setMeetingAnswerStyle('');
     setMeetingAnswerLength('medium');
+  };
+
+  // 참여자 고르기 — 멤버·고객 목록(캘린더 새 일정 창과 같은 원천: pickableMembers · listWorkspaceClients).
+  //   고객 목록은 Q sale 읽기 권한이 없으면 403 → 멤버만 보인다(막지 않는다). 직접 입력은 그대로 둔다(외부 사람·그룹).
+  const [pickMembers, setPickMembers] = useState<Array<{ user_id: number; name: string; role: string }>>([]);
+  const [pickClients, setPickClients] = useState<WorkspaceClientRow[]>([]);
+  useEffect(() => {
+    if (!open || !businessId) return;
+    let dead = false;
+    apiFetch(`/api/businesses/${businessId}/members`).then((r) => r.json()).then((j) => {
+      if (dead || !j?.success || !Array.isArray(j.data)) return;
+      const raw = j.data as Array<RawMemberRow & { job_title?: string | null; default_role?: string | null }>;
+      setPickMembers(pickableMembers(raw).map((m) => {
+        const r = raw.find((x) => x.user_id === m.user_id);
+        return { user_id: m.user_id, name: m.name, role: r?.job_title || r?.default_role || m.team || m.department || '' };
+      }));
+    }).catch(() => {});
+    listWorkspaceClients(businessId)
+      .then((c) => { if (!dead) setPickClients(c.filter((x) => x.status !== 'archived')); })
+      .catch(() => {});
+    return () => { dead = true; };
+  }, [open, businessId]);
+  const participantPickOptions = useMemo(() => {
+    const taken = new Set(participants.map((p) => p.name.trim()));
+    const me = Number(user?.id);
+    const mem = pickMembers
+      // 이름이 없어 «#id» 로 떨어진 계정은 말한 사람 이름으로 쓸 수 없다 — 후보에서 뺀다
+      .filter((m) => m.user_id !== me && !taken.has(m.name) && !/^#\d+$/.test(m.name))
+      .map((m) => ({ value: `u:${m.user_id}`, label: m.name, name: m.name, role: m.role }));
+    const cli = pickClients
+      .map((c) => {
+        const name = c.display_name || c.company_name || c.biz_name || `#${c.id}`;
+        const company = c.company_name || c.biz_name || '';
+        return { value: `c:${c.id}`, label: `${name} · ${t('startModal.participantClientTag')}`, name, role: company && company !== name ? company : '' };
+      })
+      .filter((o) => !taken.has(o.name));
+    return [...mem, ...cli];
+  }, [pickMembers, pickClients, participants, user?.id, t]);
+  const pickParticipant = (opt: { name?: string; role?: string } | null) => {
+    if (!opt?.name) return;
+    const name = opt.name;
+    setParticipants((prev) => (prev.some((p) => p.name.trim() === name) ? prev : [...prev, { name, role: opt.role || '' }]));
   };
 
   if (!open) return null;
@@ -827,8 +871,22 @@ const StartMeetingModal = ({ open, userLanguage, editMode, initialConfig, editin
                 ))}
               </ParticipantList>
             )}
+            {participantPickOptions.length > 0 && (
+              <ParticipantPick data-testid="qnote-start-participant-pick">
+                <PlanQSelect
+                  options={participantPickOptions}
+                  value={null}
+                  isSearchable
+                  onChange={(opt: any) => pickParticipant(opt)}
+                  placeholder={t('startModal.participantPickPlaceholder')}
+                  noOptionsMessage={() => t('startModal.participantPickEmpty')}
+                />
+                <Hint>{t('startModal.participantManualLabel')}</Hint>
+              </ParticipantPick>
+            )}
             <ParticipantInputs>
               <ParticipantInput
+                data-testid="qnote-start-participant-name"
                 placeholder={t('startModal.participantNamePlaceholder')}
                 value={pName}
                 onChange={(e) => setPName(e.target.value)}
@@ -1995,6 +2053,14 @@ const ParticipantRole = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+`;
+
+const ParticipantPick = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 6px;
+  min-width: 0;
 `;
 
 const ParticipantInputs = styled.div`
